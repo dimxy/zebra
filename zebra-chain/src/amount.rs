@@ -502,7 +502,7 @@ impl Constraint for NonNegative {
 pub const COIN: i64 = 100_000_000;
 
 /// The maximum zatoshi amount.
-pub const MAX_MONEY: i64 = 21_000_000 * COIN;
+pub const MAX_MONEY: i64 = 200_000_000 * COIN; // 21_000_000 * COIN;
 
 /// A trait for defining constraints on `Amount`
 pub trait Constraint {
