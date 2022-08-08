@@ -304,8 +304,13 @@ impl ExpandedDifficulty {
     /// See `PoWLimit` in the Zcash specification.
     pub fn target_difficulty_limit(network: Network) -> ExpandedDifficulty {
         let limit: U256 = match network {
-            /* 2^243 - 1 */
-            Network::Mainnet => (U256::one() << 243) - 1,
+            /* KOMODO_MINDIFF_NBITS - CompactDifficulty(0x200f0f0f) */
+            Network::Mainnet => U256([
+                                      0x0f0f0f0f0f0f0f0fu64,
+                                      0x0f0f0f0f0f0f0f0fu64,
+                                      0x0f0f0f0f0f0f0f0fu64,
+                                      0x0f0f0f0f0f0f0f0fu64
+                                     ]),
             /* 2^251 - 1 */
             Network::Testnet => (U256::one() << 251) - 1,
         };
