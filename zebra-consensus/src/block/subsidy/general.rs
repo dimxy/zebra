@@ -19,27 +19,28 @@ use crate::parameters::subsidy::*;
 ///
 /// [7.8]: https://zips.z.cash/protocol/protocol.pdf#subsidies
 pub fn halving_divisor(height: Height, network: Network) -> u64 {
-    let blossom_height = Blossom
-        .activation_height(network)
-        .expect("blossom activation height should be available");
+    // let blossom_height = Blossom
+    //     .activation_height(network)
+    //     .expect("blossom activation height should be available");
 
-    if height < SLOW_START_SHIFT {
-        unreachable!(
-            "unsupported block height: callers should handle blocks below {:?}",
-            SLOW_START_SHIFT
-        )
-    } else if height < blossom_height {
-        let scaled_pre_blossom_height = (height - SLOW_START_SHIFT) as u64;
-        let halving_shift = scaled_pre_blossom_height / (PRE_BLOSSOM_HALVING_INTERVAL.0 as u64);
-        1 << halving_shift
-    } else {
-        let scaled_pre_blossom_height =
-            (blossom_height - SLOW_START_SHIFT) as u64 * BLOSSOM_POW_TARGET_SPACING_RATIO;
-        let post_blossom_height = (height - blossom_height) as u64;
-        let halving_shift = (scaled_pre_blossom_height + post_blossom_height)
-            / (POST_BLOSSOM_HALVING_INTERVAL.0 as u64);
-        1 << halving_shift
-    }
+    // if height < SLOW_START_SHIFT {
+    //     unreachable!(
+    //         "unsupported block height: callers should handle blocks below {:?}",
+    //         SLOW_START_SHIFT
+    //     )
+    // } else if height < blossom_height {
+    //     let scaled_pre_blossom_height = (height - SLOW_START_SHIFT) as u64;
+    //     let halving_shift = scaled_pre_blossom_height / (PRE_BLOSSOM_HALVING_INTERVAL.0 as u64);
+    //     1 << halving_shift
+    // } else {
+    //     let scaled_pre_blossom_height =
+    //         (blossom_height - SLOW_START_SHIFT) as u64 * BLOSSOM_POW_TARGET_SPACING_RATIO;
+    //     let post_blossom_height = (height - blossom_height) as u64;
+    //     let halving_shift = (scaled_pre_blossom_height + post_blossom_height)
+    //         / (POST_BLOSSOM_HALVING_INTERVAL.0 as u64);
+    //     1 << halving_shift
+    // }
+    1
 }
 
 /// `BlockSubsidy(height)` as described in [protocol specification §7.8][7.8]
