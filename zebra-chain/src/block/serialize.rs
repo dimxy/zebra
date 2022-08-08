@@ -72,18 +72,23 @@ impl ZcashDeserialize for Header {
             ));
         }
 
+        let previous_block_hash = Hash::zcash_deserialize(&mut reader)?;
+
+        // exception for genesis block for KMD (could be any version, not only 4)
+        let possible_genesis: bool = previous_block_hash == Hash([0; 32]);
+
         // # Consensus
         //
         // > The block version number MUST be greater than or equal to 4.
         //
         // https://zips.z.cash/protocol/protocol.pdf#blockheader
-        if version < 4 {
+        if !possible_genesis && version < 4 {
             return Err(SerializationError::Parse("version must be at least 4"));
         }
 
         Ok(Header {
             version,
-            previous_block_hash: Hash::zcash_deserialize(&mut reader)?,
+            previous_block_hash,
             merkle_root: merkle::Root(reader.read_32_bytes()?),
             commitment_bytes: reader.read_32_bytes()?,
             // This can't panic, because all u32 values are valid `Utc.timestamp`s
