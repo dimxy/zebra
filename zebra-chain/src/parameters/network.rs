@@ -81,7 +81,7 @@ impl Network {
     /// Get the default port associated to this network.
     pub fn default_port(&self) -> u16 {
         match self {
-            Network::Mainnet => 8233,
+            Network::Mainnet => 7770,
             Network::Testnet => 18233,
         }
     }
