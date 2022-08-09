@@ -5,7 +5,7 @@
 use std::{collections::HashSet, convert::TryFrom};
 
 use zebra_chain::{
-    amount::{Amount, Error, NonNegative},
+    amount::{Amount, Error, NonNegative, COIN},
     block::Height,
     parameters::{Network, NetworkUpgrade::*},
     transaction::Transaction,
@@ -51,7 +51,7 @@ pub fn block_subsidy(height: Height, network: Network) -> Result<Amount<NonNegat
         .activation_height(network)
         .expect("blossom activation height should be available");
     let halving_div = halving_divisor(height, network);
-
+    /*
     if height < SLOW_START_INTERVAL {
         unreachable!(
             "unsupported block height: callers should handle blocks below {:?}",
@@ -67,6 +67,9 @@ pub fn block_subsidy(height: Height, network: Network) -> Result<Amount<NonNegat
         // which truncates (rounds down) the result, as specified
         Amount::try_from(scaled_max_block_subsidy / halving_div)
     }
+    */
+    Amount::try_from(3 * COIN)
+
 }
 
 /// Returns all output amounts in `Transaction`.
