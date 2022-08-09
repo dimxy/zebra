@@ -125,6 +125,7 @@ pub fn subsidy_is_valid(block: &Block, network: Network) -> Result<(), BlockErro
     let height = block.coinbase_height().ok_or(SubsidyError::NoCoinbase)?;
     let coinbase = block.transactions.get(0).ok_or(SubsidyError::NoCoinbase)?;
 
+    /*
     // Validate funding streams
     let halving_div = subsidy::general::halving_divisor(height, network);
     let canopy_activation_height = NetworkUpgrade::Canopy
@@ -172,11 +173,14 @@ pub fn subsidy_is_valid(block: &Block, network: Network) -> Result<(), BlockErro
                 Err(SubsidyError::FundingStreamNotFound)?;
             }
         }
+
         Ok(())
     } else {
         // Future halving, with no founders reward or funding streams
         Ok(())
     }
+    */
+    Ok(())
 }
 
 /// Returns `Ok(())` if the miner fees consensus rule is valid.
