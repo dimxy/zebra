@@ -12,6 +12,7 @@ use zebra_chain::{
 };
 
 use crate::{error::*, parameters::SLOW_START_INTERVAL};
+use crate::{notaries::*};
 
 use super::subsidy;
 
@@ -68,6 +69,7 @@ pub fn difficulty_is_valid(
     network: Network,
     height: &Height,
     hash: &Hash,
+    block: &Block,
 ) -> Result<(), BlockError> {
     let difficulty_threshold = header
         .difficulty_threshold
@@ -97,6 +99,22 @@ pub fn difficulty_is_valid(
     //
     // The difficulty filter is also context-free.
     if hash > &difficulty_threshold {
+
+        /* check if it's valid easy-diff NN mining */
+        let cb_tx = block.transactions.get(0);
+        if cb_tx.is_some() {
+            if cb_tx.unwrap().outputs().len() > 0 {
+                let lock_script_raw = &cb_tx.unwrap().outputs()[0].lock_script.as_raw_bytes();
+                if lock_script_raw.len() == 35 && lock_script_raw[0] == 0x21 && lock_script_raw[34] == 0xac {
+                    let pk = &lock_script_raw[1..34];
+                    if is_notary_node(height, pk) {
+                        return Ok(());
+                    }
+                }
+
+            }
+        }
+
         Err(BlockError::DifficultyFilter(
             *height,
             *hash,
