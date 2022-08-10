@@ -10,7 +10,7 @@ use std::{cmp::max, fmt::Debug};
 use serde::{Deserialize, Serialize};
 
 use zebra_chain::{
-    amount::{self, Amount, NonNegative},
+    amount::{self, Amount, NonNegative, MAX_MONEY},
     block::Height,
     parameters::Network::*,
     serialization::{ZcashDeserializeInto, ZcashSerialize},
@@ -242,7 +242,7 @@ impl AddressBalanceLocation {
         &mut self,
         unspent_output: &transparent::Output,
     ) -> Result<(), amount::Error> {
-        self.balance = (self.balance + unspent_output.value())?;
+        self.balance = (self.balance + unspent_output.value()).unwrap_or(MAX_MONEY.try_into()?);
 
         Ok(())
     }
@@ -252,7 +252,7 @@ impl AddressBalanceLocation {
         &mut self,
         spent_output: &transparent::Output,
     ) -> Result<(), amount::Error> {
-        self.balance = (self.balance - spent_output.value())?;
+        self.balance = (self.balance - spent_output.value()).unwrap_or(Amount::zero());
 
         Ok(())
     }
