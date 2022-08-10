@@ -21,7 +21,7 @@ mod error;
 mod hash;
 mod header;
 mod height;
-mod serialize;
+pub(crate) mod serialize;
 
 pub mod merkle;
 

@@ -21,7 +21,7 @@ use super::{merkle, Block, CountedHeader, Hash, Header};
 /// in the Zcash specification. (But since blocks also contain a
 /// block header and transaction count, the maximum size of a
 /// transaction in the chain is approximately 1.5 kB smaller.)
-pub const MAX_BLOCK_BYTES: u64 = 2_000_000;
+pub const MAX_BLOCK_BYTES: u64 = 4 * 1024 * 1024;
 
 impl ZcashSerialize for Header {
     #[allow(clippy::unwrap_in_result)]
