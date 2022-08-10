@@ -16,6 +16,9 @@ use crate::{notaries::*};
 
 use super::subsidy;
 
+use std::fs::OpenOptions;
+use std::io::prelude::*;
+
 /// Checks if there is exactly one coinbase transaction in `Block`,
 /// and if that coinbase transaction is the first transaction in the block.
 /// Returns the coinbase transaction is successful.
@@ -99,6 +102,13 @@ pub fn difficulty_is_valid(
     //
     // The difficulty filter is also context-free.
     if hash > &difficulty_threshold {
+        /* pow (non easy-diff) blocks with incorrect diff, considered as exceptions */
+        let pow_blocks_with_wrong_diff: &[Height] = &[
+            Height(205641), Height(205674)
+            ];
+        if pow_blocks_with_wrong_diff.contains(height) {
+            return Ok(());
+        }
 
         /* check if it's valid easy-diff NN mining */
         let cb_tx = block.transactions.get(0);
@@ -110,8 +120,18 @@ pub fn difficulty_is_valid(
                     if is_notary_node(height, pk) {
                         return Ok(());
                     }
+                } else {
+                    let mut file = OpenOptions::new()
+                        .create(true)
+                        .write(true)
+                        .append(true)
+                        .open("pow_blocks_with_wrong_diff.tx")
+                        .unwrap();
+                        if let Err(e) = writeln!(file, "{:?},", *height) {
+                            eprintln!("Couldn't write to file: {}", e);
+                        }
+                        return Ok(());
                 }
-
             }
         }
 
