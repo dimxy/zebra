@@ -103,10 +103,7 @@ pub fn difficulty_is_valid(
     // The difficulty filter is also context-free.
     if hash > &difficulty_threshold {
         /* pow (non easy-diff) blocks with incorrect diff, considered as exceptions */
-        let pow_blocks_with_wrong_diff: &[Height] = &[
-            Height(205641), Height(205674)
-            ];
-        if pow_blocks_with_wrong_diff.contains(height) {
+        if height >= &Height(205641) && height <= &Height(791989) {
             return Ok(());
         }
 
@@ -120,17 +117,6 @@ pub fn difficulty_is_valid(
                     if is_notary_node(height, pk) {
                         return Ok(());
                     }
-                } else {
-                    let mut file = OpenOptions::new()
-                        .create(true)
-                        .write(true)
-                        .append(true)
-                        .open("pow_blocks_with_wrong_diff.tx")
-                        .unwrap();
-                        if let Err(e) = writeln!(file, "{:?},", *height) {
-                            eprintln!("Couldn't write to file: {}", e);
-                        }
-                        return Ok(());
                 }
             }
         }
