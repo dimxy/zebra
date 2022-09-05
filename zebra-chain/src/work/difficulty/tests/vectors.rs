@@ -276,6 +276,8 @@ fn block_difficulty_for_network(network: Network) -> Result<(), Report> {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+
     };
 
     let diff_zero = ExpandedDifficulty(U256::zero());
@@ -365,6 +367,7 @@ fn genesis_block_difficulty_for_network(network: Network) -> Result<(), Report> 
     let block = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.get(&0),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.get(&0),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.get(&0),
     };
 
     let block = block.expect("test vectors contain the genesis block");

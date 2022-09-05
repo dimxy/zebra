@@ -62,6 +62,7 @@ pub fn height_for_first_halving(network: Network) -> Height {
             .activation_height(network)
             .expect("canopy activation height should be available"),
         Network::Testnet => FIRST_HALVING_TESTNET,
+        Network::Kmdtestnet => FIRST_HALVING_TESTNET,  // TODO check
     }
 }
 
@@ -87,6 +88,7 @@ fn funding_stream_address_index(height: Height, network: Network) -> usize {
     let num_addresses = match network {
         Network::Mainnet => FUNDING_STREAMS_NUM_ADDRESSES_MAINNET,
         Network::Testnet => FUNDING_STREAMS_NUM_ADDRESSES_TESTNET,
+        Network::Kmdtestnet => FUNDING_STREAMS_NUM_ADDRESSES_TESTNET,  // TODO data for kmd
     };
 
     let index = 1u32

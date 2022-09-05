@@ -78,7 +78,8 @@ impl ZcashDeserialize for Header {
         //
         // https://zips.z.cash/protocol/protocol.pdf#blockheader
         if version < 4 {
-            return Err(SerializationError::Parse("version must be at least 4"));
+            println!("got block version {}", version);
+            return Err(SerializationError::Parse("version must be at least 4 "));
         }
 
         Ok(Header {

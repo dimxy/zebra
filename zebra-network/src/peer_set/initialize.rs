@@ -462,6 +462,7 @@ pub(crate) async fn open_listener(config: &Config) -> (TcpListener, SocketAddr) 
     let wrong_net = match config.network {
         Mainnet => Testnet,
         Testnet => Mainnet,
+        Kmdtestnet => Mainnet,  // TODO should be kmd main
     };
     if config.listen_addr.port() == wrong_net.default_port() {
         warn!(

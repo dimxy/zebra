@@ -42,6 +42,14 @@ pub fn decrypts_successfully(transaction: &Transaction, network: Network, height
                         output,
                     )
                 }
+                Network::Kmdtestnet => { // TODO: check
+                    zcash_primitives::sapling::note_encryption::try_sapling_output_recovery(
+                        &zcash_primitives::consensus::TEST_NETWORK,
+                        alt_height,
+                        &null_sapling_ovk,
+                        output,
+                    )
+                }
             };
             if recovery.is_none() {
                 return false;

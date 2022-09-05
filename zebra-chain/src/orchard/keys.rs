@@ -166,6 +166,7 @@ impl fmt::Display for SpendingKey {
         let hrp = match self.network {
             Network::Mainnet => sk_hrp::MAINNET,
             Network::Testnet => sk_hrp::TESTNET,
+            Network::Kmdtestnet => sk_hrp::TESTNET,  // TODO not supported in kmd?
         };
 
         bech32::encode_to_fmt(f, hrp, &self.bytes.to_base32(), Variant::Bech32)

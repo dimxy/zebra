@@ -43,6 +43,13 @@ const MAINNET_CHECKPOINTS: &str = include_str!("main-checkpoints.txt");
 /// information.
 const TESTNET_CHECKPOINTS: &str = include_str!("test-checkpoints.txt");
 
+// KMD
+const KMDTESTNET_CHECKPOINTS: &str =    "0 00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08\n\
+                                         32 05fff8fad00c6e65fe3534700f105ef3e9855d5550764459749ac71afa4fc064\n";
+
+// jmj version=1 genesisblock "0 e46e999d6de5ef95427ea51b8242ef7949de22b340b6a484ff154b9991ec9452\n";
+
+
 /// A list of block height and hash checkpoints.
 ///
 /// Checkpoints should be chosen to avoid forks or chain reorganizations,
@@ -91,11 +98,15 @@ impl CheckpointList {
             Network::Testnet => TESTNET_CHECKPOINTS
                 .parse()
                 .expect("Hard-coded Testnet checkpoint list parses and validates"),
+            Network::Kmdtestnet => KMDTESTNET_CHECKPOINTS   // TODO add kmd testnet checkpoints
+                .parse()
+                .expect("Hard-coded KMD Testnet checkpoint list parses and validates"),
         };
 
         match checkpoint_list.hash(block::Height(0)) {
             Some(hash) if hash == genesis_hash(network) => checkpoint_list,
-            Some(_) => {
+            Some(hash) => {
+                tracing::info!("got hash={}", hash);
                 panic!("The hard-coded genesis checkpoint does not match the network genesis hash")
             }
             None => unreachable!("Parser should have checked for a missing genesis checkpoint"),
@@ -122,11 +133,12 @@ impl CheckpointList {
 
         // Check that the list starts with the correct genesis block
         match checkpoints.iter().next() {
-            Some((block::Height(0), hash))
+            Some((block::Height(0), hash)) 
                 if (hash == &genesis_hash(Network::Mainnet)
-                    || hash == &genesis_hash(Network::Testnet)) => {}
+                    || hash == &genesis_hash(Network::Testnet) 
+                    || hash == &genesis_hash(Network::Kmdtestnet)) => { println!("checkpoint genesis {}", hash)  }
             Some((block::Height(0), _)) => {
-                Err("the genesis checkpoint does not match the Mainnet or Testnet genesis hash")?
+                Err("the genesis checkpoint does not match the Mainnet or Testnet (Kmdtestnet) genesis hash")?
             }
             Some(_) => Err("checkpoints must start at the genesis block height 0")?,
             None => Err("there must be at least one checkpoint, for the genesis block")?,

@@ -3,12 +3,12 @@
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 
-use zebra_chain::{amount::COIN, block::Height, parameters::Network};
+use zebra_chain::{amount::Amount, amount::COIN, block::Height, parameters::Network};
 
 /// An initial period from Genesis to this Height where the block subsidy is gradually incremented. [What is slow-start mining][slow-mining]
 ///
 /// [slow-mining]: https://z.cash/support/faq/#what-is-slow-start-mining
-pub const SLOW_START_INTERVAL: Height = Height(20_000);
+pub const SLOW_START_INTERVAL: Height = Height(0); // Height(20_000)
 
 /// `SlowStartShift()` as described in [protocol specification §7.8][7.8]
 ///
@@ -21,6 +21,7 @@ pub const SLOW_START_SHIFT: Height = Height(SLOW_START_INTERVAL.0 / 2);
 ///
 /// We use `25 / 2` instead of `12.5`, so that we can calculate the correct value without using floating-point.
 /// This calculation is exact, because COIN is divisible by 2, and the division is done last.
+//pub const MAX_BLOCK_SUBSIDY: u64 = ((25 * COIN) / 2) as u64;
 pub const MAX_BLOCK_SUBSIDY: u64 = ((25 * COIN) / 2) as u64;
 
 /// Used as a multiplier to get the new halving interval after Blossom.
@@ -246,3 +247,7 @@ pub const FUNDING_STREAM_ZF_ADDRESSES_TESTNET: [&str; FUNDING_STREAMS_NUM_ADDRES
 /// List of addresses for the Major Grants funding stream in the Testnet.
 pub const FUNDING_STREAM_MG_ADDRESSES_TESTNET: [&str; FUNDING_STREAMS_NUM_ADDRESSES_TESTNET] =
     ["t2Gvxv2uNM7hbbACjNox4H6DjByoKZ2Fa3P"; FUNDING_STREAMS_NUM_ADDRESSES_TESTNET];
+
+pub const KMD_ENDOFERA: Height = Height(7_777_777);
+
+pub const KMD_ICOCOINS: i64 = 100_000_000;

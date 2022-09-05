@@ -63,6 +63,7 @@ fn incremental_roots_with_blocks_for_network(network: Network) -> Result<()> {
     let (blocks, sapling_roots) = match network {
         Network::Mainnet => (&*MAINNET_BLOCKS, &*MAINNET_FINAL_SAPLING_ROOTS),
         Network::Testnet => (&*TESTNET_BLOCKS, &*TESTNET_FINAL_SAPLING_ROOTS),
+        Network::Kmdtestnet => (&*TESTNET_BLOCKS, &*TESTNET_FINAL_SAPLING_ROOTS), // TODO add kmd data
     };
     let height = NetworkUpgrade::Sapling
         .activation_height(network)
