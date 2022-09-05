@@ -6,6 +6,7 @@
 //! Some parts of the `zcashd` RPC documentation are outdated.
 //! So this implementation follows the `zcashd` server and `lightwalletd` client implementations.
 
+use std::str::FromStr;
 use std::{collections::HashSet, io, sync::Arc};
 
 use chrono::Utc;
@@ -17,9 +18,11 @@ use jsonrpc_derive::rpc;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
 use tower::{buffer::Buffer, Service, ServiceExt};
 use tracing::Instrument;
+use tracing::trace;
+use tracing::debug;
 
 use zebra_chain::{
-    block::{self, Height, SerializedBlock},
+    block::{self, Height, SerializedBlock, Hash},
     chain_tip::ChainTip,
     orchard,
     parameters::{ConsensusBranchId, Network, NetworkUpgrade},
@@ -346,6 +349,7 @@ where
     #[allow(clippy::unwrap_in_result)]
     fn get_blockchain_info(&self) -> Result<GetBlockChainInfo> {
         let network = self.network;
+        tracing::info!("enterred get_blockchain_info");
 
         // `chain` field
         let chain = self.network.bip70_network_name();
@@ -518,18 +522,20 @@ where
         .boxed()
     }
 
-    fn get_block(&self, height: String, verbosity: u8) -> BoxFuture<Result<GetBlock>> {
+    fn get_block(&self, hash_or_height_in: String, verbosity: u8) -> BoxFuture<Result<GetBlock>> {
         let mut state = self.state.clone();
 
         async move {
-            let height = height.parse().map_err(|error: SerializationError| Error {
+            //let height_parsed = height.parse().map_err(|error: SerializationError| Error {
+            let hash_or_height = zebra_state::HashOrHeight::from_str(&hash_or_height_in).map_err(|error: SerializationError| Error {
                 code: ErrorCode::ServerError(0),
                 message: error.to_string(),
                 data: None,
             })?;
 
             let request =
-                zebra_state::ReadRequest::Block(zebra_state::HashOrHeight::Height(height));
+            //    zebra_state::ReadRequest::Block(zebra_state::HashOrHeight::Height(height_parsed));
+                zebra_state::ReadRequest::Block(hash_or_height);
             let response = state
                 .ready()
                 .and_then(|service| service.call(request))
@@ -544,6 +550,11 @@ where
                 zebra_state::ReadResponse::Block(Some(block)) => match verbosity {
                     0 => Ok(GetBlock::Raw(block.into())),
                     1 => Ok(GetBlock::Object {
+                        version: block
+                            .header.version,
+                        hash: block
+                            .hash().to_string(),
+                        height: block.coinbase_height().unwrap(),
                         tx: block
                             .transactions
                             .iter()
@@ -1093,6 +1104,9 @@ pub enum GetBlock {
     Raw(#[serde(with = "hex")] SerializedBlock),
     /// The block object.
     Object {
+        hash: String,
+        version: u32,
+        height: Height,
         /// Vector of hex-encoded TXIDs of the transactions of the block
         tx: Vec<String>,
     },
