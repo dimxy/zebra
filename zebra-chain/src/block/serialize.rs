@@ -75,15 +75,16 @@ impl ZcashDeserialize for Header {
         let previous_block_hash = Hash::zcash_deserialize(&mut reader)?;
 
         // exception for genesis block for KMD (could be any version, not only 4)
-        let possible_genesis: bool = previous_block_hash == Hash([0; 32]);
+        let possible_genesis: bool = previous_block_hash == Hash([0; 32]);  // TODO: maybe check coinbase_height?
 
         // # Consensus
         //
         // > The block version number MUST be greater than or equal to 4.
         //
         // https://zips.z.cash/protocol/protocol.pdf#blockheader
-        if !possible_genesis && version < 4 {
-            return Err(SerializationError::Parse("version must be at least 4"));
+        if !possible_genesis && version < 4 {       // TODO: why possible_genesis?
+            println!("got block version {}", version);
+            return Err(SerializationError::Parse("version must be at least 4 "));
         }
 
         Ok(Header {

@@ -62,6 +62,10 @@ pub struct Config {
     /// testnet.
     pub initial_testnet_peers: IndexSet<String>,
 
+    /// kmd test init peers
+    pub initial_kmdtestnet_peers: IndexSet<String>,
+
+
     /// The initial target size for the peer set.
     ///
     /// Also used to limit the number of inbound and outbound connections made by Zebra.
@@ -132,6 +136,7 @@ impl Config {
         match self.network {
             Network::Mainnet => &self.initial_mainnet_peers,
             Network::Testnet => &self.initial_testnet_peers,
+            Network::Kmdtestnet => &self.initial_kmdtestnet_peers,
         }
     }
 
@@ -266,6 +271,12 @@ impl Default for Config {
         .map(|&s| String::from(s))
         .collect();
 
+        let kmdtestnet_peers = [ ""
+        ]
+        .iter()
+        .map(|&s| String::from(s))
+        .collect();
+
         Config {
             listen_addr: "0.0.0.0:7770"
                 .parse()
@@ -273,6 +284,8 @@ impl Default for Config {
             network: Network::Mainnet,
             initial_mainnet_peers: mainnet_peers,
             initial_testnet_peers: testnet_peers,
+            initial_kmdtestnet_peers: kmdtestnet_peers,
+
             crawl_new_peer_interval: DEFAULT_CRAWL_NEW_PEER_INTERVAL,
 
             // # Security
@@ -299,6 +312,7 @@ impl<'de> Deserialize<'de> for Config {
             network: Network,
             initial_mainnet_peers: IndexSet<String>,
             initial_testnet_peers: IndexSet<String>,
+            initial_kmdtestnet_peers: IndexSet<String>,
             peerset_initial_target_size: usize,
             #[serde(alias = "new_peer_interval", with = "humantime_serde")]
             crawl_new_peer_interval: Duration,
@@ -312,6 +326,7 @@ impl<'de> Deserialize<'de> for Config {
                     network: config.network,
                     initial_mainnet_peers: config.initial_mainnet_peers,
                     initial_testnet_peers: config.initial_testnet_peers,
+                    initial_kmdtestnet_peers: config.initial_kmdtestnet_peers,
                     peerset_initial_target_size: config.peerset_initial_target_size,
                     crawl_new_peer_interval: config.crawl_new_peer_interval,
                 }
@@ -337,6 +352,7 @@ impl<'de> Deserialize<'de> for Config {
             network: config.network,
             initial_mainnet_peers: config.initial_mainnet_peers,
             initial_testnet_peers: config.initial_testnet_peers,
+            initial_kmdtestnet_peers: config.initial_kmdtestnet_peers,
             peerset_initial_target_size: config.peerset_initial_target_size,
             crawl_new_peer_interval: config.crawl_new_peer_interval,
         })

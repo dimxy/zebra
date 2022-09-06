@@ -30,6 +30,7 @@ impl From<Network> for Magic {
         match network {
             Network::Mainnet => magics::MAINNET,
             Network::Testnet => magics::TESTNET,
+            Network::Kmdtestnet => magics::KMDTESTNET,
         }
     }
 }
@@ -105,6 +106,22 @@ impl Version {
             (Mainnet, Overwinter) => 170_005,
             (_, Sapling) => 170_011,
             (_,_) => 170_999,
+            /*
+            (Kmdtestnet, Overwinter) => 170_003,
+            (_, Sapling) => 170_007,
+            (Testnet, Blossom) => 170_008,
+            (Mainnet, Blossom) => 170_009,
+            (Kmdtestnet, Blossom) => 0,  // not supported
+
+            (Testnet, Heartwood) => 170_010,
+            (Mainnet, Heartwood) => 170_011,
+            (Kmdtestnet, Heartwood) => 0,  // not supported
+            (Testnet, Canopy) => 170_012,
+            (Mainnet, Canopy) => 170_013,
+            (Kmdtestnet, Canopy) => 0,  // not supported
+            (Testnet, Nu5) => 170_050,
+            (Mainnet, Nu5) => 170_100,
+            (Kmdtestnet, Nu5) => 0,  // not supported*/
         })
     }
 }

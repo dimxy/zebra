@@ -178,6 +178,7 @@ fn difficulty_is_valid_for_network(network: Network) -> Result<(), Report> {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),  // TODO add kmd data
     };
 
     for (&height, block) in block_iter {
@@ -285,6 +286,7 @@ fn subsidy_is_valid_for_network(network: Network) -> Result<(), Report> {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
     };
 
     for (&height, block) in block_iter {
@@ -390,6 +392,7 @@ fn funding_stream_validation_for_network(network: Network) -> Result<(), Report>
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
     };
 
     let canopy_activation_height = NetworkUpgrade::Canopy
@@ -468,6 +471,7 @@ fn miner_fees_validation_for_network(network: Network) -> Result<(), Report> {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
     };
 
     for (&height, block) in block_iter {
@@ -557,6 +561,7 @@ fn merkle_root_is_valid_for_network(network: Network) -> Result<(), Report> {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
     };
 
     for (_height, block) in block_iter {
@@ -581,6 +586,7 @@ fn merkle_root_fake_v5_for_network(network: Network) -> Result<(), Report> {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
     };
 
     for (height, block) in block_iter {
@@ -696,6 +702,7 @@ fn transaction_expiration_height_for_network(network: Network) -> Result<(), Rep
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
     };
 
     for (&height, block) in block_iter {

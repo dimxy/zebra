@@ -351,6 +351,7 @@ fn fake_v5_round_trip_for_network(network: Network) {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),  // TODO check for kmd data
     };
 
     let overwinter_activation_height = NetworkUpgrade::Overwinter
@@ -502,6 +503,7 @@ fn fake_v5_librustzcash_round_trip_for_network(network: Network) {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(), // TODO add kmd or empty data
     };
 
     let overwinter_activation_height = NetworkUpgrade::Overwinter
@@ -945,6 +947,7 @@ fn binding_signatures_for_network(network: Network) {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(), // TODO add kmd data
     };
 
     for (height, bytes) in block_iter {

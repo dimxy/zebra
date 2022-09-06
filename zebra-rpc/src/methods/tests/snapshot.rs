@@ -29,6 +29,7 @@ async fn test_rpc_response_data_for_network(network: Network) {
     let block_data = match network {
         Mainnet => &*zebra_test::vectors::CONTINUOUS_MAINNET_BLOCKS,
         Testnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
+        _ => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS, // TODO add kmd data
     };
 
     let blocks: Vec<Arc<Block>> = block_data

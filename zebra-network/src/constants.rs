@@ -291,6 +291,7 @@ lazy_static! {
 
         hash_map.insert(Mainnet, Version::min_specified_for_upgrade(Mainnet, Sapling));
         hash_map.insert(Testnet, Version::min_specified_for_upgrade(Testnet, Sapling));
+        hash_map.insert(Kmdtestnet, Version(170_002));  // TODO fix kmd
 
         hash_map
     };
@@ -320,6 +321,8 @@ pub mod magics {
     pub const MAINNET: Magic = Magic([0xf9, 0xee, 0xe4, 0x8d]);
     /// The testnet.
     pub const TESTNET: Magic = Magic([0xfa, 0x1a, 0xf9, 0xbf]);
+    /// The kmd testnet.
+    pub const KMDTESTNET: Magic = Magic([0x5A, 0x1F, 0x7E, 0x62]);
 }
 
 #[cfg(test)]

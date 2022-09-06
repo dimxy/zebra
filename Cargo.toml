@@ -16,7 +16,7 @@ members = [
 ]
 
 [profile.dev]
-panic = "abort"
+panic = "unwind"
 
 # Speed up tests by optimizing performance-critical crates
 
@@ -82,4 +82,5 @@ lto = "thin"
 [patch.crates-io]
 
 # Currently pointing to `download-sprout-params` branch.
-zcash_proofs = { git = "https://github.com/ZcashFoundation/librustzcash.git", rev = "4567a37ceccbd506a58aaaded39ba14c952c1510" }
+# zcash_proofs = { git = "https://github.com/ZcashFoundation/librustzcash.git", rev = "4567a37ceccbd506a58aaaded39ba14c952c1510" }
+zcash_proofs = { git = "https://github.com/dimxy/librustzcash.git", branch = "download-sprout-params-8ad60a0" }

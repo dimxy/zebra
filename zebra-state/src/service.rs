@@ -541,12 +541,13 @@ impl StateService {
     /// Assert some assumptions about the prepared `block` before it is validated.
     fn assert_block_can_be_validated(&self, block: &PreparedBlock) {
         // required by validate_and_commit, moved here to make testing easier
+        /* no canopy in kmd
         assert!(
             block.height > self.network.mandatory_checkpoint_height(),
             "invalid non-finalized block height: the canopy checkpoint is mandatory, pre-canopy \
             blocks, and the canopy activation block, must be committed to the state as finalized \
             blocks"
-        );
+        );*/ 
     }
 }
 
@@ -972,7 +973,7 @@ impl Service<ReadRequest> for ReadStateService {
 
                         // The work is done in the future.
                         timer.finish(module_path!(), line!(), "ReadRequest::Block");
-
+                        println!("block {}", block.as_ref().unwrap());
                         Ok(ReadResponse::Block(block))
                     })
                 })

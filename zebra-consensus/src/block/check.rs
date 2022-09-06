@@ -227,7 +227,7 @@ pub fn miner_fees_are_valid(
     let sapling_value_balance = coinbase.sapling_value_balance().sapling_amount();
     let orchard_value_balance = coinbase.orchard_value_balance().orchard_amount();
 
-    let block_subsidy = subsidy::general::block_subsidy(height, network)
+    let block_subsidy = subsidy::general::block_subsidy_kmd(height, network)
         .expect("a valid block subsidy for this height and network");
 
     // # Consensus
@@ -242,6 +242,7 @@ pub fn miner_fees_are_valid(
     let right = (block_subsidy + block_miner_fees).map_err(|_| SubsidyError::SumOverflow)?;
 
     if left > right {
+        tracing::info!(?height,?left,?right,"fees");
         return Err(SubsidyError::InvalidMinerFees)?;
     }
 

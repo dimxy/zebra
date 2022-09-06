@@ -181,7 +181,7 @@ where
             check::time_is_valid_at(&block.header, now, &height, &hash)
                 .map_err(VerifyBlockError::Time)?;
             let coinbase_tx = check::coinbase_is_first(&block)?;
-            check::subsidy_is_valid(&block, network)?;
+            //check::subsidy_is_valid(&block, network)?;  // TODO make vaid for kmd
 
             // Now do the slower checks
 

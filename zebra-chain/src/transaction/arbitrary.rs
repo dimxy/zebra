@@ -928,6 +928,7 @@ pub fn test_transactions(
     let blocks = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(), // TODO add kmd data
     };
 
     blocks.flat_map(|(&block_height, &block_bytes)| {

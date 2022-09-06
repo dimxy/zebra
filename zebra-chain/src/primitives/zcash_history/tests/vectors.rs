@@ -25,6 +25,7 @@ fn tree_for_network_upgrade(network: Network, network_upgrade: NetworkUpgrade) -
     let (blocks, sapling_roots) = match network {
         Network::Mainnet => (&*MAINNET_BLOCKS, &*MAINNET_FINAL_SAPLING_ROOTS),
         Network::Testnet => (&*TESTNET_BLOCKS, &*TESTNET_FINAL_SAPLING_ROOTS),
+        Network::Kmdtestnet => (&*TESTNET_BLOCKS, &*TESTNET_FINAL_SAPLING_ROOTS),  // TODO add real data
     };
     let height = network_upgrade.activation_height(network).unwrap().0;
 

@@ -3,6 +3,7 @@
 //! [7.8]: https://zips.z.cash/protocol/protocol.pdf#subsidies
 
 use std::{collections::HashSet, convert::TryFrom};
+use std::ops::Add;
 
 use zebra_chain::{
     amount::{Amount, Error, NonNegative, COIN},
@@ -72,6 +73,21 @@ pub fn block_subsidy(height: Height, network: Network) -> Result<Amount<NonNegat
 
 }
 
+/// kmd subsidy
+pub fn block_subsidy_kmd(height: Height, network: Network) -> Result<Amount<NonNegative>, Error> {
+    
+    if height == Height(1) {
+        Amount::try_from(KMD_ICOCOINS * COIN)  // kmd ICO
+    } else if height < KMD_ENDOFERA {
+        // this calculation is exact, because the halving divisor is 1 here
+        Amount::try_from(3 * COIN)
+    } else if height < KMD_ENDOFERA.add(KMD_ENDOFERA).unwrap() {
+        Amount::try_from(2 * COIN)
+    } else {
+        Amount::try_from(COIN)
+    }
+}
+
 /// Returns all output amounts in `Transaction`.
 pub fn output_amounts(transaction: &Transaction) -> HashSet<Amount<NonNegative>> {
     transaction
@@ -103,6 +119,7 @@ mod test {
             Network::Mainnet => Canopy.activation_height(network).unwrap(),
             // Based on "7.8 Calculation of Block Subsidy and Founders' Reward"
             Network::Testnet => Height(1_116_000),
+            Network::Kmdtestnet => Height(1_116_000), // TODO add kmd data
         };
 
         assert_eq!(1, halving_divisor((blossom_height - 1).unwrap(), network));
@@ -190,6 +207,7 @@ mod test {
             Network::Mainnet => Canopy.activation_height(network).unwrap(),
             // Based on "7.8 Calculation of Block Subsidy and Founders' Reward"
             Network::Testnet => Height(1_116_000),
+            Network::Kmdtestnet => Height(1_116_000), // TODO add kmd data
         };
 
         // After slow-start mining and before Blossom the block subsidy is 12.5 ZEC

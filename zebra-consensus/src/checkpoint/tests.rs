@@ -237,6 +237,7 @@ async fn continuous_blockchain(
     let blockchain = match network {
         Mainnet => zebra_test::vectors::CONTINUOUS_MAINNET_BLOCKS.iter(),
         Testnet => zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS.iter(),
+        Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
     };
     let blockchain: Vec<_> = blockchain
         .map(|(height, b)| {

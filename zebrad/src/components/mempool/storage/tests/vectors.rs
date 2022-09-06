@@ -206,6 +206,9 @@ fn mempool_expired_basic_for_network(network: Network) -> Result<()> {
         Network::Testnet => {
             zebra_test::vectors::BLOCK_TESTNET_925483_BYTES.zcash_deserialize_into()?
         }
+        Network::Kmdtestnet => {
+            zebra_test::vectors::BLOCK_TESTNET_925483_BYTES.zcash_deserialize_into()?
+        }
     };
 
     // Get a test transaction

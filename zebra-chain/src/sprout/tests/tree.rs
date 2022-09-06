@@ -106,6 +106,11 @@ fn incremental_roots_with_blocks_for_network(network: Network) -> Result<()> {
             &*vectors::TESTNET_FINAL_SPROUT_ROOTS,
             TESTNET_FIRST_JOINSPLIT_HEIGHT,
         ),
+        Network::Kmdtestnet => (  // TODO add kmd data
+            &*vectors::TESTNET_BLOCKS,
+            &*vectors::TESTNET_FINAL_SPROUT_ROOTS,
+            TESTNET_FIRST_JOINSPLIT_HEIGHT,
+        ),
     };
 
     // Load the Genesis height.

@@ -87,6 +87,7 @@ impl Config {
         let net_dir = match network {
             Network::Mainnet => "mainnet",
             Network::Testnet => "testnet",
+            Network::Kmdtestnet => "kmdtestnet",
         };
 
         if self.ephemeral {

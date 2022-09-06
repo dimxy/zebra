@@ -118,6 +118,18 @@ const FAKE_TESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(35), Nu5),
 ];
 
+#[allow(unused)]
+pub(super) const KMDTESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
+    (block::Height(0), Genesis),
+    (block::Height(1), BeforeOverwinter),
+    (block::Height(1), Overwinter),
+    (block::Height(1), Sapling),
+    (block::Height(584_000), Blossom),
+    (block::Height(903_800), Heartwood),
+    (block::Height(1_028_500), Canopy),
+    (block::Height(1_842_420), Nu5),
+];
+
 /// The Consensus Branch Id, used to bind transactions and blocks to a
 /// particular network upgrade.
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, Serialize, Deserialize)]
@@ -261,9 +273,12 @@ impl NetworkUpgrade {
                 (MAINNET_ACTIVATION_HEIGHTS, TESTNET_ACTIVATION_HEIGHTS)
             }
         };
+        let kmdtestnet_heights = KMDTESTNET_ACTIVATION_HEIGHTS;
+
         match network {
             Mainnet => mainnet_heights,
             Testnet => testnet_heights,
+            Kmdtestnet => kmdtestnet_heights,
         }
         .iter()
         .cloned()
@@ -382,7 +397,8 @@ impl NetworkUpgrade {
             (Network::Testnet, _) => {
                 let network_upgrade = NetworkUpgrade::current(network, height);
                 Some(network_upgrade.target_spacing() * TESTNET_MINIMUM_DIFFICULTY_GAP_MULTIPLIER)
-            }
+            },
+            (Network::Kmdtestnet, _) => None,
         }
     }
 
@@ -446,6 +462,7 @@ impl NetworkUpgrade {
         match network {
             Network::Mainnet => true,
             Network::Testnet => height >= TESTNET_MAX_TIME_START_HEIGHT,
+            Network::Kmdtestnet => true,  // TODO: check
         }
     }
     /// Returns the NetworkUpgrade given an u32 as ConsensusBranchId

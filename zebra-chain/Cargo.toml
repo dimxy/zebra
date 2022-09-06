@@ -46,7 +46,9 @@ orchard = "0.2.0"
 zcash_encoding = "0.1.0"
 zcash_history = "0.3.0"
 zcash_note_encryption = "0.1"
-zcash_primitives = { version = "0.7.0", features = ["transparent-inputs"] }
+# zcash_primitives = { version = "0.7.0", features = ["transparent-inputs"] }
+zcash_primitives = { git = "https://github.com/dimxy/librustzcash.git", branch = "0.7-kmd", features = ["transparent-inputs"]  }
+
 
 # Time
 chrono = { version = "0.4.19", features = ["serde"] }

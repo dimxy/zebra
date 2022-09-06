@@ -122,8 +122,10 @@ impl StartCmd {
                 setup_rx,
             ));
 
+        let no_chain_tip = zebra_chain::chain_tip::NoChainTip{};
         let (peer_set, address_book) =
-            zebra_network::init(config.network.clone(), inbound, latest_chain_tip.clone()).await;
+            //zebra_network::init(config.network.clone(), inbound, latest_chain_tip.clone()).await;
+            zebra_network::init(config.network.clone(), inbound, no_chain_tip).await;
 
         info!("initializing verifiers");
         let (chain_verifier, tx_verifier, mut groth16_download_handle, max_checkpoint_height) =
