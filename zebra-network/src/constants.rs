@@ -252,7 +252,7 @@ pub const USER_AGENT: &str = "/Zebra:1.0.0-beta.13/";
 ///
 /// The current protocol version typically changes before Mainnet and Testnet
 /// network upgrades.
-pub const CURRENT_NETWORK_PROTOCOL_VERSION: Version = Version(170_100);
+pub const CURRENT_NETWORK_PROTOCOL_VERSION: Version = Version(170_011);
 
 /// The default RTT estimate for peer responses.
 ///
@@ -289,8 +289,8 @@ lazy_static! {
     pub static ref INITIAL_MIN_NETWORK_PROTOCOL_VERSION: HashMap<Network, Version> = {
         let mut hash_map = HashMap::new();
 
-        hash_map.insert(Mainnet, Version::min_specified_for_upgrade(Mainnet, Nu5));
-        hash_map.insert(Testnet, Version::min_specified_for_upgrade(Testnet, Nu5));
+        hash_map.insert(Mainnet, Version::min_specified_for_upgrade(Mainnet, Sapling));
+        hash_map.insert(Testnet, Version::min_specified_for_upgrade(Testnet, Sapling));
 
         hash_map
     };
@@ -317,7 +317,7 @@ pub const DNS_LOOKUP_TIMEOUT: Duration = Duration::from_secs(5);
 pub mod magics {
     use super::*;
     /// The production mainnet.
-    pub const MAINNET: Magic = Magic([0x24, 0xe9, 0x27, 0x64]);
+    pub const MAINNET: Magic = Magic([0xf9, 0xee, 0xe4, 0x8d]);
     /// The testnet.
     pub const TESTNET: Magic = Magic([0xfa, 0x1a, 0xf9, 0xbf]);
 }

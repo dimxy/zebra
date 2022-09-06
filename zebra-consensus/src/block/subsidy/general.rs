@@ -5,7 +5,7 @@
 use std::{collections::HashSet, convert::TryFrom};
 
 use zebra_chain::{
-    amount::{Amount, Error, NonNegative},
+    amount::{Amount, Error, NonNegative, COIN},
     block::Height,
     parameters::{Network, NetworkUpgrade::*},
     transaction::Transaction,
@@ -19,27 +19,28 @@ use crate::parameters::subsidy::*;
 ///
 /// [7.8]: https://zips.z.cash/protocol/protocol.pdf#subsidies
 pub fn halving_divisor(height: Height, network: Network) -> u64 {
-    let blossom_height = Blossom
-        .activation_height(network)
-        .expect("blossom activation height should be available");
+    // let blossom_height = Blossom
+    //     .activation_height(network)
+    //     .expect("blossom activation height should be available");
 
-    if height < SLOW_START_SHIFT {
-        unreachable!(
-            "unsupported block height: callers should handle blocks below {:?}",
-            SLOW_START_SHIFT
-        )
-    } else if height < blossom_height {
-        let scaled_pre_blossom_height = (height - SLOW_START_SHIFT) as u64;
-        let halving_shift = scaled_pre_blossom_height / (PRE_BLOSSOM_HALVING_INTERVAL.0 as u64);
-        1 << halving_shift
-    } else {
-        let scaled_pre_blossom_height =
-            (blossom_height - SLOW_START_SHIFT) as u64 * BLOSSOM_POW_TARGET_SPACING_RATIO;
-        let post_blossom_height = (height - blossom_height) as u64;
-        let halving_shift = (scaled_pre_blossom_height + post_blossom_height)
-            / (POST_BLOSSOM_HALVING_INTERVAL.0 as u64);
-        1 << halving_shift
-    }
+    // if height < SLOW_START_SHIFT {
+    //     unreachable!(
+    //         "unsupported block height: callers should handle blocks below {:?}",
+    //         SLOW_START_SHIFT
+    //     )
+    // } else if height < blossom_height {
+    //     let scaled_pre_blossom_height = (height - SLOW_START_SHIFT) as u64;
+    //     let halving_shift = scaled_pre_blossom_height / (PRE_BLOSSOM_HALVING_INTERVAL.0 as u64);
+    //     1 << halving_shift
+    // } else {
+    //     let scaled_pre_blossom_height =
+    //         (blossom_height - SLOW_START_SHIFT) as u64 * BLOSSOM_POW_TARGET_SPACING_RATIO;
+    //     let post_blossom_height = (height - blossom_height) as u64;
+    //     let halving_shift = (scaled_pre_blossom_height + post_blossom_height)
+    //         / (POST_BLOSSOM_HALVING_INTERVAL.0 as u64);
+    //     1 << halving_shift
+    // }
+    1
 }
 
 /// `BlockSubsidy(height)` as described in [protocol specification §7.8][7.8]
@@ -50,7 +51,7 @@ pub fn block_subsidy(height: Height, network: Network) -> Result<Amount<NonNegat
         .activation_height(network)
         .expect("blossom activation height should be available");
     let halving_div = halving_divisor(height, network);
-
+    /*
     if height < SLOW_START_INTERVAL {
         unreachable!(
             "unsupported block height: callers should handle blocks below {:?}",
@@ -66,6 +67,9 @@ pub fn block_subsidy(height: Height, network: Network) -> Result<Amount<NonNegat
         // which truncates (rounds down) the result, as specified
         Amount::try_from(scaled_max_block_subsidy / halving_div)
     }
+    */
+    Amount::try_from(3 * COIN)
+
 }
 
 /// Returns all output amounts in `Transaction`.

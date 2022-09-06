@@ -961,6 +961,22 @@ impl Transaction {
             .constrain()
             .expect("conversion from NonNegative to NegativeAllowed is always valid");
 
+        for input in self.inputs().iter() {
+            if let transparent::Input::PrevOut {
+                outpoint,
+                unlock_script,
+                ..
+            } = input {
+                // here good to have the interest calculation code, we should find
+                // the tx by outpoint.hash, check its locktime and do the calculations.
+
+                // outpoint.hash -> tx -> nlocktime
+                // TODO: how to get tx and its locktime from outpoint here?
+
+                // println!("{:?} -> {:?}", input, input.value_from_outputs(outputs));
+            }
+        }
+
         let output_value = self
             .outputs()
             .iter()
