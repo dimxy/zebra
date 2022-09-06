@@ -365,6 +365,12 @@ checksum = "8a32fd6af2b5827bce66c29053ba0e7c42b9dcab01835835058558c10851a46b"
 
 [[package]]
 name = "bech32"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf9ff0bbfd639f15c74af777d81383cf53efb7c93613f6cab67c6c11e05bbf8b"
+
+[[package]]
+name = "bech32"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c5738be7561b0eeb501ef1d5c5db3f24e01ceb55fededd9b00039aada34966ad"
@@ -1493,9 +1499,8 @@ dependencies = [
 
 [[package]]
 name = "equihash"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab579d7cf78477773b03e80bc2f89702ef02d7112c711d54ca93dcdce68533d5"
+version = "0.1.0"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.6-kmd#316df4a6ab86691baa1c49a8b5b641a5eabf80c0"
 dependencies = [
  "blake2b_simd 1.0.0",
  "byteorder",
@@ -1504,7 +1509,16 @@ dependencies = [
 [[package]]
 name = "equihash"
 version = "0.2.0"
-source = "git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510#4567a37ceccbd506a58aaaded39ba14c952c1510"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd#8080a489d0561ec38cdd7a5066b8143210ec3941"
+dependencies = [
+ "blake2b_simd 1.0.0",
+ "byteorder",
+]
+
+[[package]]
+name = "equihash"
+version = "0.2.0"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0#ce04dbbefa758b83fdec741d07278eac4d0971db"
 dependencies = [
  "blake2b_simd 1.0.0",
  "byteorder",
@@ -1518,6 +1532,14 @@ checksum = "9289ed2c0440a6536e65119725cf91fc2c6b5e513bfd2e36e1134d7cca6ca12f"
 dependencies = [
  "indenter",
  "once_cell",
+]
+
+[[package]]
+name = "f4jumble"
+version = "0.1.0"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd#8080a489d0561ec38cdd7a5066b8143210ec3941"
+dependencies = [
+ "blake2b_simd 1.0.0",
 ]
 
 [[package]]
@@ -6108,6 +6130,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "zcash_address"
+version = "0.1.0"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd#8080a489d0561ec38cdd7a5066b8143210ec3941"
+dependencies = [
+ "bech32 0.8.1",
+ "bs58",
+ "f4jumble",
+ "zcash_encoding 0.1.0 (git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd)",
+]
+
+[[package]]
 name = "zcash_encoding"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6120,7 +6153,25 @@ dependencies = [
 [[package]]
 name = "zcash_encoding"
 version = "0.1.0"
-source = "git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510#4567a37ceccbd506a58aaaded39ba14c952c1510"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.6-kmd#316df4a6ab86691baa1c49a8b5b641a5eabf80c0"
+dependencies = [
+ "byteorder",
+ "nonempty",
+]
+
+[[package]]
+name = "zcash_encoding"
+version = "0.1.0"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd#8080a489d0561ec38cdd7a5066b8143210ec3941"
+dependencies = [
+ "byteorder",
+ "nonempty",
+]
+
+[[package]]
+name = "zcash_encoding"
+version = "0.1.0"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0#ce04dbbefa758b83fdec741d07278eac4d0971db"
 dependencies = [
  "byteorder",
  "nonempty",
@@ -6152,7 +6203,29 @@ dependencies = [
 [[package]]
 name = "zcash_note_encryption"
 version = "0.1.0"
-source = "git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510#4567a37ceccbd506a58aaaded39ba14c952c1510"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.6-kmd#316df4a6ab86691baa1c49a8b5b641a5eabf80c0"
+dependencies = [
+ "chacha20",
+ "chacha20poly1305",
+ "rand_core 0.6.3",
+ "subtle",
+]
+
+[[package]]
+name = "zcash_note_encryption"
+version = "0.1.0"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd#8080a489d0561ec38cdd7a5066b8143210ec3941"
+dependencies = [
+ "chacha20",
+ "chacha20poly1305",
+ "rand_core 0.6.3",
+ "subtle",
+]
+
+[[package]]
+name = "zcash_note_encryption"
+version = "0.1.0"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0#ce04dbbefa758b83fdec741d07278eac4d0971db"
 dependencies = [
  "chacha20",
  "chacha20poly1305",
@@ -6163,8 +6236,7 @@ dependencies = [
 [[package]]
 name = "zcash_primitives"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcb1ef5719fb24b42450dcd6b10e6155793be5668f0d962ad8132b6e4d108635"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.6-kmd#316df4a6ab86691baa1c49a8b5b641a5eabf80c0"
 dependencies = [
  "aes",
  "bip0039",
@@ -6175,7 +6247,7 @@ dependencies = [
  "bs58",
  "byteorder",
  "chacha20poly1305",
- "equihash 0.1.0",
+ "equihash 0.1.0 (git+https://github.com/dimxy/librustzcash.git?branch=0.6-kmd)",
  "ff",
  "fpe",
  "group",
@@ -6193,15 +6265,14 @@ dependencies = [
  "secp256k1",
  "sha2",
  "subtle",
- "zcash_encoding 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "zcash_note_encryption 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zcash_encoding 0.1.0 (git+https://github.com/dimxy/librustzcash.git?branch=0.6-kmd)",
+ "zcash_note_encryption 0.1.0 (git+https://github.com/dimxy/librustzcash.git?branch=0.6-kmd)",
 ]
 
 [[package]]
 name = "zcash_primitives"
 version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fbb401f5dbc482b831954aaa7cba0a8fe148241db6d19fe7cebda78252ca680"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd#8080a489d0561ec38cdd7a5066b8143210ec3941"
 dependencies = [
  "aes",
  "bip0039",
@@ -6212,7 +6283,7 @@ dependencies = [
  "bs58",
  "byteorder",
  "chacha20poly1305",
- "equihash 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "equihash 0.2.0 (git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd)",
  "ff",
  "fpe",
  "group",
@@ -6230,14 +6301,15 @@ dependencies = [
  "secp256k1",
  "sha2",
  "subtle",
- "zcash_encoding 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "zcash_note_encryption 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zcash_address",
+ "zcash_encoding 0.1.0 (git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd)",
+ "zcash_note_encryption 0.1.0 (git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd)",
 ]
 
 [[package]]
 name = "zcash_primitives"
 version = "0.7.0"
-source = "git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510#4567a37ceccbd506a58aaaded39ba14c952c1510"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0#ce04dbbefa758b83fdec741d07278eac4d0971db"
 dependencies = [
  "aes",
  "bip0039",
@@ -6247,7 +6319,7 @@ dependencies = [
  "bls12_381",
  "byteorder",
  "chacha20poly1305",
- "equihash 0.2.0 (git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510)",
+ "equihash 0.2.0 (git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0)",
  "ff",
  "fpe",
  "group",
@@ -6262,14 +6334,14 @@ dependencies = [
  "rand_core 0.6.3",
  "sha2",
  "subtle",
- "zcash_encoding 0.1.0 (git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510)",
- "zcash_note_encryption 0.1.0 (git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510)",
+ "zcash_encoding 0.1.0 (git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0)",
+ "zcash_note_encryption 0.1.0 (git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0)",
 ]
 
 [[package]]
 name = "zcash_proofs"
 version = "0.7.0"
-source = "git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510#4567a37ceccbd506a58aaaded39ba14c952c1510"
+source = "git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0#ce04dbbefa758b83fdec741d07278eac4d0971db"
 dependencies = [
  "bellman",
  "blake2b_simd 1.0.0",
@@ -6282,14 +6354,13 @@ dependencies = [
  "lazy_static",
  "minreq",
  "rand_core 0.6.3",
- "zcash_primitives 0.7.0 (git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510)",
+ "zcash_primitives 0.7.0 (git+https://github.com/dimxy/librustzcash.git?branch=download-sprout-params-8ad60a0)",
 ]
 
 [[package]]
 name = "zcash_script"
 version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f584be367800e38503e66c446f011b580dc181edb28cc2afea8d6c5545765508"
+source = "git+https://github.com/dimxy/zcash_script_kmd_fixed.git?branch=v0.1.6-kmd#4665e229cd452474cd3c35dbbdef61a2ee7a937e"
 dependencies = [
  "bindgen",
  "blake2b_simd 1.0.0",
@@ -6309,7 +6380,7 @@ name = "zebra-chain"
 version = "1.0.0-beta.13"
 dependencies = [
  "aes",
- "bech32",
+ "bech32 0.9.0",
  "bitflags",
  "bitvec",
  "blake2b_simd 1.0.0",
@@ -6322,7 +6393,7 @@ dependencies = [
  "criterion",
  "displaydoc",
  "ed25519-zebra",
- "equihash 0.1.0",
+ "equihash 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "fpe",
  "futures",
  "group",
@@ -6360,7 +6431,7 @@ dependencies = [
  "zcash_encoding 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zcash_history",
  "zcash_note_encryption 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "zcash_primitives 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "zcash_primitives 0.7.0 (git+https://github.com/dimxy/librustzcash.git?branch=0.7-kmd)",
  "zebra-test",
 ]
 
