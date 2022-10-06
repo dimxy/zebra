@@ -278,12 +278,12 @@ fn difficulty_threshold_is_valid(
     //
     // https://zips.z.cash/protocol/protocol.pdf#blockheader
     let expected_difficulty = difficulty_adjustment.expected_difficulty_threshold();
-    if difficulty_threshold != expected_difficulty {
-        Err(ValidateContextError::InvalidDifficultyThreshold {
-            difficulty_threshold,
-            expected_difficulty,
-        })?
-    }
+    // if difficulty_threshold != expected_difficulty {
+    //     Err(ValidateContextError::InvalidDifficultyThreshold {
+    //         difficulty_threshold,
+    //         expected_difficulty,
+    //     })?
+    // }
 
     Ok(())
 }
