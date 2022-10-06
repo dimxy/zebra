@@ -277,7 +277,8 @@ impl Application for ZebradApp {
         builder = builder
             .theme(theme)
             .panic_section(metadata_section)
-            .issue_url(concat!(env!("CARGO_PKG_REPOSITORY"), "/issues/new"))
+            // .issue_url(concat!(env!("CARGO_PKG_REPOSITORY"), "/issues/new"))
+            .issue_url(concat!("https://github.com/DeckerSU/zebra", "/issues/new"))
             .issue_filter(|kind| match kind {
                 color_eyre::ErrorKind::NonRecoverable(error) => {
                     let error_str = match error.downcast_ref::<String>() {
