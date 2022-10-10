@@ -18,7 +18,8 @@ pub fn genesis_hash(network: Network) -> block::Hash {
         // komodo-cli -testnet getblockhash 0
         Network::Kmdtestnet => //"97360fde137975b635fb29cdaec1319036323250827905a499908acdab84dbf3", //block0 ver4
         // "b62eb04b9c9e4d1bab14c0b68e948b426b42d7f1cef0a0106ca221b2fbc60021", block0 ver1
-         "00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08", // "e46e999d6de5ef95427ea51b8242ef7949de22b340b6a484ff154b9991ec9452",
+        "00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08", 
+        // "e46e999d6de5ef95427ea51b8242ef7949de22b340b6a484ff154b9991ec9452",
     }
     .parse()
     .expect("hard-coded hash parses")
