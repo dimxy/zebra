@@ -17,6 +17,7 @@ use zebra_chain::{
     block::{self, Block, Height},
     chain_tip::ChainTip,
     parameters::genesis_hash,
+    parameters::Network,
 };
 use zebra_consensus::{
     chain::VerifyChainError, BlockError, VerifyBlockError, VerifyCheckpointError,
@@ -27,6 +28,8 @@ use zebra_state as zs;
 use crate::{
     components::sync::downloads::BlockDownloadVerifyError, config::ZebradConfig, BoxError,
 };
+
+//pub use hash::Hash;
 
 mod downloads;
 mod gossip;
@@ -45,7 +48,7 @@ pub use recent_sync_lengths::RecentSyncLengths;
 pub use status::SyncStatus;
 
 /// Controls the number of peers used for each ObtainTips and ExtendTips request.
-const FANOUT: usize = 3;
+const FANOUT: usize = 1; // TODO was 3;
 
 /// Controls how many times we will retry each block download.
 ///
@@ -266,6 +269,8 @@ where
 
     /// The lengths of recent sync responses.
     recent_syncs: RecentSyncLengths,
+
+    is_komodo: bool,
 }
 
 /// Polls the network to determine whether further blocks are available and
@@ -371,6 +376,8 @@ where
 
         let (sync_status, recent_syncs) = SyncStatus::new();
 
+        let is_komodo = config.network.network == Network::Kmdtestnet;
+
         let new_syncer = Self {
             genesis_hash: genesis_hash(config.network.network),
             max_checkpoint_height,
@@ -391,6 +398,7 @@ where
             latest_chain_tip,
             prospective_tips: HashSet::new(),
             recent_syncs,
+            is_komodo,
         };
 
         (new_syncer, sync_status)
@@ -445,6 +453,7 @@ where
         self.update_metrics();
 
         while !self.prospective_tips.is_empty() || !extra_hashes.is_empty() {
+
             // Check whether any block tasks are currently ready:
             while let Poll::Ready(Some(rsp)) = futures::poll!(self.downloads.next()) {
                 self.handle_block_response(rsp)?;
@@ -538,21 +547,29 @@ where
             }
 
             let ready_tip_network = self.tip_network.ready().await;
-            requests.push(tokio::spawn(ready_tip_network.map_err(|e| eyre!(e))?.call(
-                zn::Request::FindBlocks {
+            info!(?block_locator, "adding block_locator to request");
+            requests.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("ready_tip_network for block_locator map_err e={}", e); eyre!(e)} )?.call(
+                // zn::Request::FindBlocks {
+                zn::Request::FindHeaders {
                     known_blocks: block_locator.clone(),
                     stop: None,
                 },
             )));
         }
 
+        info!("starting block_locator requests loop requests.len={} locator.len={}", requests.len(), block_locator.len());
         let mut download_set = IndexSet::new();
         while let Some(res) = requests.next().await {
+            info!("dimxyyy obtain tips looping over responses res={:?}", res);
             match res
                 .expect("panic in spawned obtain tips request")
-                .map_err::<Report, _>(|e| eyre!(e))
+                //.map_err::<Report, _>(|e| eyre!(e))
+                .map_err::<Report, _>(|e| { info!("findblocks for block_locator map_err e={} locator.len={}", e, block_locator.len());  eyre!(e) })
             {
-                Ok(zn::Response::BlockHashes(hashes)) => {
+                //Ok(zn::Response::BlockHashes(hashes)) => {
+                Ok(zn::Response::BlockHeaders(headers)) => {
+                    let hashes = headers.iter().map(|cheader| block::Hash::from(&cheader.header)).collect::<Vec<block::Hash>>();
+
                     trace!(?hashes);
 
                     // zcashd sometimes appends an unrelated hash at the start
@@ -566,10 +583,16 @@ where
                     // tips. So we discard the last hash. (We don't need to worry
                     // about missed downloads, because we will pick them up again
                     // in ExtendTips.)
-                    let hashes = match hashes.as_slice() {
-                        [] => continue,
-                        [rest @ .., _last] => rest,
+        
+                    let hashes = if !self.is_komodo {  
+                        match hashes.as_slice() {
+                            [] => continue,
+                            [rest @ .., _last] => rest,
+                        }
+                    } else {
+                        hashes.as_ref() // do not trim last hash for komodo
                     };
+                    
 
                     let mut first_unknown = None;
                     for (i, &hash) in hashes.iter().enumerate() {
@@ -670,20 +693,29 @@ where
                     tokio::task::yield_now().await;
                 }
 
+                info!(?tip.tip, "adding tip to request");
                 let ready_tip_network = self.tip_network.ready().await;
-                responses.push(tokio::spawn(ready_tip_network.map_err(|e| eyre!(e))?.call(
-                    zn::Request::FindBlocks {
+                responses.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("ready_tip_network for tip map_err e={}", e); eyre!(e) })?.call(
+                    //zn::Request::FindBlocks {
+                    zn::Request::FindHeaders {
                         known_blocks: vec![tip.tip],
                         stop: None,
                     },
                 )));
             }
+
+            info!("starting tips responses loop size={}", responses.len());
             while let Some(res) = responses.next().await {
+                info!("dimxyyy extend tips looping over responses res={:?}", res);
                 match res
                     .expect("panic in spawned extend tips request")
-                    .map_err::<Report, _>(|e| eyre!(e))
+                    //.map_err::<Report, _>(|e| eyre!(e))
+                    .map_err(|e| { info!("findblocks/headers for tip map_err e={}", e);  eyre!(e) })
+
                 {
-                    Ok(zn::Response::BlockHashes(hashes)) => {
+                    //Ok(zn::Response::BlockHashes(hashes)) => {
+                    Ok(zn::Response::BlockHeaders(headers)) => {
+                        let hashes = headers.iter().map(|cheader| block::Hash::from(&cheader.header)).collect::<Vec<block::Hash>>();
                         debug!(first = ?hashes.first(), len = ?hashes.len());
                         trace!(?hashes);
 
@@ -692,6 +724,7 @@ where
                         // against the previous response, and discard mismatches.
                         let unknown_hashes = match hashes.as_slice() {
                             [expected_hash, rest @ ..] if expected_hash == &tip.expected_next => {
+                                info!("dimxyyyy expected hash first={} size={}", expected_hash, hashes.len());
                                 rest
                             }
                             // If the first hash doesn't match, retry with the second.
@@ -723,6 +756,7 @@ where
                                 continue;
                             }
                         };
+                        trace!(?unknown_hashes, "dimxyyy before check");
 
                         // We use the last hash for the tip, and we want to avoid
                         // bad tips. So we discard the last hash. (We don't need
@@ -732,11 +766,17 @@ where
                             [] => continue,
                             [rest @ .., _last] => rest,
                         };
+                        trace!(?unknown_hashes, "dimxyyy");
+
 
                         let new_tip = if let Some(end) = unknown_hashes.rchunks_exact(2).next() {
                             CheckedTip {
                                 tip: end[0],
-                                expected_next: end[1],
+                                expected_next: end[1], 
+                                // dimxy note: I wondered how sync would get the last block (which is now set as 'expected_next') and other blocks above 
+                                // this question may arise because the tip is set to one block below the expected_next (end[0]))
+                                // As I undestand getting blocks since and above the tip will happen in obtain_tips func
+                                // but still it is a question do we need cut 'expected_next' in kmd as this is intended to fix the zcash issue when it sends extra hash as the last 
                             }
                         } else {
                             debug!("discarding response that extends only one block");
