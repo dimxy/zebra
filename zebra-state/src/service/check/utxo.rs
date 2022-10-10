@@ -214,7 +214,9 @@ pub fn transparent_coinbase_spend(
                 })
             }
         }
-        SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
+        //SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
+        // dimxy for kmd allow spending coinbases with transparent  
+        SomeTransparentOutputs => Ok(utxo),
     }
 }
 
