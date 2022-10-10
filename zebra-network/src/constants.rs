@@ -318,11 +318,11 @@ pub const DNS_LOOKUP_TIMEOUT: Duration = Duration::from_secs(5);
 pub mod magics {
     use super::*;
     /// The production mainnet.
-    pub const MAINNET: Magic = Magic([0xf9, 0xee, 0xe4, 0x8d]);
+    pub const MAINNET: Magic = Magic([0xf9, 0xee, 0xe4, 0x8d]);  // kmd main
     /// The testnet.
     pub const TESTNET: Magic = Magic([0xfa, 0x1a, 0xf9, 0xbf]);
     /// The kmd testnet.
-    pub const KMDTESTNET: Magic = Magic([0x5A, 0x1F, 0x7E, 0x62]);
+    pub const KMDTESTNET: Magic = Magic([0x5A, 0x1F, 0x7E, 0x62]); // jmj-like test with fixes
 }
 
 #[cfg(test)]

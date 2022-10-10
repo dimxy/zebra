@@ -44,15 +44,17 @@ const MAINNET_CHECKPOINTS: &str = include_str!("main-checkpoints.txt");
 const TESTNET_CHECKPOINTS: &str = include_str!("test-checkpoints.txt");
 
 // KMD
-const KMDTESTNET_CHECKPOINTS: &str =    //ver4
+const KMDTESTNET_CHECKPOINTS: &str =    //ver4 mainnet genesis
                                         "0 00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08\n\
-                                         32 0216e68b208cc1609e5491ad8501a41d62ce2c07c3efcdfe544655de7bee1bbb\n"; //05fff8fad00c6e65fe3534700f105ef3e9855d5550764459749ac71afa4fc064\n";
+                                        64 02166a14554a57db09a468a776be4b96f151c4b25630f43183ae4339f8c6b03d\n"; //05fff8fad00c6e65fe3534700f105ef3e9855d5550764459749ac71afa4fc064\n";
                                     // block0 ver1
                                      //  "0 b62eb04b9c9e4d1bab14c0b68e948b426b42d7f1cef0a0106ca221b2fbc60021\n\
                                      //   32 04690bd24bab1459f3c800277adbbb91258aeedbe7a254cec719bf177968e9b5\n";
                                     // block0 ver4
                                     //    "0 97360fde137975b635fb29cdaec1319036323250827905a499908acdab84dbf3\n\
                                     //    32 0a0fc940a61f2fc8576059c3da7da545235b21467132f869585597ac0c7e3fd1\n";
+                                    //"0 e46e999d6de5ef95427ea51b8242ef7949de22b340b6a484ff154b9991ec9452\n\
+                                    //64 0268c2233b8cfd3609e057caea5f5e3e95c6807a0e7516d13b0e8fc9ddcdb9f9\n";
 
 // jmj version=1 genesisblock "0 e46e999d6de5ef95427ea51b8242ef7949de22b340b6a484ff154b9991ec9452\n";
 
