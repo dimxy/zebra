@@ -973,7 +973,10 @@ impl Service<ReadRequest> for ReadStateService {
 
                         // The work is done in the future.
                         timer.finish(module_path!(), line!(), "ReadRequest::Block");
-                        println!("block {}", block.as_ref().unwrap());
+                        match &block  {
+                            Some(b) => println!("block {}", b),
+                            None => println!("block not found"), 
+                        }
                         Ok(ReadResponse::Block(block))
                     })
                 })

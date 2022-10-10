@@ -346,6 +346,7 @@ where
         }
     }
 
+    tracing::info!("dimxyyy before partial_transparent_utxo_changes");
     Ok(chain.partial_transparent_utxo_changes(addresses))
 }
 

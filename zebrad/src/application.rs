@@ -304,10 +304,12 @@ impl Application for ZebradApp {
                         || error.is::<zebra_network::SharedPeerError>()
                         || error.is::<zebra_network::HandshakeError>()
                     {
+                        info!(?error, "got recoverable error dimxyyy");
                         return false;
                     }
 
                     let error_str = error.to_string();
+                    info!(?error_str, "error_str dimxyyy");
                     !error_str.contains("timed out")
                         && !error_str.contains("duplicate hash")
                         && !error_str.contains("No space left on device")

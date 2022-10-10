@@ -568,6 +568,7 @@ where
         loop {
             self.update_state_metrics(None);
 
+            info!("starting loop in run dimxyyy");
             match self.state {
                 State::AwaitingRequest => {
                     trace!("awaiting client request or peer message");
@@ -690,7 +691,7 @@ where
                         .await
                     {
                         Either::Right((None, _)) => self.fail_with(PeerError::ConnectionClosed),
-                        Either::Right((Some(Err(e)), _)) => self.fail_with(e),
+                        Either::Right((Some(Err(e)), _)) => {  info!(?e, "serial error"); self.fail_with(e)},
                         Either::Right((Some(Ok(peer_msg)), _cancel)) => {
                             self.update_state_metrics(format!("Out::Rsp::{}", peer_msg.command()));
 
@@ -733,6 +734,7 @@ where
                             }
                         }
                         Either::Left((Either::Right(_), _peer_fut)) => {
+                            info!("client request timed out dimxyyy");
                             trace!(parent: &span, "client request timed out");
                             let e = PeerError::ConnectionReceiveTimeout;
 
@@ -765,6 +767,7 @@ where
                         }
                         Either::Left((Either::Left(_), _peer_fut)) => {
                             // The client receiver was dropped, so we don't need to send on `tx` here.
+                            info!("client request was cancelled dimxyyy");
                             trace!(parent: &span, "client request was cancelled");
                             self.state = State::AwaitingRequest;
                         }
@@ -772,8 +775,9 @@ where
                 }
 
                 // This connection has failed: stop the event loop, and complete the future.
-                State::Failed => break,
+                State::Failed => { info!("state = failed in loop in run, break dimxyyy");  break},
             }
+            info!("ended loop in run dimxyyy");
         }
 
         let error = self.error_slot.try_get_error();

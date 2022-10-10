@@ -615,7 +615,16 @@ impl Codec {
     }
 
     fn read_inv<R: Read>(&self, reader: R) -> Result<Message, Error> {
-        Ok(Message::Inv(Vec::zcash_deserialize(reader)?))
+        //Ok(Message::Inv(Vec::zcash_deserialize(reader)?))
+        let msg = Message::Inv(Vec::zcash_deserialize(reader)?);
+        /*match &msg {
+            Message::Inv(invs) => info!("dimxyyy inv received inv_vec.len={}", invs.len()),
+            _ => (),
+        }*/
+        if let Message::Inv(invs) = &msg  {
+            info!("dimxyyy inv received inv_vec.len={}", invs.len())
+        }
+        Ok(msg)
     }
 
     fn read_getdata<R: Read>(&self, reader: R) -> Result<Message, Error> {

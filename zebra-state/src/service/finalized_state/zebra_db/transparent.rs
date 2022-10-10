@@ -116,8 +116,9 @@ impl ZebraDb {
     ) -> BTreeMap<OutputLocation, transparent::Output> {
         let address_location = match self.address_location(address) {
             Some(address_location) => address_location,
-            None => return BTreeMap::new(),
+            None => { tracing::info!("dimxyyy address_location return new"); return BTreeMap::new() },
         };
+        tracing::info!("dimxyyy address_location = {:?}", address_location.transaction_location().height);
 
         let output_locations = self.address_utxo_locations(address_location);
 
@@ -163,6 +164,7 @@ impl ZebraDb {
                 None => break,
             };
 
+            tracing::info!("dimxyyy found unspent_output");
             // We found the next address, so we're finished with this address
             if unspent_output.address_location() != address_location {
                 break;
@@ -377,6 +379,7 @@ impl DiskWriteBatch {
     ) -> Result<(), BoxError> {
         let FinalizedBlock { block, height, .. } = finalized;
 
+        tracing::info!("dimxyyy prepare_transparent_transaction_batch entered");
         // Update created and spent transparent outputs
         self.prepare_new_transparent_outputs_batch(
             db,
@@ -431,10 +434,13 @@ impl DiskWriteBatch {
         let tx_loc_by_transparent_addr_loc =
             db.cf_handle("tx_loc_by_transparent_addr_loc").unwrap();
 
+        tracing::info!("dimxyyy prepare_new_transparent_outputs_batch enterred");
+
         // Index all new transparent outputs
         for (new_output_location, utxo) in new_outputs_by_out_loc {
             let unspent_output = &utxo.output;
             let receiving_address = unspent_output.address(self.network());
+            tracing::info!("dimxyyy prepare_new_transparent_outputs_batch receiving_address={:?} network={:?}", receiving_address, self.network());
 
             // Update the address balance by adding this UTXO's value
             if let Some(receiving_address) = receiving_address {
@@ -458,6 +464,7 @@ impl DiskWriteBatch {
                 // Create a link from the AddressLocation to the new OutputLocation in the database.
                 let address_unspent_output =
                     AddressUnspentOutput::new(receiving_address_location, *new_output_location);
+                tracing::info!("dimxyyy zs_insert address_unspent_output={:?}", address_unspent_output);
                 self.zs_insert(
                     &utxo_loc_by_transparent_addr_loc,
                     address_unspent_output,
