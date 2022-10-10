@@ -535,7 +535,7 @@ where
 
             let request =
             //    zebra_state::ReadRequest::Block(zebra_state::HashOrHeight::Height(height_parsed));
-                zebra_state::ReadRequest::Block(hash_or_height);
+                zebra_state::ReadRequest::Block(hash_or_height);  //dimxy: allow height param for rpcs
             let response = state
                 .ready()
                 .and_then(|service| service.call(request))
@@ -912,6 +912,8 @@ where
                 zebra_state::ReadResponse::Utxos(utxos) => utxos,
                 _ => unreachable!("unmatched response to a UtxosByAddresses request"),
             };
+
+            tracing::info!("found utxos.utxos()={}", utxos.utxos().collect::<Vec<_>>().len());
 
             let mut last_output_location = OutputLocation::from_usize(Height(0), 0, 0);
 
