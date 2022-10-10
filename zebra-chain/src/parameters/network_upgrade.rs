@@ -462,7 +462,7 @@ impl NetworkUpgrade {
         match network {
             Network::Mainnet => true,
             Network::Testnet => height >= TESTNET_MAX_TIME_START_HEIGHT,
-            Network::Kmdtestnet => true,  // TODO: check
+            Network::Kmdtestnet => false,  // allow long stops for testnet TODO: dimxy check
         }
     }
     /// Returns the NetworkUpgrade given an u32 as ConsensusBranchId
