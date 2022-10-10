@@ -58,6 +58,7 @@ where
 
 /// A connector request.
 /// Contains the information needed to make an outbound connection to the peer.
+#[derive(Debug)]
 pub struct OutboundConnectorRequest {
     /// The Zcash listener address of the peer.
     pub addr: SocketAddr,

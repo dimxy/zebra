@@ -744,6 +744,7 @@ where
 
 /// A handshake request.
 /// Contains the information needed to handshake with the peer.
+#[derive(Debug)]
 pub struct HandshakeRequest<PeerTransport>
 where
     PeerTransport: AsyncRead + AsyncWrite + Unpin + Send + 'static,
