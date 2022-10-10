@@ -33,7 +33,10 @@ futures = "0.3.21"
 tokio = { version = "1.20.1", features = ["net", "time", "tracing", "macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1.9", features = ["sync", "time"] }
 tokio-util = { version = "0.7.3", features = ["codec"] }
-tower = { version = "0.4.13", features = ["retry", "discover", "load", "load-shed", "timeout", "util", "buffer"] }
+# tower = { version = "0.4.13", features = ["retry", "discover", "load", "load-shed", "timeout", "util", "buffer"] }
+tower = { git = "https://github.com/dimxy/tower.git", branch = "v0.4.13-debug-timeout", features = ["retry", "discover", "load", "load-shed", "timeout", "util", "buffer"]  }
+# tower = { git = "https://github.com/dimxy/tower.git", rev = "04527aeb439761875a3e4f96d2090622731bc719", features = ["retry", "discover", "load", "load-shed", "timeout", "util", "buffer"] }
+
 
 metrics = "0.18.1"
 tracing-futures = "0.2.5"

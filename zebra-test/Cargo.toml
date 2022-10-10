@@ -18,7 +18,9 @@ rand = { version = "0.8.5", package = "rand" }
 regex = "1.6.0"
 
 tokio = { version = "1.20.1", features = ["full", "tracing", "test-util"] }
-tower = { version = "0.4.13", features = ["util"] }
+# tower = { version = "0.4.13", features = ["util"] }
+tower = { git = "https://github.com/dimxy/tower.git", branch = "v0.4.13-debug-timeout", features = ["util"]  }
+
 futures = "0.3.21"
 
 color-eyre = "0.6.1"
