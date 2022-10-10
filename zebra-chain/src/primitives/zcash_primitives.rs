@@ -291,7 +291,8 @@ pub(crate) fn transparent_output_address(
     network: Network,
 ) -> Option<transparent::Address> {
     let script = zcash_primitives::legacy::Script::from(&output.lock_script);
-    let alt_addr = script.address();
+    let alt_addr = script.address();  //zcahs_primitives from dimxy librustcash repo now returns address for p2pk (zcash original did not)
+    //info!("dimxyyy output.lock_script={:?} alt_addr={:?}", output.lock_script, alt_addr);
     match alt_addr {
         Some(zcash_primitives::legacy::TransparentAddress::PublicKey(pub_key_hash)) => Some(
             transparent::Address::from_pub_key_hash(network, pub_key_hash),
