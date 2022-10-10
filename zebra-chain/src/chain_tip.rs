@@ -53,6 +53,11 @@ pub trait ChainTip {
     ) -> Option<block::Height> {
         let (current_height, current_block_time) = self.best_tip_height_and_block_time()?;
 
+        // dimxy dont estimate for kmd testnet to allow stops and delays
+        if network == Network::Kmdtestnet {
+            return Some(current_height);
+        }
+
         let estimator =
             NetworkChainTipHeightEstimator::new(current_block_time, current_height, network);
 
