@@ -194,7 +194,7 @@ pub(crate) const CONSENSUS_BRANCH_IDS: &[(NetworkUpgrade, ConsensusBranchId)] = 
 ];
 
 /// The target block spacing before Blossom.
-const PRE_BLOSSOM_POW_TARGET_SPACING: i64 = 150;
+const PRE_BLOSSOM_POW_TARGET_SPACING: i64 = 60;
 
 /// The target block spacing after Blossom activation.
 pub const POST_BLOSSOM_POW_TARGET_SPACING: i64 = 75;
