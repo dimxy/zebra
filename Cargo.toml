@@ -68,3 +68,4 @@ lto = "thin"
 # Currently pointing to `download-sprout-params` branch.
 zcash_proofs = { git = "https://github.com/ZcashFoundation/librustzcash.git", rev = "4567a37ceccbd506a58aaaded39ba14c952c1510" }
 zcash_primitives = { path = './patches/zcash_primitives-0.7.0' }
+zcash_script = { path = './patches/zcash_script-0.1.6' }
