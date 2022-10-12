@@ -20,13 +20,13 @@ use proptest::prelude::*;
 /// are associated with.
 mod magics {
     pub mod p2sh {
-        pub const MAINNET: [u8; 2] = [0x1C, 0xBD];
-        pub const TESTNET: [u8; 2] = [0x1C, 0xBA];
+        pub const MAINNET: [u8; 1] = [85];
+        pub const TESTNET: [u8; 1] = [0];
     }
 
     pub mod p2pkh {
-        pub const MAINNET: [u8; 2] = [0x1C, 0xB8];
-        pub const TESTNET: [u8; 2] = [0x1D, 0x25];
+        pub const MAINNET: [u8; 1] = [60];
+        pub const TESTNET: [u8; 1] = [5];
     }
 }
 
@@ -147,7 +147,7 @@ impl ZcashSerialize for Address {
 
 impl ZcashDeserialize for Address {
     fn zcash_deserialize<R: io::Read>(mut reader: R) -> Result<Self, SerializationError> {
-        let mut version_bytes = [0; 2];
+        let mut version_bytes = [0; 1];
         reader.read_exact(&mut version_bytes)?;
 
         let mut hash_bytes = [0; 20];
@@ -270,7 +270,7 @@ mod tests {
 
         let t_addr = pub_key.to_address(Network::Mainnet);
 
-        assert_eq!(format!("{}", t_addr), "t1bmMa1wJDFdbc2TiURQP5BbBz6jHjUBuHq");
+        assert_eq!(format!("{}", t_addr), "RTAweCQSqkea5Pn21AaP2tpUVhzocfXohA");
     }
 
     #[test]
@@ -285,7 +285,7 @@ mod tests {
 
         let t_addr = pub_key.to_address(Network::Testnet);
 
-        assert_eq!(format!("{}", t_addr), "tmTc6trRhbv96kGfA99i7vrFwb5p7BVFwc3");
+        assert_eq!(format!("{}", t_addr), "3KamVE1bnqAP6Z7Ff6FrMzrCsxpvVpeduu");
     }
 
     #[test]
@@ -296,7 +296,7 @@ mod tests {
 
         let t_addr = script.to_address(Network::Mainnet);
 
-        assert_eq!(format!("{}", t_addr), "t3Y5pHwfgHbS6pDjj1HLuMFxhFFip1fcJ6g");
+        assert_eq!(format!("{}", t_addr), "bSFU4J6b7hibeFqm2RBH1UdiLx9C4u7PRe");
     }
 
     #[test]
@@ -307,27 +307,27 @@ mod tests {
 
         let t_addr = script.to_address(Network::Testnet);
 
-        assert_eq!(format!("{}", t_addr), "t2L51LcmpA43UMvKTw2Lwtt9LMjwyqU2V1P");
+        assert_eq!(format!("{}", t_addr), "1EXCN4m6mNL88QzPwksBnpVqr5F1dC4SGa");
     }
 
     #[test]
     fn from_string() {
         zebra_test::init();
 
-        let t_addr: Address = "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd".parse().unwrap();
+        let t_addr: Address = "RXPbZC5uPgiG7rk5d4rYkJV8kLPF7Su2Jb".parse().unwrap();
 
-        assert_eq!(format!("{}", t_addr), "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd");
+        assert_eq!(format!("{}", t_addr), "RXPbZC5uPgiG7rk5d4rYkJV8kLPF7Su2Jb");
     }
 
     #[test]
     fn debug() {
         zebra_test::init();
 
-        let t_addr: Address = "t3Vz22vK5z2LcKEdg16Yv4FFneEL1zg9ojd".parse().unwrap();
+        let t_addr: Address = "RXPbZC5uPgiG7rk5d4rYkJV8kLPF7Su2Jb".parse().unwrap();
 
         assert_eq!(
             format!("{:?}", t_addr),
-            "TransparentAddress { network: Mainnet, script_hash: \"7d46a730d31f97b1930d3368a967c309bd4d136a\" }"
+            "TransparentAddress { network: Mainnet, pub_key_hash: \"f288dc5b537cfd127352d2fb2a3302ba64527376\" }"
         );
     }
 }
