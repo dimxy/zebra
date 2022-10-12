@@ -124,10 +124,10 @@ pub(super) const KMDTESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade
     (block::Height(1), BeforeOverwinter),
     (block::Height(1), Overwinter),
     (block::Height(1), Sapling),
-    (block::Height(584_000), Blossom),
-    (block::Height(903_800), Heartwood),
-    (block::Height(1_028_500), Canopy),
-    (block::Height(1_842_420), Nu5),
+    //(block::Height(584_000), Blossom),
+    //(block::Height(903_800), Heartwood),
+    //(block::Height(1_028_500), Canopy),
+    //(block::Height(1_842_420), Nu5),
 ];
 
 /// The Consensus Branch Id, used to bind transactions and blocks to a
