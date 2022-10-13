@@ -98,10 +98,16 @@ impl ZebraDb {
 
         let tx_by_loc = self.db.cf_handle("tx_by_loc").unwrap();
         let tx_loc = output_location.transaction_location();
-        let mut lock_time = LockTime::unlocked();
+        let tx: Option<Transaction> = self.db.zs_get(&tx_by_loc, &tx_loc);
 
-        let tx: Transaction = self.db.zs_get(&tx_by_loc, &tx_loc)?;
-        lock_time = tx.lock_time()?;
+        let lock_time = match tx {
+            Some(tx) => {
+                tx.lock_time().unwrap_or_else(LockTime::unlocked)
+            },
+            None => {
+                LockTime::unlocked()
+            },
+        };
 
         let utxo_by_out_loc = self.db.cf_handle("utxo_by_out_loc").unwrap();
         let output = self.db.zs_get(&utxo_by_out_loc, &output_location)?;

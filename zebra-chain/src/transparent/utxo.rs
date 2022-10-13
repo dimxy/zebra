@@ -26,7 +26,7 @@ pub struct Utxo {
     /// Whether the output originated in a coinbase transaction.
     pub from_coinbase: bool,
     /// The locktime of a transaction in which this utxo created. Needed for interest calc.
-    lock_time: LockTime,
+    pub lock_time: LockTime,
 }
 
 /// A [`Utxo`], and the index of its transaction within its block.
