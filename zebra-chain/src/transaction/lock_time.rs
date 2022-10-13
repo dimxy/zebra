@@ -1,6 +1,7 @@
 //! Transaction LockTime.
 
 use std::{convert::TryInto, io};
+use std::hash::{Hash, Hasher};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use chrono::{DateTime, TimeZone, Utc};
@@ -109,6 +110,15 @@ impl ZcashDeserialize for LockTime {
         } else {
             // This can't panic, because all u32 values are valid `Utc.timestamp`s.
             Ok(LockTime::Time(Utc.timestamp(n.into(), 0)))
+        }
+    }
+}
+
+impl Hash for LockTime {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            LockTime::Height(block::Height(n)) => n.hash(state),
+            LockTime::Time(t) => (t.timestamp() as u32).hash(state),
         }
     }
 }
