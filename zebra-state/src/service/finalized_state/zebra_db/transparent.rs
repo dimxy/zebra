@@ -96,6 +96,9 @@ impl ZebraDb {
         output_location: OutputLocation,
     ) -> Option<transparent::OrderedUtxo> {
 
+        let utxo_by_out_loc = self.db.cf_handle("utxo_by_out_loc").unwrap();
+        let output = self.db.zs_get(&utxo_by_out_loc, &output_location)?;
+
         let tx_by_loc = self.db.cf_handle("tx_by_loc").unwrap();
         let tx_loc = output_location.transaction_location();
         let tx: Option<Transaction> = self.db.zs_get(&tx_by_loc, &tx_loc);
@@ -108,9 +111,6 @@ impl ZebraDb {
                 LockTime::unlocked()
             },
         };
-
-        let utxo_by_out_loc = self.db.cf_handle("utxo_by_out_loc").unwrap();
-        let output = self.db.zs_get(&utxo_by_out_loc, &output_location)?;
 
         let utxo = transparent::OrderedUtxo::new(
             output,
