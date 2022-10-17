@@ -400,8 +400,9 @@ where
 
             // Calculate the fee only for non-coinbase transactions.
             let mut miner_fee = None;
-            if !tx.is_coinbase() {
+            /*if !tx.is_coinbase() {
                 // TODO: deduplicate this code with remaining_transaction_value (#TODO: open ticket)
+                tracing::info!("tx={} value_balance={:?}", tx.hash(), value_balance);
                 miner_fee = match value_balance {
                     Ok(vb) => match vb.remaining_transaction_value() {
                         Ok(tx_rtv) => Some(tx_rtv),
@@ -409,7 +410,7 @@ where
                     },
                     Err(_) => return Err(TransactionError::IncorrectFee),
                 };
-            }
+            }*/
 
             let rsp = match req {
                 Request::Block { .. } => Response::Block {

@@ -241,10 +241,10 @@ pub fn miner_fees_are_valid(
         .map_err(|_| SubsidyError::SumOverflow)?;
     let right = (block_subsidy + block_miner_fees).map_err(|_| SubsidyError::SumOverflow)?;
 
-    if left > right {
-        tracing::info!(?height,?left,?right,"fees");
-        return Err(SubsidyError::InvalidMinerFees)?;
-    }
+    //if left > right {
+    //    tracing::info!(?height,?left,?right,"fees");
+    //    return Err(SubsidyError::InvalidMinerFees)?;
+    //}
 
     Ok(())
 }
