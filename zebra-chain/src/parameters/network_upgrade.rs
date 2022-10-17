@@ -124,10 +124,10 @@ pub(super) const KMDTESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade
     (block::Height(1), BeforeOverwinter),
     (block::Height(1), Overwinter),
     (block::Height(1), Sapling),
-    //(block::Height(584_000), Blossom),
-    //(block::Height(903_800), Heartwood),
-    //(block::Height(1_028_500), Canopy),
-    //(block::Height(1_842_420), Nu5),
+    (block::Height(584_000), Blossom),
+    (block::Height(903_800), Heartwood),
+    (block::Height(1_028_500), Canopy),
+    (block::Height(1_842_420), Nu5),
 ];
 
 /// The Consensus Branch Id, used to bind transactions and blocks to a
@@ -206,7 +206,7 @@ pub(crate) const CONSENSUS_BRANCH_IDS: &[(NetworkUpgrade, ConsensusBranchId)] = 
 ];
 
 /// The target block spacing before Blossom.
-const PRE_BLOSSOM_POW_TARGET_SPACING: i64 = 150;
+const PRE_BLOSSOM_POW_TARGET_SPACING: i64 = 60;  //150;
 
 /// The target block spacing after Blossom activation.
 pub const POST_BLOSSOM_POW_TARGET_SPACING: i64 = 75;
@@ -349,12 +349,11 @@ impl NetworkUpgrade {
     ///
     /// Based on [`PRE_BLOSSOM_POW_TARGET_SPACING`] and
     /// [`POST_BLOSSOM_POW_TARGET_SPACING`] from the Zcash specification.
-    pub fn target_spacing(&self) -> Duration {
+    pub fn target_spacing(&self, network: Network) -> Duration {
         let spacing_seconds = match self {
-            Genesis | BeforeOverwinter | Overwinter | Sapling => PRE_BLOSSOM_POW_TARGET_SPACING,
+            Genesis | BeforeOverwinter | Overwinter | Sapling => if network == Network::Kmdtestnet { 5 * PRE_BLOSSOM_POW_TARGET_SPACING / 2 } else { PRE_BLOSSOM_POW_TARGET_SPACING },
             Blossom | Heartwood | Canopy | Nu5 => POST_BLOSSOM_POW_TARGET_SPACING,
         };
-
         Duration::seconds(spacing_seconds)
     }
 
@@ -362,13 +361,13 @@ impl NetworkUpgrade {
     ///
     /// See [`NetworkUpgrade::target_spacing`] for details.
     pub fn target_spacing_for_height(network: Network, height: block::Height) -> Duration {
-        NetworkUpgrade::current(network, height).target_spacing()
+        NetworkUpgrade::current(network, height).target_spacing(network)
     }
 
     /// Returns all the target block spacings for `network` and the heights where they start.
     pub fn target_spacings(network: Network) -> impl Iterator<Item = (block::Height, Duration)> {
         [
-            (NetworkUpgrade::Genesis, PRE_BLOSSOM_POW_TARGET_SPACING),
+            (NetworkUpgrade::Genesis, if network == Network::Kmdtestnet { 5 * PRE_BLOSSOM_POW_TARGET_SPACING / 2 } else { PRE_BLOSSOM_POW_TARGET_SPACING }), // dimxy fix for kmd testnet
             (NetworkUpgrade::Blossom, POST_BLOSSOM_POW_TARGET_SPACING),
         ]
         .into_iter()
@@ -396,7 +395,7 @@ impl NetworkUpgrade {
             (Network::Mainnet, _) => None,
             (Network::Testnet, _) => {
                 let network_upgrade = NetworkUpgrade::current(network, height);
-                Some(network_upgrade.target_spacing() * TESTNET_MINIMUM_DIFFICULTY_GAP_MULTIPLIER)
+                Some(network_upgrade.target_spacing(network) * TESTNET_MINIMUM_DIFFICULTY_GAP_MULTIPLIER)
             },
             (Network::Kmdtestnet, _) => None,
         }
@@ -436,8 +435,8 @@ impl NetworkUpgrade {
     /// Returns the averaging window timespan for the network upgrade.
     ///
     /// `AveragingWindowTimespan` from the Zcash specification.
-    pub fn averaging_window_timespan(&self) -> Duration {
-        self.target_spacing() * POW_AVERAGING_WINDOW.try_into().expect("fits in i32")
+    pub fn averaging_window_timespan(&self, network: Network) -> Duration {
+        self.target_spacing(network) * POW_AVERAGING_WINDOW.try_into().expect("fits in i32")
     }
 
     /// Returns the averaging window timespan for `network` and `height`.
@@ -447,7 +446,7 @@ impl NetworkUpgrade {
         network: Network,
         height: block::Height,
     ) -> Duration {
-        NetworkUpgrade::current(network, height).averaging_window_timespan()
+        NetworkUpgrade::current(network, height).averaging_window_timespan(network)
     }
 
     /// Returns true if the maximum block time rule is active for `network` and `height`.
