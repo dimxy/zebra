@@ -15,14 +15,14 @@ pub use zebra_chain::transparent::MIN_TRANSPARENT_COINBASE_MATURITY;
 /// early non-finalized blocks, or finalized blocks. But if that chain becomes
 /// the best chain, all non-finalized blocks past the [`MAX_BLOCK_REORG_HEIGHT`]
 /// will be finalized. This includes all mature coinbase outputs.
-pub const MAX_BLOCK_REORG_HEIGHT: u32 = MIN_TRANSPARENT_COINBASE_MATURITY - 1;
+pub const MAX_BLOCK_REORG_HEIGHT: u32 = 4; //MIN_TRANSPARENT_COINBASE_MATURITY - 1;  // 4
 
 /// The database format version, incremented each time the database format changes.
 pub const DATABASE_FORMAT_VERSION: u32 = 25;
 
 /// The maximum number of blocks to check for NU5 transactions,
 /// before we assume we are on a pre-NU5 legacy chain.
-pub const MAX_LEGACY_CHAIN_BLOCKS: usize = 100;
+pub const MAX_LEGACY_CHAIN_BLOCKS: usize = 5; //100; // 5
 
 use lazy_static::lazy_static;
 use regex::Regex;
