@@ -89,6 +89,8 @@ use crate::{
     prelude::*,
 };
 
+use std::sync::Arc;
+
 /// `start` subcommand
 #[derive(Command, Debug, Options)]
 pub struct StartCmd {
@@ -168,6 +170,7 @@ impl StartCmd {
             read_only_state_service,
             latest_chain_tip.clone(),
             config.network.network,
+            Arc::clone(&address_book),
         );
 
         let setup_data = InboundSetupData {

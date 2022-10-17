@@ -6,6 +6,7 @@
 //! Some parts of the `zcashd` RPC documentation are outdated.
 //! So this implementation follows the `zcashd` server and `lightwalletd` client implementations.
 
+use std::net::SocketAddr;
 use std::str::FromStr;
 use std::{collections::HashSet, io, sync::Arc};
 
@@ -31,11 +32,14 @@ use zebra_chain::{
     transaction::{self, SerializedTransaction, Transaction, UnminedTx},
     transparent::{self, Address},
 };
+use zebra_network::AddressBook;
 use zebra_network::constants::USER_AGENT;
 use zebra_node_services::{mempool, BoxError};
 use zebra_state::{OutputIndex, OutputLocation, TransactionLocation};
 
 use crate::queue::Queue;
+
+use std::time::Instant;
 
 #[cfg(test)]
 mod tests;
@@ -233,6 +237,13 @@ pub trait Rpc {
         &self,
         address_strings: AddressStrings,
     ) -> BoxFuture<Result<Vec<GetAddressUtxos>>>;
+
+    /// Returns active peers
+    #[rpc(name = "getpeerinfo")]
+    fn get_peer_info(
+        &self,
+    ) -> Result<Vec<GetPeerInfo>>;
+
 }
 
 /// RPC method implementations.
@@ -264,6 +275,8 @@ where
 
     /// A sender component of a channel used to send transactions to the queue.
     queue_sender: Sender<Option<UnminedTx>>,
+
+    address_book: Arc<std::sync::Mutex<AddressBook>>,
 }
 
 impl<Mempool, State, Tip> RpcImpl<Mempool, State, Tip>
@@ -286,6 +299,7 @@ where
         state: State,
         latest_chain_tip: Tip,
         network: Network,
+        address_book: Arc<std::sync::Mutex<AddressBook>>,
     ) -> (Self, JoinHandle<()>)
     where
         Version: ToString,
@@ -308,6 +322,7 @@ where
             latest_chain_tip: latest_chain_tip.clone(),
             network,
             queue_sender: runner.sender(),
+            address_book,
         };
 
         // run the process queue
@@ -951,6 +966,33 @@ where
         }
         .boxed()
     }
+
+    fn get_peer_info(
+        &self,
+    ) -> Result<Vec<GetPeerInfo>> {
+        let mut response_peer_info = vec![];
+
+
+        // get peers
+        let peers = self.address_book.lock().unwrap().clone();
+        let peers_live = peers.recently_live_peers(Utc::now());
+        //let peers_live = peers.recently_live_peers(Utc::now());
+
+        let peers2 = peers_live.into_iter().collect::<Vec<_>>();
+        tracing::info!("found live peers()={}", peers2.len());
+
+        for peer_info in peers2 {
+            let addr = peer_info.addr();
+            
+            let entry = GetPeerInfo {
+                addr,
+            };
+            response_peer_info.push(entry);
+        }
+
+        Ok(response_peer_info)
+    }
+
 }
 
 /// Response to a `getinfo` RPC request.
@@ -1285,3 +1327,12 @@ fn check_height_range(start: Height, end: Height, chain_height: Height) -> Resul
 
     Ok(())
 }
+
+/// Response to a `getpeerinfo` RPC request (dimxy).
+///
+/// See the notes for the [`Rpc::get_peer_info` method].
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+pub struct GetPeerInfo {
+    addr: SocketAddr
+}
+
