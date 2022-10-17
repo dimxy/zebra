@@ -357,7 +357,7 @@ where
                     })
                     .unwrap_or(block::Height(0));
 
-                info!("block.coinbase_height()={}", block.coinbase_height().unwrap().0 as f64);
+                debug!("block.coinbase_height()={}", block.coinbase_height().unwrap().0 as f64);
                 let block_height = if let Some(block_height) = block.coinbase_height() {
                     block_height
                 } else {

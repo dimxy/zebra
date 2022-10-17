@@ -94,7 +94,7 @@ where
     });
     let difficulty_adjustment =
         AdjustedDifficulty::new_from_block(&prepared.block, network, relevant_data);
-    info!("dimxyyy prepared.height={:?} prepared.block.header.difficulty_threshold={:?}", prepared.height, prepared.block.header.difficulty_threshold);
+    //tracing::debug!("dimxyyy prepared.height={:?} prepared.block.header.difficulty_threshold={:?}", prepared.height, prepared.block.header.difficulty_threshold);
     check::difficulty_threshold_is_valid(
         prepared.block.header.difficulty_threshold,
         difficulty_adjustment,

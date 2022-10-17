@@ -621,9 +621,9 @@ impl Codec {
             Message::Inv(invs) => info!("dimxyyy inv received inv_vec.len={}", invs.len()),
             _ => (),
         }*/
-        if let Message::Inv(invs) = &msg  {
-            info!("dimxyyy inv received inv_vec.len={}", invs.len())
-        }
+        //if let Message::Inv(invs) = &msg  {
+        //    info!("dimxyyy inv received inv_vec.len={}", invs.len())
+        //}
         Ok(msg)
     }
 

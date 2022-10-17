@@ -270,6 +270,8 @@ impl ZebraDb {
             })
             .collect();
 
+        //tracing::info!("dimxyyy new_outputs_by_out_loc {:?}", new_outputs_by_out_loc);
+
         // Get a list of the spent UTXOs, before we delete any from the database
         let spent_utxos: Vec<(transparent::OutPoint, OutputLocation, transparent::Utxo)> =
             finalized

@@ -48,7 +48,7 @@ pub use recent_sync_lengths::RecentSyncLengths;
 pub use status::SyncStatus;
 
 /// Controls the number of peers used for each ObtainTips and ExtendTips request.
-const FANOUT: usize = 1; // TODO was 3;
+const FANOUT: usize = 3; // TODO was 3;
 
 /// Controls how many times we will retry each block download.
 ///
@@ -549,7 +549,7 @@ where
             let ready_tip_network = self.tip_network.ready().await;
             info!(?block_locator, "adding block_locator to request");
             requests.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("ready_tip_network for block_locator map_err e={}", e); eyre!(e)} )?.call(
-                // zn::Request::FindBlocks {
+                //zn::Request::FindBlocks {
                 zn::Request::FindHeaders {
                     known_blocks: block_locator.clone(),
                     stop: None,
@@ -560,7 +560,7 @@ where
         info!("starting block_locator requests loop requests.len={} locator.len={}", requests.len(), block_locator.len());
         let mut download_set = IndexSet::new();
         while let Some(res) = requests.next().await {
-            info!("dimxyyy obtain tips looping over responses res={:?}", res);
+            //info!("dimxyyy obtain tips looping over responses res={:?}", res);
             match res
                 .expect("panic in spawned obtain tips request")
                 //.map_err::<Report, _>(|e| eyre!(e))
@@ -706,7 +706,7 @@ where
 
             info!("starting tips responses loop size={}", responses.len());
             while let Some(res) = responses.next().await {
-                info!("dimxyyy extend tips looping over responses res={:?}", res);
+                //info!("dimxyyy extend tips looping over responses res={:?}", res);
                 match res
                     .expect("panic in spawned extend tips request")
                     //.map_err::<Report, _>(|e| eyre!(e))
@@ -756,7 +756,7 @@ where
                                 continue;
                             }
                         };
-                        trace!(?unknown_hashes, "dimxyyy before check");
+                        //trace!(?unknown_hashes, "dimxyyy before check");
 
                         // We use the last hash for the tip, and we want to avoid
                         // bad tips. So we discard the last hash. (We don't need
@@ -766,7 +766,7 @@ where
                             [] => continue,
                             [rest @ .., _last] => rest,
                         };
-                        trace!(?unknown_hashes, "dimxyyy");
+                        //trace!(?unknown_hashes, "dimxyyy");
 
 
                         let new_tip = if let Some(end) = unknown_hashes.rchunks_exact(2).next() {

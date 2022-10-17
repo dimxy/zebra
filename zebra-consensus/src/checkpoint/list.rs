@@ -145,7 +145,7 @@ impl CheckpointList {
             Some((block::Height(0), hash)) 
                 if (hash == &genesis_hash(Network::Mainnet)
                     || hash == &genesis_hash(Network::Testnet) 
-                    || hash == &genesis_hash(Network::Kmdtestnet)) => { println!("checkpoint genesis {}", hash)  }
+                    || hash == &genesis_hash(Network::Kmdtestnet)) => { tracing::debug!("checkpoint genesis {}", hash)  }
             Some((block::Height(0), _)) => {
                 Err("the genesis checkpoint does not match the Mainnet or Testnet (Kmdtestnet) genesis hash")?
             }
