@@ -25,7 +25,6 @@ pub struct Height(pub u32);
 impl std::str::FromStr for Height {
     type Err = SerializationError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        info!("FromStr for Height {}", s);
         match s.parse() {
             Ok(h) if (Height(h) <= Height::MAX) => Ok(Height(h)),
             Ok(_) => Err(SerializationError::Parse("Height exceeds maximum height")),
