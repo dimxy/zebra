@@ -75,10 +75,10 @@ impl Block {
 
         // TODO we do not need this as parse_coinbase_height checks GENESIS_COINBASE_DATA to return height as 0
         // komodo uses zcash's GENESIS_COINBASE_DATA
-        //let mainnet_genesis_hash: Hash = "027e3758c3a65b12aa1046462b486d0a63bfa1beae327897f56c5cfb7daaae71".parse().unwrap();
-        //if self.hash() == mainnet_genesis_hash {
-        //    Some(Height(0))
-        //} else {
+        let mainnet_genesis_hash: Hash = "027e3758c3a65b12aa1046462b486d0a63bfa1beae327897f56c5cfb7daaae71".parse().unwrap();
+        if self.hash() == mainnet_genesis_hash {
+            Some(Height(0))
+        } else {
             self.transactions
             .get(0)
             .and_then(|tx| tx.inputs().get(0))
@@ -86,7 +86,7 @@ impl Block {
                 transparent::Input::Coinbase { ref height, .. } => Some(*height),
                 _ => None,
             })
-        //}
+        }
     }
 
     /// Compute the hash of this block.
