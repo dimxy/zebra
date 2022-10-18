@@ -234,7 +234,7 @@ pub fn new_transaction_ordered_outputs(
 ) -> HashMap<transparent::OutPoint, OrderedUtxo> {
     let mut new_ordered_outputs = HashMap::new();
 
-    let lock_time = transaction.lock_time().unwrap_or_else(LockTime::unlocked);
+    let lock_time = transaction.raw_lock_time().unwrap_or_else(LockTime::unlocked);
 
     for (output_index_in_transaction, output) in transaction.outputs().iter().cloned().enumerate() {
         let output_index_in_transaction = output_index_in_transaction

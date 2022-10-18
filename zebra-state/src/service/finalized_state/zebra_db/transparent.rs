@@ -105,7 +105,7 @@ impl ZebraDb {
 
         let lock_time = match tx {
             Some(tx) => {
-                tx.lock_time().unwrap_or_else(LockTime::unlocked)
+                tx.raw_lock_time().unwrap_or_else(LockTime::unlocked)
             },
             None => {
                 LockTime::unlocked()
