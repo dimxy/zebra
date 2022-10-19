@@ -141,7 +141,7 @@ extern crate bitflags;
 /// parameterized by 'a), *not* that the object itself has 'static lifetime.
 pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-mod address_book;
+pub mod address_book;
 mod address_book_updater;
 mod config;
 pub mod constants;
