@@ -421,9 +421,10 @@ where
                 Request::Mempool { transaction, .. } => Response::Mempool {
                     transaction: VerifiedUnminedTx::new(
                         transaction,
-                        miner_fee.expect(
-                            "unexpected mempool coinbase transaction: should have already rejected",
-                        ),
+                        //miner_fee.expect(
+                        //    "unexpected mempool coinbase transaction: should have already rejected",
+                        //),
+                        miner_fee.unwrap_or(Amount::zero())  // TODO enable when interest impl
                     ),
                 },
             };
