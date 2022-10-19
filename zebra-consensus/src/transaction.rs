@@ -18,7 +18,7 @@ use tower::{timeout::Timeout, Service, ServiceExt};
 use tracing::Instrument;
 
 use zebra_chain::{
-    amount::{Amount, NonNegative},
+    amount::{Amount, NonNegative, NegativeAllowed, COIN},
     block, orchard,
     parameters::{Network, NetworkUpgrade},
     primitives::Groth16Proof,
@@ -397,6 +397,75 @@ where
 
             // Get the `value_balance` to calculate the transaction fee.
             let value_balance = tx.value_balance(&spent_utxos);
+
+            if let Ok(vb) = value_balance {
+                // !DEBUG
+                // vb: tx.value_balance(... [Outpoint, Utxo]) -> tx.value_balance_from_outputs(... [Outpoint, Output])
+                // tx.transparent_value_balance_from_outputs(... [Outpoint, Output])
+                let block_height = req.height();
+                let block_time = req.block_time();
+                let txid = tx.hash();
+                let spent_utxos_count = spent_utxos.len();
+
+                // transparent_value_balance_from_utxos (!)
+                // 1. input_value (interest included)
+                // 2. output_value
+                // 3. return (input_value - output_value)
+
+                let input_value = tx
+                    .inputs()
+                    .iter()
+                    .map(|i| i.value(&spent_utxos))
+                    .sum::<Result<Amount<NonNegative>, zebra_chain::amount::Error>>()
+                    .unwrap_or(Amount::zero());
+                    // .constrain::<NegativeAllowed>()
+                    // .expect("conversion from NonNegative to NegativeAllowed is always valid");
+
+                let output_value = tx
+                    .outputs()
+                    .iter()
+                    .map(|o| o.value())
+                    .sum::<Result<Amount<NonNegative>, zebra_chain::amount::Error>>()
+                    .unwrap_or(Amount::zero());
+
+                let interest_value = tx
+                    .inputs()
+                    .iter()
+                    .map(|i| -> Amount<NonNegative> {
+                        // Input::value(...) : spent_utxos: &HashMap<OutPoint, utxo::Utxo>
+                        if let Some(outpoint) = i.outpoint()
+                        {
+
+                            let utxo = spent_utxos
+                                .get(&outpoint)
+                                .expect("provided Utxos don't have spent OutPoint");
+
+                            let lock_time = utxo.lock_time;
+
+                            let mut interest = Amount::zero();
+                            if block_height > block::Height(60_000) {
+
+                                if utxo.output.value() > Amount::<NonNegative>::try_from(10 * COIN).unwrap()
+                                {
+                                    // TODO! calc interest for this utxo using block_height / block_time and lock_time
+                                    // komodo_accrued_interest
+                                    interest = interest;
+                                }
+                            }
+
+                            interest
+                        } else {
+                            Amount::zero() // coinbase
+                        }
+                    })
+                    .sum::<Result<Amount<NonNegative>, zebra_chain::amount::Error>>()
+                    .unwrap_or(Amount::zero());
+
+                tracing::info!(?block_height, ?block_time, "check against");
+                tracing::info!(?txid, ?spent_utxos_count, ?vb, "check what");
+                tracing::info!(?input_value, ?output_value, ?interest_value, "check values");
+
+            }
 
             // Calculate the fee only for non-coinbase transactions.
             let mut miner_fee = None;
