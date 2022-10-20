@@ -18,6 +18,7 @@ use super::subsidy;
 
 use std::fs::OpenOptions;
 use std::io::prelude::*;
+use secp256k1::PublicKey;
 
 /// Checks if there is exactly one coinbase transaction in `Block`,
 /// and if that coinbase transaction is the first transaction in the block.
@@ -114,8 +115,10 @@ pub fn difficulty_is_valid(
                 let lock_script_raw = &cb_tx.unwrap().outputs()[0].lock_script.as_raw_bytes();
                 if lock_script_raw.len() == 35 && lock_script_raw[0] == 0x21 && lock_script_raw[34] == 0xac {
                     let pk = &lock_script_raw[1..34];
-                    if is_notary_node(height, pk) {
-                        return Ok(());
+                    if let Ok(pk) = PublicKey::from_slice(pk) {
+                        if is_notary_node(height, &pk) {
+                            return Ok(());
+                        }
                     }
                 }
             }
