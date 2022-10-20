@@ -54,8 +54,6 @@ pub enum Network {
     Mainnet,
     /// The testnet.
     Testnet,
-    /// Kmd testnet
-    Kmdtestnet,
 }
 
 impl From<Network> for &'static str {
@@ -63,7 +61,6 @@ impl From<Network> for &'static str {
         match network {
             Network::Mainnet => "Mainnet",
             Network::Testnet => "Testnet",
-            Network::Kmdtestnet => "Kmdtestnet",
         }
     }
 }
@@ -85,8 +82,7 @@ impl Network {
     pub fn default_port(&self) -> u16 {
         match self {
             Network::Mainnet => 7770,
-            Network::Testnet => 18233,
-            Network::Kmdtestnet => 17770,
+            Network::Testnet => 17770,
         }
     }
 
@@ -112,7 +108,6 @@ impl Network {
         match self {
             Network::Mainnet => "main".to_string(),
             Network::Testnet => "test".to_string(),
-            Network::Kmdtestnet => "kmdtest".to_string(),
         }
     }
 }
@@ -130,7 +125,6 @@ impl FromStr for Network {
         match string.to_lowercase().as_str() {
             "mainnet" => Ok(Network::Mainnet),
             "testnet" => Ok(Network::Testnet),
-            "kmdtestnet" => Ok(Network::Kmdtestnet),
             _ => Err(InvalidNetworkError(string.to_owned())),
         }
     }

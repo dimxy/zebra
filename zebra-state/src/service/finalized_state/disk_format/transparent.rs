@@ -492,8 +492,6 @@ fn address_variant(address: &transparent::Address) -> u8 {
         (Mainnet, PayToScriptHash { .. }) => 1,
         (Testnet, PayToPublicKeyHash { .. }) => 2,
         (Testnet, PayToScriptHash { .. }) => 3,
-        (Kmdtestnet, PayToPublicKeyHash { .. }) => 2, // TODO check kmd data
-        (Kmdtestnet, PayToScriptHash { .. }) => 3,
     }
 }
 

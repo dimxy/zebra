@@ -143,9 +143,6 @@ fn best_chain_wins_for_network(network: Network) -> Result<()> {
         Network::Testnet => {
             zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
         }
-        Network::Kmdtestnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()? // TODO add kmd data
-        }
     };
 
     let block2 = block1.make_fake_child().set_work(10);
@@ -184,9 +181,6 @@ fn finalize_pops_from_best_chain_for_network(network: Network) -> Result<()> {
             zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
-        }
-        Network::Kmdtestnet => {
             zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
         }
     };
@@ -239,9 +233,6 @@ fn commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network(
         Network::Testnet => {
             zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
         }
-        Network::Kmdtestnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
-        }
     };
 
     let block2 = block1.make_fake_child().set_work(10);
@@ -273,7 +264,6 @@ fn shorter_chain_can_be_best_chain() -> Result<()> {
 
     shorter_chain_can_be_best_chain_for_network(Network::Mainnet)?;
     shorter_chain_can_be_best_chain_for_network(Network::Testnet)?;
-    shorter_chain_can_be_best_chain_for_network(Network::Kmdtestnet)?; // TODO check
 
     Ok(())
 }
@@ -287,9 +277,6 @@ fn shorter_chain_can_be_best_chain_for_network(network: Network) -> Result<()> {
             zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
-        }
-        Network::Kmdtestnet => {
             zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
         }
     };
@@ -335,9 +322,6 @@ fn longer_chain_with_more_work_wins_for_network(network: Network) -> Result<()> 
             zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
-        }
-        Network::Kmdtestnet => {
             zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
         }
     };
@@ -388,9 +372,6 @@ fn equal_length_goes_to_more_work_for_network(network: Network) -> Result<()> {
         Network::Testnet => {
             zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
         }
-        Network::Kmdtestnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
-        }
     };
 
     let less_work_child = block1.make_fake_child().set_work(1);
@@ -430,7 +411,6 @@ fn history_tree_is_updated_for_network_upgrade(
     let blocks = match network {
         Network::Mainnet => &*zebra_test::vectors::MAINNET_BLOCKS,
         Network::Testnet => &*zebra_test::vectors::TESTNET_BLOCKS,
-        Network::Kmdtestnet => &*zebra_test::vectors::TESTNET_BLOCKS,
     };
     let height = network_upgrade.activation_height(network).unwrap().0;
 
@@ -517,7 +497,6 @@ fn commitment_is_validated_for_network_upgrade(network: Network, network_upgrade
     let blocks = match network {
         Network::Mainnet => &*zebra_test::vectors::MAINNET_BLOCKS,
         Network::Testnet => &*zebra_test::vectors::TESTNET_BLOCKS,
-        Network::Kmdtestnet => &*zebra_test::vectors::TESTNET_BLOCKS,
     };
     let height = network_upgrade.activation_height(network).unwrap().0;
 

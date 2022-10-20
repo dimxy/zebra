@@ -438,7 +438,6 @@ async fn rpc_getaddresstxids_response() {
         let blocks: Vec<Arc<Block>> = match network {
             Mainnet => &*zebra_test::vectors::CONTINUOUS_MAINNET_BLOCKS,
             Testnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
-            Kmdtestnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
         }
         .iter()
         .map(|(_height, block_bytes)| block_bytes.zcash_deserialize_into().unwrap())

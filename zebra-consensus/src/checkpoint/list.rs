@@ -41,10 +41,10 @@ const MAINNET_CHECKPOINTS: &str = include_str!("main-checkpoints.txt");
 ///
 /// See [`MAINNET_CHECKPOINTS`] for detailed `zebra-checkpoints` usage
 /// information.
-const TESTNET_CHECKPOINTS: &str = include_str!("test-checkpoints.txt");
+//const TESTNET_CHECKPOINTS: &str = include_str!("test-checkpoints.txt");
 
 // KMD
-const KMDTESTNET_CHECKPOINTS: &str =    //ver4 mainnet genesis
+const TESTNET_CHECKPOINTS: &str =    //ver4 mainnet genesis
                                         "0 00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08\n\
                                         64 02166a14554a57db09a468a776be4b96f151c4b25630f43183ae4339f8c6b03d\n"; //05fff8fad00c6e65fe3534700f105ef3e9855d5550764459749ac71afa4fc064\n";
                                     // block0 ver1
@@ -107,9 +107,6 @@ impl CheckpointList {
             Network::Testnet => TESTNET_CHECKPOINTS
                 .parse()
                 .expect("Hard-coded Testnet checkpoint list parses and validates"),
-            Network::Kmdtestnet => KMDTESTNET_CHECKPOINTS   // TODO add kmd testnet checkpoints
-                .parse()
-                .expect("Hard-coded KMD Testnet checkpoint list parses and validates"),
         };
 
         match checkpoint_list.hash(block::Height(0)) {
@@ -144,10 +141,9 @@ impl CheckpointList {
         match checkpoints.iter().next() {
             Some((block::Height(0), hash)) 
                 if (hash == &genesis_hash(Network::Mainnet)
-                    || hash == &genesis_hash(Network::Testnet) 
-                    || hash == &genesis_hash(Network::Kmdtestnet)) => { tracing::debug!("checkpoint genesis {}", hash)  }
+                    || hash == &genesis_hash(Network::Testnet)) => { tracing::debug!("checkpoint genesis {}", hash)  }
             Some((block::Height(0), _)) => {
-                Err("the genesis checkpoint does not match the Mainnet or Testnet (Kmdtestnet) genesis hash")?
+                Err("the genesis checkpoint does not match the Mainnet or Testnet genesis hash")?
             }
             Some(_) => Err("checkpoints must start at the genesis block height 0")?,
             None => Err("there must be at least one checkpoint, for the genesis block")?,

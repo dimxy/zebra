@@ -97,8 +97,8 @@ const FAKE_MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
 pub(super) const TESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
     (block::Height(1), BeforeOverwinter),
-    (block::Height(207_500), Overwinter),
-    (block::Height(280_000), Sapling),
+    (block::Height(1), Overwinter),
+    (block::Height(1), Sapling),
     (block::Height(584_000), Blossom),
     (block::Height(903_800), Heartwood),
     (block::Height(1_028_500), Canopy),
@@ -109,26 +109,15 @@ pub(super) const TESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] 
 #[allow(unused)]
 const FAKE_TESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
-    (block::Height(5), BeforeOverwinter),
-    (block::Height(10), Overwinter),
-    (block::Height(15), Sapling),
-    (block::Height(20), Blossom),
-    (block::Height(25), Heartwood),
-    (block::Height(30), Canopy),
-    (block::Height(35), Nu5),
-];
-
-#[allow(unused)]
-pub(super) const KMDTESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
-    (block::Height(0), Genesis),
     (block::Height(1), BeforeOverwinter),
     (block::Height(1), Overwinter),
     (block::Height(1), Sapling),
-    (block::Height(584_000), Blossom),
-    (block::Height(903_800), Heartwood),
-    (block::Height(1_028_500), Canopy),
-    (block::Height(1_842_420), Nu5),
+    (block::Height(u32::MAX), Blossom),
+    (block::Height(u32::MAX), Heartwood),
+    (block::Height(u32::MAX), Canopy),
+    (block::Height(u32::MAX), Nu5),
 ];
+
 
 /// The Consensus Branch Id, used to bind transactions and blocks to a
 /// particular network upgrade.
@@ -273,12 +262,10 @@ impl NetworkUpgrade {
                 (MAINNET_ACTIVATION_HEIGHTS, TESTNET_ACTIVATION_HEIGHTS)
             }
         };
-        let kmdtestnet_heights = KMDTESTNET_ACTIVATION_HEIGHTS;
 
         match network {
             Mainnet => mainnet_heights,
             Testnet => testnet_heights,
-            Kmdtestnet => kmdtestnet_heights,
         }
         .iter()
         .cloned()
@@ -351,7 +338,7 @@ impl NetworkUpgrade {
     /// [`POST_BLOSSOM_POW_TARGET_SPACING`] from the Zcash specification.
     pub fn target_spacing(&self, network: Network) -> Duration {
         let spacing_seconds = match self {
-            Genesis | BeforeOverwinter | Overwinter | Sapling => if network == Network::Kmdtestnet { 5 * PRE_BLOSSOM_POW_TARGET_SPACING / 2 } else { PRE_BLOSSOM_POW_TARGET_SPACING },
+            Genesis | BeforeOverwinter | Overwinter | Sapling => if network == Network::Testnet { 5 * PRE_BLOSSOM_POW_TARGET_SPACING / 2 } else { PRE_BLOSSOM_POW_TARGET_SPACING },
             Blossom | Heartwood | Canopy | Nu5 => POST_BLOSSOM_POW_TARGET_SPACING,
         };
         Duration::seconds(spacing_seconds)
@@ -367,7 +354,7 @@ impl NetworkUpgrade {
     /// Returns all the target block spacings for `network` and the heights where they start.
     pub fn target_spacings(network: Network) -> impl Iterator<Item = (block::Height, Duration)> {
         [
-            (NetworkUpgrade::Genesis, if network == Network::Kmdtestnet { 5 * PRE_BLOSSOM_POW_TARGET_SPACING / 2 } else { PRE_BLOSSOM_POW_TARGET_SPACING }), // dimxy fix for kmd testnet
+            (NetworkUpgrade::Genesis, if network == Network::Testnet { 5 * PRE_BLOSSOM_POW_TARGET_SPACING / 2 } else { PRE_BLOSSOM_POW_TARGET_SPACING }), // dimxy fix for kmd testnet
             (NetworkUpgrade::Blossom, POST_BLOSSOM_POW_TARGET_SPACING),
         ]
         .into_iter()
@@ -395,9 +382,8 @@ impl NetworkUpgrade {
             (Network::Mainnet, _) => None,
             (Network::Testnet, _) => {
                 let network_upgrade = NetworkUpgrade::current(network, height);
-                Some(network_upgrade.target_spacing(network) * TESTNET_MINIMUM_DIFFICULTY_GAP_MULTIPLIER)
+                Some(network_upgrade.target_spacing(network) * TESTNET_MINIMUM_DIFFICULTY_GAP_MULTIPLIER)  // TODO check for kmd testnet
             },
-            (Network::Kmdtestnet, _) => None,
         }
     }
 
@@ -460,8 +446,8 @@ impl NetworkUpgrade {
     pub fn is_max_block_time_enforced(network: Network, height: block::Height) -> bool {
         match network {
             Network::Mainnet => true,
-            Network::Testnet => height >= TESTNET_MAX_TIME_START_HEIGHT,
-            Network::Kmdtestnet => false,  // allow long stops for testnet TODO: dimxy check
+            // allow long stops for testnet TODO: dimxy check
+            Network::Testnet => false, // height >= TESTNET_MAX_TIME_START_HEIGHT,
         }
     }
     /// Returns the NetworkUpgrade given an u32 as ConsensusBranchId

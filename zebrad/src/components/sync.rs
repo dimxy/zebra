@@ -376,7 +376,7 @@ where
 
         let (sync_status, recent_syncs) = SyncStatus::new();
 
-        let is_komodo = config.network.network == Network::Kmdtestnet;
+        let is_komodo = true;
 
         let new_syncer = Self {
             genesis_hash: genesis_hash(config.network.network),

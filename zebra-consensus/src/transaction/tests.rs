@@ -299,7 +299,6 @@ fn v5_transaction_is_accepted_after_nu5_activation_for_network(network: Network)
         let blocks = match network {
             Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
             Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
-            Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
         };
 
         let state_service = service_fn(|_| async { unreachable!("Service should not be called") });
@@ -2091,7 +2090,6 @@ fn coinbase_outputs_are_decryptable_for_historical_blocks_for_network(
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
-        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
     };
 
     let mut tested_coinbase_txs = 0;

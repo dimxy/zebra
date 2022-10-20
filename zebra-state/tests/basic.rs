@@ -72,7 +72,6 @@ async fn check_transcripts(network: Network) -> Result<(), Report> {
     for transcript_data in match network {
         Network::Mainnet => mainnet_transcript,
         Network::Testnet => testnet_transcript,
-        Network::Kmdtestnet => testnet_transcript, // TODO add kmd data
     } {
         let (service, _, _, _) = zebra_state::init(Config::ephemeral(), network);
         let transcript = Transcript::from(transcript_data.iter().cloned());

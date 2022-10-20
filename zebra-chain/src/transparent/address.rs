@@ -24,15 +24,13 @@ use proptest::prelude::*;
 /// are associated with.
 mod magics {
     pub mod p2sh {
-        pub const MAINNET: [u8; 2] = [0x1C, 0xBD];
+        pub const MAINNET: [u8; 1] = [85];
         pub const TESTNET: [u8; 2] = [0x1C, 0xBA];
-        pub const KMD_TESTNET: [u8; 1] = [85];
     }
 
     pub mod p2pkh {
-        pub const MAINNET: [u8; 2] = [0x1C, 0xB8];
+        pub const MAINNET: [u8; 1] = [60];
         pub const TESTNET: [u8; 2] = [0x1D, 0x25];
-        pub const KMD_TESTNET: [u8; 1] = [60];
     }
 }
 
@@ -113,7 +111,7 @@ impl std::str::FromStr for Address {
 
         match result {
             Ok(bytes) => Self::zcash_deserialize(&bytes[..]),
-            Err(_) => Err(SerializationError::Parse("t-addr decoding error")),
+            Err(_) => Err(SerializationError::Parse("t-addr/r-addr decoding error")),
         }
     }
 }
@@ -142,7 +140,6 @@ impl ZcashSerialize for Address {
                 match *network {
                     Network::Mainnet => writer.write_all(&magics::p2pkh::MAINNET[..])?,
                     Network::Testnet => writer.write_all(&magics::p2pkh::TESTNET[..])?,
-                    Network::Kmdtestnet => writer.write_all(&magics::p2pkh::KMD_TESTNET[..])?,
                     //_ => (), //Err(io::Error::new(io::ErrorKind::Other, "unknown network")),
                 }
                 writer.write_all(pub_key_hash)?
@@ -158,9 +155,9 @@ impl ZcashDeserialize for Address {
         let mut buf = Vec::new();
         reader.read_to_end(&mut buf).ok();
 
-        if buf.len() > 21 {  // zcash 2-byte version
+        if buf.len() == 21 {  // mainet 1-byte version
             let mut reader = BufReader::new(buf.as_slice());
-            let mut version_bytes = [0; 2];
+            let mut version_bytes = [0; 1];
             reader.read_exact(&mut version_bytes)?;
 
             let mut hash_bytes = [0; 20];
@@ -171,41 +168,33 @@ impl ZcashDeserialize for Address {
                     network: Network::Mainnet,
                     script_hash: hash_bytes,
                 }),
-                magics::p2sh::TESTNET => Ok(Address::PayToScriptHash {
-                    network: Network::Testnet,
-                    script_hash: hash_bytes,
-                }),
                 magics::p2pkh::MAINNET => Ok(Address::PayToPublicKeyHash {
                     network: Network::Mainnet,
                     pub_key_hash: hash_bytes,
+                }),
+                _ => Err(SerializationError::Parse("bad r-addr version/type")), 
+            }
+        }
+        else // testnet 2-byte version
+        {
+            let mut reader = BufReader::new(buf.as_slice());
+
+            let mut version_bytes = [0; 2];
+            reader.read_exact(&mut version_bytes)?;
+
+            let mut hash_bytes = [0; 20];
+            reader.read_exact(&mut hash_bytes)?;
+
+            match version_bytes {
+                magics::p2sh::TESTNET => Ok(Address::PayToScriptHash {
+                    network: Network::Testnet,
+                    script_hash: hash_bytes,
                 }),
                 magics::p2pkh::TESTNET => Ok(Address::PayToPublicKeyHash {
                     network: Network::Testnet,
                     pub_key_hash: hash_bytes,
                 }),
-                _ => Err(SerializationError::Parse("bad t-addr version/type")), 
-            }
-        }
-        else // kmd 1-byte version
-        {
-            let mut reader = BufReader::new(buf.as_slice());
-
-            let mut kmd_version_bytes = [0; 1];
-            reader.read_exact(&mut kmd_version_bytes)?;
-
-            let mut hash_bytes = [0; 20];
-            reader.read_exact(&mut hash_bytes)?;
-
-            match kmd_version_bytes {
-                magics::p2sh::KMD_TESTNET => Ok(Address::PayToScriptHash {
-                    network: Network::Kmdtestnet,
-                    script_hash: hash_bytes,
-                }),
-                magics::p2pkh::KMD_TESTNET => Ok(Address::PayToPublicKeyHash {
-                    network: Network::Kmdtestnet,
-                    pub_key_hash: hash_bytes,
-                }),
-                _ => Err(SerializationError::Parse("bad r-addr version/type")),
+                _ => Err(SerializationError::Parse("bad t-addr version/type")),
             }
         }
 
@@ -296,6 +285,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[ignore]
     fn pubkey_mainnet() {
         let _init_guard = zebra_test::init();
 
@@ -311,6 +301,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn pubkey_testnet() {
         let _init_guard = zebra_test::init();
 
@@ -326,13 +317,13 @@ mod tests {
     }
 
     #[test]
-    fn pubkey_kmdtestnet() {
+    fn pubkey_kmdmainnet() {
         let _init_guard = zebra_test::init();
 
         let pub_key = PublicKey::from_slice( hex::decode("035d3b0f2e98cf0fba19f80880ec7c08d770c6cf04aa5639bc57130d5ac54874db").unwrap().as_ref() )
         .expect("A PublicKey from slice");
 
-        let r_addr = pub_key.to_address(Network::Kmdtestnet);
+        let r_addr = pub_key.to_address(Network::Mainnet);
 
         assert_eq!(format!("{}", r_addr), "RJXkCF7mn2DRpUZ77XBNTKCe55M2rJbTcu");
     }
@@ -349,6 +340,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn empty_script_testnet() {
         let _init_guard = zebra_test::init();
 

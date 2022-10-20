@@ -165,7 +165,7 @@ lazy_static! {
     /// Testnet blocks, indexed by height
     ///
     /// This is actually a bijective map, the tests ensure that values are unique.
-    pub static ref TESTNET_BLOCKS: BTreeMap<u32, &'static [u8]> = [
+    pub static ref TESTNET_BLOCKS: BTreeMap<u32, &'static [u8]> = [  // TODO fix for kmd testnet (see mainnet also)
             // Genesis
             (0, BLOCK_TESTNET_GENESIS_BYTES.as_ref()),
             // BeforeOverwinter

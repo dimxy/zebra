@@ -524,7 +524,6 @@ fn continuous_empty_blocks_from_test_vectors() -> impl Strategy<
             let raw_blocks = match network {
                 Network::Mainnet => &*zebra_test::vectors::CONTINUOUS_MAINNET_BLOCKS,
                 Network::Testnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
-                Network::Kmdtestnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
             };
 
             // Transform the test vector's block bytes into a vector of `PreparedBlock`s.

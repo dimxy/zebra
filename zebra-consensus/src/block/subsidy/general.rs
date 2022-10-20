@@ -118,8 +118,7 @@ mod test {
         let first_halving_height = match network {
             Network::Mainnet => Canopy.activation_height(network).unwrap(),
             // Based on "7.8 Calculation of Block Subsidy and Founders' Reward"
-            Network::Testnet => Height(1_116_000),
-            Network::Kmdtestnet => Height(1_116_000), // TODO add kmd data
+            Network::Testnet => Height(1_116_000),  // TODO check for kmd testnet
         };
 
         assert_eq!(1, halving_divisor((blossom_height - 1).unwrap(), network));
@@ -206,8 +205,7 @@ mod test {
         let first_halving_height = match network {
             Network::Mainnet => Canopy.activation_height(network).unwrap(),
             // Based on "7.8 Calculation of Block Subsidy and Founders' Reward"
-            Network::Testnet => Height(1_116_000),
-            Network::Kmdtestnet => Height(1_116_000), // TODO add kmd data
+            Network::Testnet => Height(1_116_000),  // TODO check for kmd testnet
         };
 
         // After slow-start mining and before Blossom the block subsidy is 12.5 ZEC

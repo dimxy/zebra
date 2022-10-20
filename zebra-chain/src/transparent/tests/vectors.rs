@@ -95,7 +95,6 @@ fn get_transparent_output_address_with_blocks_for_network(network: Network) {
     let block_iter = match network {
         Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
         Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
-        Network::Kmdtestnet => zebra_test::vectors::TESTNET_BLOCKS.iter(), // add kmd data
     };
 
     let mut valid_addresses = 0;

@@ -161,11 +161,6 @@ fn block_test_vectors_height(network: Network) {
             zebra_test::vectors::TESTNET_BLOCKS.iter(),
             zebra_test::vectors::TESTNET_FINAL_SAPLING_ROOTS.clone(),
         ),
-        // TODO add real blocks
-        Kmdtestnet => (
-            zebra_test::vectors::TESTNET_BLOCKS.iter(),
-            zebra_test::vectors::TESTNET_FINAL_SAPLING_ROOTS.clone(),
-        ),
     };
 
     for (&height, block) in block_iter {
@@ -219,10 +214,6 @@ fn block_commitment(network: Network) {
             zebra_test::vectors::MAINNET_FINAL_SAPLING_ROOTS.clone(),
         ),
         Testnet => (
-            zebra_test::vectors::TESTNET_BLOCKS.iter(),
-            zebra_test::vectors::TESTNET_FINAL_SAPLING_ROOTS.clone(),
-        ),
-        Kmdtestnet => (  // TODO add real data
             zebra_test::vectors::TESTNET_BLOCKS.iter(),
             zebra_test::vectors::TESTNET_FINAL_SAPLING_ROOTS.clone(),
         ),

@@ -83,7 +83,6 @@ fn test_raw_rocksdb_column_families_with_network(network: Network) {
     let blocks = match network {
         Mainnet => &*zebra_test::vectors::CONTINUOUS_MAINNET_BLOCKS,
         Testnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
-        Kmdtestnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
     };
 
     // We limit the number of blocks, because the serialized data is a few kilobytes per block.
