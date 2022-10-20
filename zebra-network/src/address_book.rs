@@ -643,8 +643,9 @@ pub struct InboundConns {
 }
 
 impl InboundConns {
+    /// create inbound connection list object
     pub fn new(network: Network) -> InboundConns {
-        let mut new_list = InboundConns {
+        let new_list = InboundConns {
             by_addr: OrderedMap::new(|meta_addr| Reverse(*meta_addr)),
             network,
         };
