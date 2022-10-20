@@ -11,8 +11,12 @@ use std::sync::{Arc, Mutex};
 
 // load NNData
 lazy_static! {
-    pub static ref NNDATA: Arc<Mutex<NNData<'static>>> = Arc::new(Mutex::new(NNData::new()));
+    /// static ref to parsed NN pubkeys
+    pub static ref NNDATA: Arc<Mutex<NNData<'static>>> = Arc::new(Mutex::new(NNData::new())); 
 }
+
+const NUM_KMD_NOTARIES: usize = 64;
+const NUM_KMD_SEASONS: usize = 7;
 
 type NotarySeasonPubkeys<'a> = Vec<(&'a str, PublicKey)>;
 
@@ -49,7 +53,7 @@ pub enum NotaryError {
 }
 
 // Era array of pubkeys. Add extra seasons to bottom as requried, after adding appropriate info above. 
-const NOTARIES_ELECTED_SOURCE: [[(&'static str, &'static str); 64]; 7] =
+const NOTARIES_ELECTED_SOURCE: [[(&'static str, &'static str); NUM_KMD_NOTARIES]; NUM_KMD_SEASONS] =
 [
     [
         ( "0_jl777_testA", "03b7621b44118017a16043f19b30cc8a4cfe068ac4e42417bae16ba460c80f3828" ),
@@ -542,7 +546,7 @@ impl NNData<'_> {
 
         let notaries_elected = Self::init_nn_pubkeys();
 
-        assert!(KMD_SEASON_TIMESTAMPS.len() == KMD_SEASON_HEIGHTS.len() && KMD_SEASON_HEIGHTS.len() == notaries_elected.len(), "invalid season count");
+        assert!(KMD_SEASON_TIMESTAMPS.len() == KMD_SEASON_HEIGHTS.len() && KMD_SEASON_HEIGHTS.len() == notaries_elected.len() && notaries_elected.len() == NUM_KMD_SEASONS, "invalid season number");
 
         NNData {
             nStakedDecemberHardforkTimestamp, nDecemberHardforkHeight, nS4Timestamp, nS4HardforkHeight, nS5Timestamp, nS5HardforkHeight, nS6Timestamp, nS6HardforkHeight,
@@ -562,7 +566,7 @@ impl NNData<'_> {
                         .map( |t| { (t.0, PublicKey::from_slice(hex::decode(t.1).unwrap().as_ref()).unwrap()) } ) // convert string to PublicKeys
                         .collect::<Vec<_>>() 
                 })
-                .map(|e| { assert!(e.len() == 64, "each season must have 64 pubkeys"); e }) // check length is 64 for all seasons
+                .map(|e| { assert!(e.len() == NUM_KMD_NOTARIES, "each season must have 64 pubkeys"); e }) // check length is 64 for all seasons
                 .collect::<Vec<Vec<_>>>(); 
 
         nn
@@ -571,8 +575,6 @@ impl NNData<'_> {
     /// get the kmd season based on height (used on the KMD chain)
     pub fn get_kmd_season(&self, height: &Height) -> Result<& NotarySeasonPubkeys, NotaryError>
     {
-        //println!("KMD_SEASON_HEIGHTS.len={}", self.KMD_SEASON_HEIGHTS.len());
-        //println!("self.KMD_SEASON_HEIGHTS[0]={:?}", self.KMD_SEASON_HEIGHTS[0]);
         if  *height <= self.KMD_SEASON_HEIGHTS[0] {
             return Ok(&self.notaries_elected[0]);
         }
@@ -603,7 +605,7 @@ impl NNData<'_> {
     {
         let season = self.get_kmd_season(height)?; 
 
-        Ok(season.into_iter().any(|t| { println!("any->pubkey {:?}", t.1); t.1 == *pk }))
+        Ok(season.into_iter().any(|t| { t.1 == *pk }))
     }
 
     /// checks if pubkey is a NN for this timestamp
@@ -611,7 +613,7 @@ impl NNData<'_> {
     {
         let season = self.get_ac_season(timestamp)?; 
 
-        Ok(season.into_iter().any(|t| { println!("any->pubkey {:?}", t.1); t.1 == *pk }))
+        Ok(season.into_iter().any(|t| { t.1 == *pk }))
     }
 
 }
