@@ -36,6 +36,7 @@ pub mod transaction;
 pub mod transparent;
 pub mod value_balance;
 pub mod work;
+pub mod komodo_hardfork;
 
 #[cfg(any(test, feature = "proptest-impl"))]
 pub use block::LedgerState;
