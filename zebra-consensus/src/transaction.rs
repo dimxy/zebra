@@ -495,9 +495,12 @@ where
                     .sum::<Result<Amount<NonNegative>, zebra_chain::amount::Error>>()
                     .unwrap_or(Amount::zero());
 
-                // tracing::info!(?block_height, ?block_time, "check against");
-                // tracing::info!(?txid, ?spent_utxos_count, ?vb, "check what");
-                // tracing::info!(?input_value, ?output_value, ?interest_value, "check values");
+                if interest_value > Amount::<NonNegative>::zero()
+                {
+                    tracing::info!(?block_height, ?block_time, "check against");
+                    tracing::info!(?txid, ?spent_utxos_count, ?vb, "check what");
+                    tracing::info!(?input_value, ?output_value, ?interest_value, "check values");
+                }
 
                 // as we have interest_value calculated we can add it to vb.transparent (!) as a part of
                 // input value
