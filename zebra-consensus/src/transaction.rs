@@ -9,7 +9,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Utc, Date};
 use futures::{
     stream::{FuturesUnordered, StreamExt},
     FutureExt,
@@ -33,6 +33,7 @@ use zebra_script::CachedFfiTransaction;
 use zebra_state as zs;
 
 use crate::{error::TransactionError, groth16::DescriptionWrapper, primitives, script, BoxError};
+use crate::{interest::*};
 
 pub mod check;
 #[cfg(test)]
@@ -440,31 +441,47 @@ where
                                 .get(&outpoint)
                                 .expect("provided Utxos don't have spent OutPoint");
 
+                            let tx_height = utxo.height;
                             let lock_time = utxo.lock_time;
 
                             let mut interest = Amount::zero();
                             if block_height > block::Height(60_000) {
-
-                                if utxo.output.value() > Amount::<NonNegative>::try_from(10 * COIN).unwrap()
+                                if utxo.output.value() >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()
                                 {
-                                    // TODO! calc interest for this utxo using block_height / block_time and lock_time
-                                    // komodo_accrued_interest
-                                    interest = interest;
+                                    // TODO! if req is Request::Mempool, block_time = req.block_time() will be None,
+                                    // in this case seems we should calculate interest against last tip (?) time
+                                    // ... look at the GetValueIn call in AcceptToMemory pool.
+
+                                    // Also don't forget about validating tx.lock_time field consensus rule with
+                                    // komodo_validate_interest.
+
+                                    let tip_time = if let Some(block_time) = block_time {
+                                        Some(block_time)
+                                    } else {
+                                        todo!() // here seems we should return time of last tip
+                                                // latest_chain_tip.best_tip_block_time() ?
+                                    };
+
+                                    interest = komodo_interest(tx_height, utxo.output.value(), lock_time, tip_time);
                                 }
                             }
 
                             interest
+
                         } else {
-                            Amount::zero() // coinbase
+                            Amount::zero() // Coinbase. input (i) is Input::Coinbase (i.e. not Input::PrevOut),
+                                           // i.e. no previous output transaction reference (coins created from mining)
                         }
                     })
                     .sum::<Result<Amount<NonNegative>, zebra_chain::amount::Error>>()
                     .unwrap_or(Amount::zero());
 
-                tracing::info!(?block_height, ?block_time, "check against");
-                tracing::info!(?txid, ?spent_utxos_count, ?vb, "check what");
-                tracing::info!(?input_value, ?output_value, ?interest_value, "check values");
+                // tracing::info!(?block_height, ?block_time, "check against");
+                // tracing::info!(?txid, ?spent_utxos_count, ?vb, "check what");
+                // tracing::info!(?input_value, ?output_value, ?interest_value, "check values");
 
+                // as we have interest_value calculated we can add it to vb.transparent (!) as a part of
+                // input value
             }
 
             // Calculate the fee only for non-coinbase transactions.
