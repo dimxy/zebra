@@ -31,6 +31,7 @@ use zebra_chain::{
 
 use zebra_script::CachedFfiTransaction;
 use zebra_state as zs;
+use zs::HashOrHeight;
 
 use crate::{error::TransactionError, groth16::DescriptionWrapper, primitives, script, BoxError};
 use crate::{interest::*};
@@ -345,6 +346,25 @@ where
 
             check::spend_conflicts(&tx)?;
 
+            // Load last block from state and read its time, in case of mempool request
+            // (in this case req.height() contains the next block height after last tip)
+
+            let mut last_tip_blocktime: Option<DateTime<Utc>> = None;
+            if req.is_mempool() {
+                let query = state.clone().oneshot(
+                    zebra_state::Request::Block(HashOrHeight::Height(
+                        (req.height() - 1).expect("current block height should be always valid")
+                    )));
+
+                last_tip_blocktime = match query.await? {
+                    zebra_state::Response::Block(Some(last_block)) => {
+                        Some(last_block.header.time)
+                    },
+                    zebra_state::Response::Block(None) => None, // missing best block from state?
+                    _ => unreachable!("Incorrect response from state service"),
+                };
+            }
+
             // "The consensus rules applied to valueBalance, vShieldedOutput, and bindingSig
             // in non-coinbase transactions MUST also be applied to coinbase transactions."
             //
@@ -458,8 +478,7 @@ where
                                     let tip_time = if let Some(block_time) = block_time {
                                         Some(block_time)
                                     } else {
-                                        todo!() // here seems we should return time of last tip
-                                                // latest_chain_tip.best_tip_block_time() ?
+                                        last_tip_blocktime
                                     };
 
                                     interest = komodo_interest(tx_height, utxo.output.value(), lock_time, tip_time);
