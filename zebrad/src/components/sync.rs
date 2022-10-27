@@ -547,8 +547,8 @@ where
             }
 
             let ready_tip_network = self.tip_network.ready().await;
-            info!(?block_locator, "adding block_locator to request");
-            requests.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("ready_tip_network for block_locator map_err e={}", e); eyre!(e)} )?.call(
+            //info!(?block_locator, "adding block_locator to request");
+            requests.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("dimxyyy ready_tip_network for block_locator map_err e={}", e); eyre!(e)} )?.call(
                 //zn::Request::FindBlocks {
                 zn::Request::FindHeaders {
                     known_blocks: block_locator.clone(),
@@ -557,14 +557,14 @@ where
             )));
         }
 
-        info!("starting block_locator requests loop requests.len={} locator.len={}", requests.len(), block_locator.len());
+        //info!("starting block_locator requests loop requests.len={} locator.len={}", requests.len(), block_locator.len());
         let mut download_set = IndexSet::new();
         while let Some(res) = requests.next().await {
             //info!("dimxyyy obtain tips looping over responses res={:?}", res);
             match res
                 .expect("panic in spawned obtain tips request")
                 //.map_err::<Report, _>(|e| eyre!(e))
-                .map_err::<Report, _>(|e| { info!("findblocks for block_locator map_err e={} locator.len={}", e, block_locator.len());  eyre!(e) })
+                .map_err::<Report, _>(|e| { info!("dimxyyy findblocks for block_locator map_err e={} locator.len={}", e, block_locator.len());  eyre!(e) })
             {
                 //Ok(zn::Response::BlockHashes(hashes)) => {
                 Ok(zn::Response::BlockHeaders(headers)) => {
@@ -693,9 +693,9 @@ where
                     tokio::task::yield_now().await;
                 }
 
-                info!(?tip.tip, "adding tip to request");
+                //info!(?tip.tip, "adding tip to request");
                 let ready_tip_network = self.tip_network.ready().await;
-                responses.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("ready_tip_network for tip map_err e={}", e); eyre!(e) })?.call(
+                responses.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("dimxyyy ready_tip_network for tip map_err e={}", e); eyre!(e) })?.call(
                     //zn::Request::FindBlocks {
                     zn::Request::FindHeaders {
                         known_blocks: vec![tip.tip],
@@ -704,7 +704,7 @@ where
                 )));
             }
 
-            info!("starting tips responses loop size={}", responses.len());
+            //info!("starting tips responses loop size={}", responses.len());
             while let Some(res) = responses.next().await {
                 //info!("dimxyyy extend tips looping over responses res={:?}", res);
                 match res
@@ -724,7 +724,7 @@ where
                         // against the previous response, and discard mismatches.
                         let unknown_hashes = match hashes.as_slice() {
                             [expected_hash, rest @ ..] if expected_hash == &tip.expected_next => {
-                                info!("dimxyyyy expected hash first={} size={}", expected_hash, hashes.len());
+                                //info!("dimxyyyy expected hash first={} size={}", expected_hash, hashes.len());
                                 rest
                             }
                             // If the first hash doesn't match, retry with the second.
