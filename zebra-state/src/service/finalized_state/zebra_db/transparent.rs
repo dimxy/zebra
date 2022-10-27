@@ -452,7 +452,7 @@ impl DiskWriteBatch {
                 let receiving_address_location = address_balance_location.address_location();
 
                 // Update the balance for the address in memory.
-                tracing::debug!("dimxyyy receiving_address={:?} receiving_address_location={:?} before receive_output", receiving_address, receiving_address_location);
+                //tracing::debug!("dimxyyy receiving_address={:?} receiving_address_location={:?} before receive_output", receiving_address, receiving_address_location);
                 address_balance_location
                     .receive_output(unspent_output)
                     .expect("balance overflow already checked");
@@ -460,7 +460,6 @@ impl DiskWriteBatch {
                 // Create a link from the AddressLocation to the new OutputLocation in the database.
                 let address_unspent_output =
                     AddressUnspentOutput::new(receiving_address_location, *new_output_location);
-                //tracing::info!("dimxyyy zs_insert address_unspent_output={:?}", address_unspent_output);
                 self.zs_insert(
                     &utxo_loc_by_transparent_addr_loc,
                     address_unspent_output,
@@ -521,7 +520,7 @@ impl DiskWriteBatch {
                     .get_mut(&sending_address)
                     .expect("spent outputs must already have an address balance");
 
-                tracing::debug!("dimxyyy sending_address={:?} spent_output_location={:?} before spend_output", sending_address, spent_output_location);
+                //tracing::debug!("dimxyyy sending_address={:?} spent_output_location={:?} before spend_output", sending_address, spent_output_location);
                 // Update the address balance by subtracting this UTXO's value, in memory.
                 address_balance_location
                     .spend_output(spent_output)
