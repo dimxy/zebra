@@ -15,6 +15,8 @@ use hex::{FromHex, ToHex};
 #[cfg(any(test, feature = "proptest-impl"))]
 use proptest_derive::Arbitrary;
 
+use crate::komodo_hardfork::*;
+
 /// A Zcash network upgrade.
 ///
 /// Network upgrades can change the Zcash network protocol or consensus rules in
@@ -457,6 +459,26 @@ impl NetworkUpgrade {
             .find(|id| id.1 == ConsensusBranchId(branch_id))
             .map(|nu| nu.0)
     }
+
+    /// Returns if gap after second block is allowed for easy mining by a NN
+    pub fn komodo_is_gap_after_second_block_allowed(
+        network: Network,
+        height: block::Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                if let Ok(height_s6) = komodo_s6_hardfork_height() {
+                    let height_gap_allowed = height_s6 + 7 * 1440;
+                    return height > height_gap_allowed.unwrap();
+                }
+                false
+            },
+            (Network::Testnet, _) => {
+                false
+            },
+        }
+    }
+
 }
 
 impl ConsensusBranchId {
@@ -477,3 +499,9 @@ impl ConsensusBranchId {
         NetworkUpgrade::current(network, height).branch_id()
     }
 }
+
+/// blocktime in future must be no more than this duration in seconds 
+pub const MAINNET_MAX_FUTURE_BLOCK_TIME: i64 = 7 * 60; // 7 mins
+
+/// special notary generated block parameter
+pub const MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA: i32 = 1;
