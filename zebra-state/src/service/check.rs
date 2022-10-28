@@ -105,7 +105,7 @@ where
 
     if is_kmd_special_notary_block(&prepared.block, prepared.height, network, relevant_chain.into_iter())? {  // returns error if special block invalid
         use zebra_chain::work::difficulty::ExpandedDifficulty;
-
+        tracing::info!("dimxyyy block ht={:?} is komodo special", prepared.height);
         // check min difficulty for a special block:
         let difficulty_threshold_exp = prepared.block.header.difficulty_threshold.to_expanded().ok_or(ValidateContextError::SpecialBlockInvalidDifficulty(prepared.height, prepared.hash))?;
         
