@@ -121,6 +121,7 @@ where
     }
     else {
         // ordinary block, nothing to check, all checks must have completed 
+        tracing::info!("dimxyyy block ht={:?} is ordinary komodo block", prepared.height);
     }
 
     Ok(())
