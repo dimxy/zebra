@@ -29,6 +29,7 @@ use crate::error::TransactionError;
 /// if they indicate that the transaction is finalized by them. Otherwise, this function validates
 /// if the lock time is in the past.
 pub fn lock_time_has_passed(
+    network: Network,
     tx: &Transaction,
     block_height: Height,
     block_time: DateTime<Utc>,
@@ -48,10 +49,14 @@ pub fn lock_time_has_passed(
         Some(LockTime::Time(unlock_time)) => {
             // > The transaction can be added to any block whose block time is greater than the locktime.
             // https://developer.bitcoin.org/devguide/transactions.html#locktime-and-sequence-number
-            if block_time > unlock_time {
-                Ok(())
+            if NetworkUpgrade::komodo_s1_december_hardfork_active(network, block_height)  {  
+                if block_time > unlock_time {
+                    Ok(())
+                } else {
+                    Err(TransactionError::LockedUntilAfterBlockTime(unlock_time))
+                }
             } else {
-                Err(TransactionError::LockedUntilAfterBlockTime(unlock_time))
+                Ok(())  // TODO: should we check locktime in backward order like in komodod before Dec HF?
             }
         }
         None => Ok(()),

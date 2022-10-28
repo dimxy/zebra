@@ -477,6 +477,24 @@ impl NetworkUpgrade {
         }
     }
 
+    /// returns if the s1 Dec hf is active for height 
+    pub fn komodo_s1_december_hardfork_active(
+        network: Network,
+        height: block::Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                if let Ok(height_s1) = komodo_s1_hardfork_height() {
+                    return height > height_s1;
+                }
+                false
+            },
+            (Network::Testnet, _) => {
+                false
+            },
+        }
+    }
+
 }
 
 impl ConsensusBranchId {
