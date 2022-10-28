@@ -713,13 +713,21 @@ pub fn komodo_get_block_pubkey(block: &Block) -> Option<PublicKey> {
     None
 }
 
-/// Check if a public key at height corresponding to KMD notary node
+/// returns s6 height
 pub fn komodo_s6_hardfork_height() -> Result<Height, NotaryDataError>  {
     if let Ok(nndata) = NNDATA.lock() {
-        return Ok(nndata.nS6HardforkHeight); // panics if the season invalid
-    } else {
-        error!("no notary pubkeys initialised");
-    }
+        return Ok(nndata.nS6HardforkHeight); 
+    } 
+    error!("no notary pubkeys initialised");
+    Err(NotaryDataError::NoNotaryPubkeysInitialised)
+}
+
+/// returns s1 height
+pub fn komodo_s1_hardfork_height() -> Result<Height, NotaryDataError>  {
+    if let Ok(nndata) = NNDATA.lock() {
+        return Ok(nndata.nDecemberHardforkHeight); 
+    } 
+    error!("no notary pubkeys initialised");
     Err(NotaryDataError::NoNotaryPubkeysInitialised)
 }
 
