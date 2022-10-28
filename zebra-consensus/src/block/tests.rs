@@ -185,7 +185,7 @@ fn difficulty_is_valid_for_network(network: Network) -> Result<(), Report> {
             .zcash_deserialize_into::<Block>()
             .expect("block is structurally valid");
 
-        check::difficulty_is_valid(&block.header, network, &Height(height), &block.hash())
+        check::difficulty_is_valid(&block.header, network, &Height(height), &block.hash(), &block)
             .expect("the difficulty from a historical block should be valid");
     }
 
@@ -209,7 +209,7 @@ fn difficulty_validation_failure() -> Result<(), Report> {
 
     // Validate the block
     let result =
-        check::difficulty_is_valid(&block.header, Network::Mainnet, &height, &hash).unwrap_err();
+        check::difficulty_is_valid(&block.header, Network::Mainnet, &height, &hash, &block).unwrap_err();
     let expected = BlockError::InvalidDifficulty(height, hash);
     assert_eq!(expected, result);
 
@@ -224,7 +224,7 @@ fn difficulty_validation_failure() -> Result<(), Report> {
 
     // Validate the block as if it is a mainnet block
     let result =
-        check::difficulty_is_valid(&block.header, Network::Mainnet, &height, &hash).unwrap_err();
+        check::difficulty_is_valid(&block.header, Network::Mainnet, &height, &hash, &block).unwrap_err();
     let expected = BlockError::TargetDifficultyLimit(
         height,
         hash,
@@ -244,7 +244,7 @@ fn difficulty_validation_failure() -> Result<(), Report> {
     let difficulty_threshold = block.header.difficulty_threshold.to_expanded().unwrap();
 
     // Validate the block
-    let result = check::difficulty_is_valid(&block.header, Network::Mainnet, &height, &bad_hash)
+    let result = check::difficulty_is_valid(&block.header, Network::Mainnet, &height, &bad_hash, &block)
         .unwrap_err();
     let expected =
         BlockError::DifficultyFilter(height, bad_hash, difficulty_threshold, Network::Mainnet);
