@@ -55,10 +55,10 @@ pub enum NotaryValidateContextError {
     //C::IntoIter: ExactSizeIterator,
 fn komodo_check_last_65_blocks_for_dups<C>(height: Height, relevant_chain: &Vec<Block>, notary_id: i32) -> Result<(), NotaryValidateContextError> 
 {
-    tracing::info!("komodo_check_last_65_blocks_for_dups enterred for height={:?}", height);
+    tracing::debug!("komodo_check_last_65_blocks_for_dups enterred for height={:?}", height);
     if height >= Height(82000) {
         if relevant_chain.len() < NN_LAST_BLOCK_DEPTH { return Err(NotaryValidateContextError::NotaryInternalError()); }
-        tracing::info!("komodo_check_last_65_blocks_for_dups relevant_chain heights={:?}", relevant_chain.iter().map(|b| b.hash()).collect::<Vec<_>>());
+        tracing::debug!("komodo_check_last_65_blocks_for_dups relevant_chain heights={:?}", relevant_chain.iter().map(|b| b.hash()).collect::<Vec<_>>());
 
         let mut has_duplicates = false;
         for block in relevant_chain.into_iter() {
@@ -173,8 +173,6 @@ where
     C::IntoIter: ExactSizeIterator,
     //<C as IntoIterator>::Item: ExactSizeIterator,
 {
-    tracing::info!("dimxyyy is_kmd_special_notary_block enterred for height={:?}", height);
-
     if height > Height(34000) {
 
         if let Some(block_pk) = komodo_get_block_pubkey(block) {
