@@ -1,8 +1,8 @@
 //! Consensus critical contextual checks
 
-use std::{borrow::Borrow, sync::Arc};
+use std::{borrow::Borrow, sync::Arc, time::SystemTime};
 
-use chrono::Duration;
+use chrono::{Duration, DateTime, Utc};
 
 use zebra_chain::{
     block::{self, Block, ChainHistoryBlockTxAuthCommitmentHash, CommitmentError},
@@ -288,14 +288,24 @@ fn difficulty_threshold_is_valid(
     // of that block plus 90*60 seconds.
     //
     // https://zips.z.cash/protocol/protocol.pdf#blockheader
-    if NetworkUpgrade::is_max_block_time_enforced(network, candidate_height)
+    // disable zcash rule, use komodo nMaxFutureBlockTime instead
+    /*if NetworkUpgrade::is_max_block_time_enforced(network, candidate_height)
         && candidate_time > block_time_max
     {
         Err(ValidateContextError::TimeTooLate {
             candidate_time,
             block_time_max,
         })?
+    }*/
+
+    // using komodo nMaxFutureBlockTime rule instead of zcash is_max_block_time_enforced
+    if candidate_time > DateTime::<Utc>::from(SystemTime::now()) + Duration::seconds(7 * 60) {
+        Err(ValidateContextError::TimeTooLate {
+            candidate_time,
+            block_time_max,
+        })?
     }
+
 
     // # Consensus
     //
