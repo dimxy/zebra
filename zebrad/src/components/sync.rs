@@ -549,8 +549,8 @@ where
             let ready_tip_network = self.tip_network.ready().await;
             //info!(?block_locator, "adding block_locator to request");
             requests.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("dimxyyy ready_tip_network for block_locator map_err e={}", e); eyre!(e)} )?.call(
-                //zn::Request::FindBlocks {
-                zn::Request::FindHeaders {
+                zn::Request::FindBlocks {
+                //zn::Request::FindHeaders {
                     known_blocks: block_locator.clone(),
                     stop: None,
                 },
@@ -566,9 +566,9 @@ where
                 //.map_err::<Report, _>(|e| eyre!(e))
                 .map_err::<Report, _>(|e| { info!("dimxyyy findblocks for block_locator map_err e={} locator.len={}", e, block_locator.len());  eyre!(e) })
             {
-                //Ok(zn::Response::BlockHashes(hashes)) => {
-                Ok(zn::Response::BlockHeaders(headers)) => {
-                    let hashes = headers.iter().map(|cheader| block::Hash::from(&cheader.header)).collect::<Vec<block::Hash>>();
+                Ok(zn::Response::BlockHashes(hashes)) => {
+                //Ok(zn::Response::BlockHeaders(headers)) => {
+                //    let hashes = headers.iter().map(|cheader| block::Hash::from(&cheader.header)).collect::<Vec<block::Hash>>();
 
                     trace!(?hashes);
 
@@ -696,8 +696,8 @@ where
                 //info!(?tip.tip, "adding tip to request");
                 let ready_tip_network = self.tip_network.ready().await;
                 responses.push(tokio::spawn(ready_tip_network.map_err(|e| { info!("dimxyyy ready_tip_network for tip map_err e={}", e); eyre!(e) })?.call(
-                    //zn::Request::FindBlocks {
-                    zn::Request::FindHeaders {
+                    zn::Request::FindBlocks {
+                    //zn::Request::FindHeaders {
                         known_blocks: vec![tip.tip],
                         stop: None,
                     },
@@ -713,9 +713,9 @@ where
                     .map_err(|e| { info!("findblocks/headers for tip map_err e={}", e);  eyre!(e) })
 
                 {
-                    //Ok(zn::Response::BlockHashes(hashes)) => {
-                    Ok(zn::Response::BlockHeaders(headers)) => {
-                        let hashes = headers.iter().map(|cheader| block::Hash::from(&cheader.header)).collect::<Vec<block::Hash>>();
+                    Ok(zn::Response::BlockHashes(hashes)) => {
+                    //Ok(zn::Response::BlockHeaders(headers)) => {
+                    //    let hashes = headers.iter().map(|cheader| block::Hash::from(&cheader.header)).collect::<Vec<block::Hash>>();
                         debug!(first = ?hashes.first(), len = ?hashes.len());
                         trace!(?hashes);
 
