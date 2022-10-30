@@ -64,7 +64,7 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                             let numerator = (value / 20).expect("div to non-zero should be ok"); // assumes 5%
                             if tx_height < Height(250_000) {
                                 interest = (numerator / denominator as u64).expect("div to non-zero should be ok");
-                            } else if tx_height <= Height(1_000_000) {
+                            } else if tx_height < Height(1_000_000) {
                                 interest = (numerator * elapsed.num_minutes() as u64).expect("mul should be ok");
                                 interest = (interest / (365 * 24 * 60)).expect("div to non-zero should be ok");
 
@@ -157,12 +157,15 @@ pub fn _komodo_interestnew(tx_height: Height, value: Amount<NonNegative>,
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
+
+    const MIN_TIMESTAMP_MINUS_1: i64 = LockTime::MIN_TIMESTAMP - 1;
+
     #[test]
     // check komodo_interestnew calculations
-    fn komodo_interestnew() {
+    fn test_komodo_interestnew() {
         zebra_test::init();
-        const MIN_TIMESTAMP_MINUS_1: i64 = LockTime::MIN_TIMESTAMP - 1;
 
         let arguments = [
             (1, 1000u64, 1, 1), // some not working values
@@ -207,7 +210,37 @@ mod tests {
             assert_eq!(calculated, predefined);
         }
 
+    }
 
+    #[test]
+    fn test_komodo_interest() {
+        zebra_test::init();
+
+        for n_value in [10u64*COIN as u64, 25001u64*COIN as u64] {
+            let arguments = [
+                    (1000000, n_value, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600),
+                ];
+
+            let results = [
+                n_value/10512000 * (31*24*60 - 59),
+            ];
+
+            let iter = arguments.iter().zip(results.iter());
+            for it in iter {
+                let lock_time = match it.0.2 {
+                    0..=MIN_TIMESTAMP_MINUS_1 => LockTime::Height(Height(it.0.2 as u32)),
+                    LockTime::MIN_TIMESTAMP .. => LockTime::Time(DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(it.0.2, 0), Utc)),
+                    _ => unimplemented!()
+                };
+
+                let calculated = komodo_interest(Height(it.0.0),
+                        Amount::<NonNegative>::try_from(it.0.1).expect("amount conversion should be valid"),
+                              lock_time,
+                    Some(DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(it.0.3, 0), Utc)));
+                let predefined = Amount::<NonNegative>::try_from(*it.1).expect("amount conversion should be valid");
+                assert_eq!(calculated, predefined);
+            }
+        }
 
     }
 }
