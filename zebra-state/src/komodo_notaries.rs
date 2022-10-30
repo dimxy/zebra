@@ -142,7 +142,8 @@ fn komodo_check_if_second_block_allowed<C>(notary_id: i32, height: Height, relev
         }
     }
 
-    let tip_blocktime = block.header.time;
+    let blocktime = block.header.time;
+    let tip_blocktime = relevant_chain[0].header.time;
     let max_gap_allowed = MAINNET_MAX_FUTURE_BLOCK_TIME + 1;
     let threshold = tip_blocktime + Duration::seconds(max_gap_allowed);
 
