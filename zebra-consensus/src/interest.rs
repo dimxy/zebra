@@ -9,18 +9,18 @@ const KOMODO_MAXMEMPOOLTIME: i64 = 3600;
 const KOMODO_INTEREST: u64 = 5000000;
 
 /// komodo_interest - calc interest for passed params
-/// 
+///
 /// `tx_height` - height of block at which input utxo (tx.vin[i].prevout.hash:tx.vin[i].prevout.n) was created
-/// 
+///
 /// `value`     - input utxo value
-/// 
+///
 /// `lock_time` - nLockTime of transaction in which input utxo was createad
-/// 
+///
 /// `tip_time`  - time of a block or other time moment against interest is calculated,
 ///               if None passed interest will be zero (!)
-/// 
-pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>, 
-                    lock_time: LockTime, tip_time: Option<DateTime<Utc>>) -> Amount<NonNegative> 
+///
+pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
+                    lock_time: LockTime, tip_time: Option<DateTime<Utc>>) -> Amount<NonNegative>
 {
     let mut interest = Amount::zero();
 
@@ -28,8 +28,8 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
         if let Some(tip_time) = tip_time
         {
             if tx_height < Height(KOMODO_ENDOFERA) &&
-               lock_time < tip_time && 
-               value >= Amount::<NonNegative>::try_from(10 * COIN).unwrap() 
+               lock_time < tip_time &&
+               value >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()
             {
                 let mut elapsed = tip_time - lock_time;
                 if elapsed >= Duration::minutes(60) {
@@ -129,22 +129,25 @@ pub fn _komodo_interestnew(tx_height: Height, value: Amount<NonNegative>,
 
         let mut interest = Amount::zero();
 
-        if let LockTime::Time(lock_time) = lock_time {
-            if let Some(tip_time) = tip_time
-            {
-                if tip_time > lock_time {
-                    let mut elapsed = tip_time - lock_time;
-                    if elapsed > Duration::minutes(KOMODO_MAXMEMPOOLTIME / 60) {
-                        if elapsed > Duration::days(365) {
-                            elapsed = Duration::days(365);
+        if tx_height < Height(KOMODO_ENDOFERA) && value >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()
+        {
+            if let LockTime::Time(lock_time) = lock_time {
+                if let Some(tip_time) = tip_time
+                {
+                    if tip_time > lock_time {
+                        let mut elapsed = tip_time - lock_time;
+                        if elapsed > Duration::minutes(KOMODO_MAXMEMPOOLTIME / 60) {
+                            if elapsed > Duration::days(365) {
+                                elapsed = Duration::days(365);
+                            }
+                            if tx_height >= Height(1_000_000) && elapsed > Duration::days(31) {
+                                elapsed = Duration::days(31);
+                            }
+                            elapsed = elapsed - (Duration::minutes(KOMODO_MAXMEMPOOLTIME/60) - Duration::minutes(1));
+                            interest = (value / 10_512_000).expect("division on zero here never occured");
+                            let multiplier = elapsed.num_minutes().try_into().expect("convert positive i64 to u64 should pass");
+                            interest = (interest * multiplier).expect("multiply on max 31*24*60 min. shouldn't cause overflow");
                         }
-                        if tx_height > Height(1_000_000) && elapsed > Duration::days(31) {
-                            elapsed = Duration::days(31);
-                        }
-                        elapsed = elapsed - (Duration::minutes(KOMODO_MAXMEMPOOLTIME/60) - Duration::minutes(1));
-                        interest = (value / 10_512_000).expect("division on zero here never occured");
-                        let multiplier = elapsed.num_minutes().try_into().expect("convert positive i64 to u64 should pass");
-                        interest = (interest * multiplier).expect("multiply on max 31*24*60 min. shouldn't cause overflow");
                     }
                 }
             }
@@ -156,9 +159,56 @@ pub fn _komodo_interestnew(tx_height: Height, value: Amount<NonNegative>,
 mod tests {
     use super::*;
     #[test]
-    fn interest_test_1() {
+    // check komodo_interestnew calculations
+    fn komodo_interestnew() {
         zebra_test::init();
-        // here should be some dimxy's tests from komodod
+        const MIN_TIMESTAMP_MINUS_1: i64 = LockTime::MIN_TIMESTAMP - 1;
+
+        let arguments = [
+            (1, 1000u64, 1, 1), // some not working values
+            (1000000, 10u64*COIN as u64, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600 /*KOMODO_MAXMEMPOOLTIME*/), // time lower than cut off month time limit
+            (7777777-1, 10u64*COIN as u64, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600), // end of interest era
+            (7777777, 10u64*COIN as u64, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600),
+            (1000000, 10u64*COIN as u64-1, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600), // value less than limit
+            (1000000, 10u64*COIN as u64-1, 1663839248, 1663839248 - 1), // tip less than nLockTime
+            (1000000, 10u64*COIN as u64-1, 400000000, 400000000 + 30 * 24 * 60 * 60 + 3600), // not timestamp value
+            (1000000-1, 10u64*COIN as u64, 1663839248, 1663839248 + (365 * 24 * 60 - 1) * 60 + 3600), // time close to cut off year time limit
+            (1000000-1, 10u64*COIN as u64, 1663839248, 1663839248 + (365 * 24 * 60 - 1) * 60 + 3600 + 60), // time over cut off year time limit
+            (1000000-1, 10u64*COIN as u64, 1663839248, 1663839248 + (365 * 24 * 60 - 1) * 60 + 3600 + 30 * 24 * 60),
+
+        ];
+        let results = [
+            0,
+            10u64*COIN as u64/10512000 * (31*24*60 - 59),
+            10u64*COIN as u64/10512000 * (31*24*60 - 59),
+            0,
+            0,
+            0,
+            0,
+            10u64*COIN as u64/10512000 * (365*24*60 - 59),
+            10u64*COIN as u64/10512000 * (365*24*60 - 59),
+            10u64*COIN as u64/10512000 * (365*24*60 - 59),
+
+        ];
+
+        let iter = arguments.iter().zip(results.iter());
+        for it in iter {
+            let lock_time = match it.0.2 {
+                0..=MIN_TIMESTAMP_MINUS_1 => LockTime::Height(Height(it.0.2 as u32)),
+                LockTime::MIN_TIMESTAMP .. => LockTime::Time(DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(it.0.2, 0), Utc)),
+                _ => unimplemented!()
+            };
+
+            let calculated = _komodo_interestnew(Height(it.0.0),
+                    Amount::<NonNegative>::try_from(it.0.1).expect("amount conversion should be valid"),
+                          lock_time,
+                Some(DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(it.0.3, 0), Utc)));
+            let predefined = Amount::<NonNegative>::try_from(*it.1).expect("amount conversion should be valid");
+            assert_eq!(calculated, predefined);
+        }
+
+
+
     }
 }
 
