@@ -30,8 +30,8 @@ pub enum NotaryValidateContextError {
         zebra_chain::work::difficulty::ExpandedDifficulty,
     ), */
 
-    #[error("special notary block height {0:?}, hash {1:?} not valid")]
-    NotaryBlockInvalid(zebra_chain::block::Height, zebra_chain::block::Hash),
+    #[error("special notary block height {0:?}, hash {1:?} not valid ({2:?})")]
+    NotaryBlockInvalid(zebra_chain::block::Height, zebra_chain::block::Hash, String),
 
     #[error("notary pubkey data error")]
     NotaryPubkeysError(#[from] NotaryDataError),
@@ -39,11 +39,11 @@ pub enum NotaryValidateContextError {
     #[error("this notary {1:?} already mined recently for this height {0:?}")]
     NotaryAlreadyMinedError(zebra_chain::block::Height, i32),
 
-    #[error("notary internal error")]
-    NotaryInternalError(),
+    #[error("notary internal error: {0:?}")]
+    NotaryInternalError(String),
 
     #[error("notary internal error: must be checkpont validation")]
-    NotaryMustCheckpointValidateError(),
+    NotaryMustCheckpointValidate(),
 }
 
 
@@ -57,7 +57,7 @@ fn komodo_check_last_65_blocks_for_dups<C>(height: Height, relevant_chain: &Vec<
 {
     tracing::debug!("komodo_check_last_65_blocks_for_dups enterred for height={:?}", height);
     if height >= Height(82000) {
-        if relevant_chain.len() < NN_LAST_BLOCK_DEPTH { return Err(NotaryValidateContextError::NotaryInternalError()); }
+        if relevant_chain.len() < NN_LAST_BLOCK_DEPTH { return Err(NotaryValidateContextError::NotaryInternalError(String::from("relevant chain too small"))); }
         tracing::debug!("komodo_check_last_65_blocks_for_dups relevant_chain heights={:?}", relevant_chain.iter().map(|b| b.hash()).collect::<Vec<_>>());
 
         let mut has_duplicates = false;
@@ -78,7 +78,7 @@ fn komodo_check_last_65_blocks_for_dups<C>(height: Height, relevant_chain: &Vec<
         }
     }
     else {
-        return Err(NotaryValidateContextError::NotaryMustCheckpointValidateError());
+        return Err(NotaryValidateContextError::NotaryMustCheckpointValidate());
     }
 
     Ok(())
@@ -97,32 +97,32 @@ fn komodo_check_notary_blocktime<C>(height: Height, relevant_chain: &Vec<Block>,
 
     if blocktime != time_0 && tip_blocktime != time_0 && blocktime < tip_blocktime + duration_57   {
         if height > Height(807000)  {
-            return Err(NotaryValidateContextError::NotaryInternalError());
+            return Err(NotaryValidateContextError::NotaryBlockInvalid(height, block.hash(), String::from("invalid blocktime")));
         }
     }
     Ok(())
 }
 
 /// check if a notary_id is in priority list part allowed for second block mining
-fn is_second_block_allowed(notary_id: i32, blocktime: DateTime<Utc>, threshold: DateTime<Utc>, delta: i32, v_priority_list: &Vec<i32>) -> bool
+fn is_second_block_allowed(notary_id: i32, blocktime: DateTime<Utc>, threshold: DateTime<Utc>, delta: i32, v_priority_list: &Vec<i32>) -> Result<bool, NotaryValidateContextError>
 {
-    if blocktime >= threshold && delta > 0 &&
-        v_priority_list.len() == 64 && notary_id >= 0
-    {
+    if v_priority_list.len() != 64 {
+        return Err(NotaryValidateContextError::NotaryInternalError(String::from("invalid priority list")));
+    }
+    if blocktime >= threshold && delta > 0 && notary_id >= 0    {
         if let Ok(pos) = usize::try_from((blocktime - threshold).num_seconds() / delta as i64) {
-
             if pos < v_priority_list.len()  {
                 // if nodeid found in current range of priority -> allow it
                 if v_priority_list.iter().take(pos + 1).any(|mid| *mid == notary_id) {
-                    return true;
+                    return Ok(true);
                 }
             }
             else {
-                return true; // if time is bigger than the biggest range -> all nodes allowed
+                return Ok(true); // if time is bigger than the biggest range -> all nodes allowed
             }
         }
     }
-    false
+    Ok(false)
 }
 
 fn komodo_check_if_second_block_allowed<C>(notary_id: i32, height: Height, relevant_chain: &Vec<Block>, block: &Block) -> Result<(), NotaryValidateContextError> 
@@ -147,12 +147,12 @@ fn komodo_check_if_second_block_allowed<C>(notary_id: i32, height: Height, relev
     let max_gap_allowed = MAINNET_MAX_FUTURE_BLOCK_TIME + 1;
     let threshold = tip_blocktime + Duration::seconds(max_gap_allowed);
 
-    if is_second_block_allowed(notary_id, blocktime, threshold, MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA, &v_priority_list) {
+    if is_second_block_allowed(notary_id, blocktime, threshold, MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA, &v_priority_list)? {
         tracing::info!("dimxyyy komodo notary hf22 second block allowed for ht={:?}", height);
         return Ok(());
     }
     error!("invalid second block generated for notary_id={} block.header={:?}", notary_id, block.header);
-    Err(NotaryValidateContextError::NotaryBlockInvalid(height, block.hash()))
+    Err(NotaryValidateContextError::NotaryBlockInvalid(height, block.hash(), String::from("invalid second block after gap")))
 }
 
 
@@ -204,7 +204,7 @@ where
             }
         }
     } else {
-        return Err(NotaryValidateContextError::NotaryMustCheckpointValidateError());
+        return Err(NotaryValidateContextError::NotaryMustCheckpointValidate());
     }
 
     Ok(false)  // not a special notary block
