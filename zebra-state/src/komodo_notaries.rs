@@ -128,7 +128,7 @@ fn is_second_block_allowed(notary_id: i32, blocktime: DateTime<Utc>, threshold: 
 fn komodo_check_if_second_block_allowed<C>(notary_id: i32, height: Height, relevant_chain: &Vec<Block>, block: &Block) -> Result<(), NotaryValidateContextError> 
 {
 
-    let mut v_priority_list: Vec<i32> = (0..63).collect();
+    let mut v_priority_list: Vec<i32> = (0..64).collect();
     for block in relevant_chain.iter().rev() {
         if let Some(block_pk) = komodo_get_block_pubkey(&block) {
             let block_notary_id = komodo_get_notary_id_for_height(&height, &block_pk)?;  
