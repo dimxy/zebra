@@ -65,8 +65,12 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                             if tx_height < Height(250_000) {
                                 interest = (numerator / denominator as u64).expect("div to non-zero should be ok");
                             } else if tx_height < Height(1_000_000) {
-                                interest = (numerator * elapsed.num_minutes() as u64).expect("mul should be ok");
-                                interest = (interest / (365 * 24 * 60)).expect("div to non-zero should be ok");
+                                // interest = (numerator * elapsed.num_minutes() as u64).expect("mul should be ok");
+                                // interest = (interest / (365 * 24 * 60)).expect("div to non-zero should be ok");
+
+                                // (a) we should avoid multiplication overflow due to max_money, so we will calc in u64 and only then transform to amount
+                                let a = u64::from(numerator) * elapsed.num_minutes() as u64 / (365 * 24 * 60);
+                                interest = Amount::<NonNegative>::try_from(a).expect("conversion should be ok");
 
                                 let interestnew = _komodo_interestnew(tx_height, value, LockTime::Time(lock_time), Some(tip_time));
                                 if interest < interestnew {
@@ -76,9 +80,15 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                                 interest = _komodo_interestnew(tx_height, value, LockTime::Time(lock_time), Some(tip_time));
                             }
                         } else if tx_height <= Height(1_000_000) { // exception
-                            let numerator: u64 = u64::from(value) * KOMODO_INTEREST;
-                            interest = Amount::<NonNegative>::try_from(numerator / denominator as u64).expect("div should be ok");
-                            interest = (interest / COIN as u64).expect("div should be ok");
+                            // let numerator: u64 = u64::from(value) * KOMODO_INTEREST;
+                            let numerator: u64 = u64::from( value).overflowing_mul(KOMODO_INTEREST).0; /* allow overflowing multiply to match komodod */
+
+                            // interest = Amount::<NonNegative>::try_from(numerator / denominator as u64).expect("div should be ok");
+                            // interest = (interest / COIN as u64).expect("div should be ok");
+
+                            // here we also trying to avoid max_money constraint as in (a)
+                            let a = numerator / denominator as u64 / COIN as u64;
+                            interest = Amount::<NonNegative>::try_from(a).expect("conversion should be ok");
 
                             let interestnew = _komodo_interestnew(tx_height, value, LockTime::Time(lock_time), Some(tip_time));
                             if interest < interestnew {
@@ -193,6 +203,7 @@ mod tests {
             10u64*COIN as u64/10512000 * (365*24*60 - 59),
 
         ];
+        assert!(arguments.len() == results.len());
 
         let iter = arguments.iter().zip(results.iter());
         for it in iter {
@@ -216,14 +227,34 @@ mod tests {
     fn test_komodo_interest() {
         zebra_test::init();
 
+        // nValue <= 25000LL*COIN and nValue >= 25000LL*COIN
+        // txheight >= 1000000
+        // should be routed to komodo_interestnew
         for n_value in [10u64*COIN as u64, 25001u64*COIN as u64] {
             let arguments = [
-                    (1000000, n_value, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600),
+                    (1000000, n_value, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600), // time lower than cut off month time limit
+                    (7777777-1, n_value, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600), // end of interest era
+                    (7777777 /*KOMODO_ENDOFERA*/, n_value, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600),
+                    (1000000, n_value-1, 1663839248, 1663839248 - 1), // tip less than nLockTime
+                    (1000000, n_value-1, 400000000, 400000000 + 30 * 24 * 60 * 60 + 3600), // not timestamp value
+                    (1000000, n_value, 1663839248, 1663839248 + 3600 - 1), // too small period
+                    (1000000, n_value, 1663839248, 1663839248 + 31 * 24 * 60 * 60 + 3600+1), // time over cut off month time limit
+                    (1000000, n_value, 1663839248, 1663839248 + 32 * 24 * 60 * 60 + 3600),
+                    (1000000, 10u64*COIN as u64 - 1, 1663839248, 1663839248 + (31 * 24 * 60 - 1) * 60 + 3600), // value less than limit
                 ];
 
             let results = [
                 n_value/10512000 * (31*24*60 - 59),
+                n_value/10512000 * (31*24*60 - 59),
+                0,
+                0,
+                0,
+                0,
+                n_value/10512000 * (31*24*60 - 59),
+                n_value/10512000 * (31*24*60 - 59),
+                0,
             ];
+            assert!(arguments.len() == results.len());
 
             let iter = arguments.iter().zip(results.iter());
             for it in iter {
@@ -239,6 +270,99 @@ mod tests {
                     Some(DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(it.0.3, 0), Utc)));
                 let predefined = Amount::<NonNegative>::try_from(*it.1).expect("amount conversion should be valid");
                 assert_eq!(calculated, predefined);
+            }
+        }
+
+        for days in [1, 10, 365, 365*2, 365*3] {
+            let mut minutes = days * 24 * 60;
+            if (minutes > 365 * 24 * 60) {
+                minutes = 365 * 24 * 60;
+            }
+
+            let calc_closure = |it: (u32, i64, i64, i64)| -> Amount<NonNegative> {
+
+                let lock_time = match it.2 {
+                    0..=MIN_TIMESTAMP_MINUS_1 => LockTime::Height(Height(it.2 as u32)),
+                    LockTime::MIN_TIMESTAMP .. => LockTime::Time(DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(it.2, 0), Utc)),
+                    _ => unimplemented!()
+                };
+
+                komodo_interest(Height(it.0),
+                        Amount::<NonNegative>::try_from(it.1).expect("amount conversion should be valid"),
+                              lock_time,
+                    Some(DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(it.3, 0), Utc)))
+            };
+
+            // nValue <= 25000LL*COIN
+            // txheight < 1000000
+
+            let numerator = 10u64*COIN as u64 / 20; // assumes 5%!
+            let predefined = Amount::<NonNegative>::try_from(numerator * (minutes - 59) / (365 * 24 * 60)).expect("amount conversion should be valid");
+            assert_eq!(calc_closure((1000000-1, 10 * COIN, 1663839248, (1663839248 + minutes * 60) as i64 )), predefined);
+
+            // nValue <= 25000LL*COIN
+            // txheight < 250000
+
+            let numerator = (10u64*COIN as u64 * KOMODO_INTEREST);
+            let locktime = ACTIVATION - 2 * days as i64 * 24 * 60 * 60;
+            let tiptime = locktime + minutes as i64 * 60;
+            assert!(tiptime < ACTIVATION);
+            let mut denominator = (365 * 24 * 60) / minutes;
+            if denominator == 0 {
+                denominator = 1;
+            }
+            let predefined = Amount::<NonNegative>::try_from(numerator / denominator / COIN as u64).expect("amount conversion should be valid");
+            assert_eq!(calc_closure((250000-1, 10 * COIN, locktime, tiptime)), predefined);
+
+            // !exception
+            // nValue > 25000LL*COIN
+            // txheight < 250000
+
+            let numerator = (25000 * COIN + 1) / 20; // assumes 5%!
+            let mut denominator = 365 * 24 * 60 / minutes; // no minutes-59 adjustment
+            if denominator == 0 {
+                denominator = 1;
+            }
+            let predefined = Amount::<NonNegative>::try_from(numerator as u64 / denominator).expect("amount conversion should be valid");
+            assert_eq!(calc_closure((250000-1, 25000 * COIN + 1, 1663839248, 1663839248 + minutes as i64 * 60)), predefined);
+
+            // !exception
+            // nValue > 25000LL*COIN
+            // txheight < 1000000
+
+            let numerator = (25000 * COIN + 1) / 20; // assumes 5%!
+            let minutes_adj = minutes - 59; // adjusted since ht=250000
+            let predefined = Amount::<NonNegative>::try_from(numerator * minutes_adj as i64 / (365 * 24 * 60)).expect("amount conversion should be valid");
+            assert_eq!(calc_closure((1000000-1, 25000 * COIN + 1, 1663839248, 1663839248 + minutes as i64 * 60)), predefined);
+
+            // exception
+            // nValue > 25000LL*COIN
+            // txheight < 1000000
+
+            let htvals: [(u32, i64); 12] = [(116607, 2502721100000), (126891, 2879650000000), (129510, 3000000000000), (141549, 3500000000000),
+                (154473, 3983399350000), // mul overflow
+                (154736, 3983406748175),
+                (155013, 3983414006565),
+                (155492, 3983427592291), (155613, 9997409999999797), (157927, 9997410667451072), (155613, 2590000000000),
+                (155949, 4000000000000)];
+
+            for htval in htvals {
+                let txheight = htval.0;
+                let n_value = htval.1;
+
+                //let numerator: u64 = n_value as u64 * KOMODO_INTEREST;
+                let numerator: u64 = (n_value as u64).overflowing_mul(KOMODO_INTEREST).0; /* allow overflowing multiply to match komodod */
+
+                let locktime = 1484490069; // close to real tx locktime
+                let tiptime = locktime + minutes * 60;
+                let mut denominator = (365 * 24 * 60) / minutes;
+                if denominator == 0 {
+                    denominator = 1;
+                }
+                if txheight < 155949 {
+                    let predefined = Amount::<NonNegative>::try_from(numerator / denominator / COIN as u64).expect("amount conversion should be valid");
+                    assert_eq!(calc_closure((txheight, n_value, locktime as i64, tiptime as i64)), predefined);
+                }
             }
         }
 
