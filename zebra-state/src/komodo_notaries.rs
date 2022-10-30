@@ -147,7 +147,7 @@ fn komodo_check_if_second_block_allowed<C>(notary_id: i32, height: Height, relev
     let max_gap_allowed = MAINNET_MAX_FUTURE_BLOCK_TIME + 1;
     let threshold = tip_blocktime + Duration::seconds(max_gap_allowed);
 
-    if is_second_block_allowed(notary_id, tip_blocktime, threshold, MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA, &v_priority_list) {
+    if is_second_block_allowed(notary_id, blocktime, threshold, MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA, &v_priority_list) {
         tracing::info!("dimxyyy komodo notary hf22 second block allowed for ht={:?}", height);
         return Ok(());
     }
