@@ -4,7 +4,7 @@ use std::{collections::HashMap, convert::TryInto};
 
 use crate::{
     block::{self, Block, Height},
-    transaction::{self, Transaction},
+    transaction::{self, Transaction, LockTime},
     transparent,
 };
 
@@ -25,6 +25,8 @@ pub struct Utxo {
     pub height: block::Height,
     /// Whether the output originated in a coinbase transaction.
     pub from_coinbase: bool,
+    /// The locktime of a transaction in which this utxo created. Needed for interest calc.
+    pub lock_time: LockTime,
 }
 
 /// A [`Utxo`], and the index of its transaction within its block.
@@ -56,11 +58,12 @@ pub struct OrderedUtxo {
 
 impl Utxo {
     /// Create a new UTXO from its fields.
-    pub fn new(output: transparent::Output, height: block::Height, from_coinbase: bool) -> Utxo {
+    pub fn new(output: transparent::Output, height: block::Height, from_coinbase: bool, lock_time: LockTime) -> Utxo {
         Utxo {
             output,
             height,
             from_coinbase,
+            lock_time
         }
     }
 
@@ -69,6 +72,7 @@ impl Utxo {
         output: transparent::Output,
         height: block::Height,
         tx_index_in_block: usize,
+        lock_time: LockTime,
     ) -> Utxo {
         // Coinbase transactions are always the first transaction in their block,
         // we check the other consensus rules separately.
@@ -78,6 +82,7 @@ impl Utxo {
             output,
             height,
             from_coinbase,
+            lock_time
         }
     }
 }
@@ -88,13 +93,14 @@ impl OrderedUtxo {
         output: transparent::Output,
         height: block::Height,
         tx_index_in_block: usize,
+        lock_time: LockTime,
     ) -> OrderedUtxo {
         // Coinbase transactions are always the first transaction in their block,
         // we check the other consensus rules separately.
         let from_coinbase = tx_index_in_block == 0;
 
         OrderedUtxo {
-            utxo: Utxo::new(output, height, from_coinbase),
+            utxo: Utxo::new(output, height, from_coinbase, lock_time),
             tx_index_in_block,
         }
     }
@@ -228,6 +234,8 @@ pub fn new_transaction_ordered_outputs(
 ) -> HashMap<transparent::OutPoint, OrderedUtxo> {
     let mut new_ordered_outputs = HashMap::new();
 
+    let lock_time = transaction.raw_lock_time().unwrap_or_else(LockTime::unlocked);
+
     for (output_index_in_transaction, output) in transaction.outputs().iter().cloned().enumerate() {
         let output_index_in_transaction = output_index_in_transaction
             .try_into()
@@ -238,7 +246,7 @@ pub fn new_transaction_ordered_outputs(
                 hash,
                 index: output_index_in_transaction,
             },
-            OrderedUtxo::new(output, height, tx_index_in_block),
+            OrderedUtxo::new(output, height, tx_index_in_block, lock_time),
         );
     }
 

@@ -7,7 +7,7 @@ use super::{AtLeastOne, CompactSizeMessage};
 /// The maximum length of a Zcash message, in bytes.
 ///
 /// This value is used to calculate safe preallocation limits for some types
-pub const MAX_PROTOCOL_MESSAGE_LEN: usize = 2 * 1024 * 1024;
+pub const MAX_PROTOCOL_MESSAGE_LEN: usize = crate::block::serialize::MAX_BLOCK_BYTES as usize + 24;
 
 /// Consensus-critical serialization for Zcash.
 ///

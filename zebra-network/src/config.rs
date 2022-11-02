@@ -248,10 +248,10 @@ impl Config {
 impl Default for Config {
     fn default() -> Config {
         let mainnet_peers = [
-            "dnsseed.z.cash:8233",
-            "dnsseed.str4d.xyz:8233",
-            "mainnet.seeder.zfnd.org:8233",
-            "mainnet.is.yolo.money:8233",
+            "kmd.komodoseeds.org:7770",
+            "seeds1.kmd.sh:7770",
+            "kmdseed.cipig.net:7770",
+            "kmdseeds.lordofthechains.com:7770",
         ]
         .iter()
         .map(|&s| String::from(s))
@@ -267,7 +267,7 @@ impl Default for Config {
         .collect();
 
         Config {
-            listen_addr: "0.0.0.0:8233"
+            listen_addr: "0.0.0.0:7770"
                 .parse()
                 .expect("Hardcoded address should be parseable"),
             network: Network::Mainnet,

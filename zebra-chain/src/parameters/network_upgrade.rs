@@ -63,12 +63,12 @@ pub enum NetworkUpgrade {
 pub(super) const MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
     (block::Height(1), BeforeOverwinter),
-    (block::Height(347_500), Overwinter),
-    (block::Height(419_200), Sapling),
-    (block::Height(653_600), Blossom),
-    (block::Height(903_000), Heartwood),
-    (block::Height(1_046_400), Canopy),
-    (block::Height(1_687_104), Nu5),
+    (block::Height(1_140_408), Overwinter),
+    (block::Height(1_140_409), Sapling),
+    (block::Height(7_113_400), Blossom),
+    (block::Height(7_113_401), Heartwood),
+    (block::Height(7_113_402), Canopy),
+    (block::Height(7_113_403), Nu5),
 ];
 
 /// Fake mainnet network upgrade activation heights, used in tests.
@@ -194,7 +194,7 @@ pub(crate) const CONSENSUS_BRANCH_IDS: &[(NetworkUpgrade, ConsensusBranchId)] = 
 ];
 
 /// The target block spacing before Blossom.
-const PRE_BLOSSOM_POW_TARGET_SPACING: i64 = 150;
+const PRE_BLOSSOM_POW_TARGET_SPACING: i64 = 60;
 
 /// The target block spacing after Blossom activation.
 pub const POST_BLOSSOM_POW_TARGET_SPACING: i64 = 75;

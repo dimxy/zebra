@@ -1,6 +1,7 @@
 //! Transaction LockTime.
 
 use std::{convert::TryInto, io};
+use std::hash::{Hash, Hasher};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use chrono::{DateTime, TimeZone, Utc};
@@ -110,5 +111,50 @@ impl ZcashDeserialize for LockTime {
             // This can't panic, because all u32 values are valid `Utc.timestamp`s.
             Ok(LockTime::Time(Utc.timestamp(n.into(), 0)))
         }
+    }
+}
+
+impl Hash for LockTime {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            LockTime::Height(block::Height(n)) => n.hash(state),
+            LockTime::Time(t) => (t.timestamp() as u32).hash(state),
+        }
+    }
+}
+
+impl TryInto<u32> for LockTime {
+    type Error = ();
+    fn try_into(self) -> Result<u32, Self::Error>{
+        match self {
+            LockTime::Height(block::Height(n)) => Ok(n),
+            LockTime::Time(t) => Ok(t.timestamp() as u32),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use chrono::NaiveDateTime;
+
+    use super::*;
+
+    #[test]
+    fn locktime_to_u32() {
+        zebra_test::init();
+
+        let dt = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1665780084, 0), Utc);
+        let lock_time = LockTime::Time(dt);
+        let lt_num: u32 = lock_time.try_into().expect("locktime_to_u32");
+        assert_eq!(lt_num, 1665780084);
+
+        let lock_time = LockTime::unlocked();
+        let lt_num: u32 = lock_time.try_into().expect("locktime_to_u32");
+        assert_eq!(lt_num, 0);
+
+        let lock_time = LockTime::Height(block::Height(333_333));
+        let lt_num: u32 = lock_time.try_into().expect("locktime_to_u32");
+        assert_eq!(lt_num, 333_333);
+
     }
 }

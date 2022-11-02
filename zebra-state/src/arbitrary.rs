@@ -5,7 +5,7 @@ use std::sync::Arc;
 use zebra_chain::{
     amount::{Amount, NegativeAllowed},
     block::{self, Block},
-    transaction::Transaction,
+    transaction::{Transaction, LockTime},
     transparent,
     value_balance::ValueBalance,
 };
@@ -112,7 +112,7 @@ impl ContextuallyValidBlock {
             lock_script: transparent::Script::new(&[]),
         };
 
-        let zero_utxo = transparent::OrderedUtxo::new(zero_output, block::Height(1), 1);
+        let zero_utxo = transparent::OrderedUtxo::new(zero_output, block::Height(1), 1, LockTime::unlocked());
 
         let zero_spent_utxos = block
             .block

@@ -19,8 +19,8 @@ use std::{
 use zebra_chain::{
     amount::{self, Amount, NonNegative},
     block::Height,
-    transaction::{self, Transaction},
-    transparent::{self, Input},
+    transaction::{self, Transaction, LockTime},
+    transparent::{self, Input, Output},
 };
 
 use crate::{
@@ -95,14 +95,28 @@ impl ZebraDb {
         &self,
         output_location: OutputLocation,
     ) -> Option<transparent::OrderedUtxo> {
-        let utxo_by_out_loc = self.db.cf_handle("utxo_by_out_loc").unwrap();
 
+        let utxo_by_out_loc = self.db.cf_handle("utxo_by_out_loc").unwrap();
         let output = self.db.zs_get(&utxo_by_out_loc, &output_location)?;
+
+        let tx_by_loc = self.db.cf_handle("tx_by_loc").unwrap();
+        let tx_loc = output_location.transaction_location();
+        let tx: Option<Transaction> = self.db.zs_get(&tx_by_loc, &tx_loc);
+
+        let lock_time = match tx {
+            Some(tx) => {
+                tx.raw_lock_time().unwrap_or_else(LockTime::unlocked)
+            },
+            None => {
+                LockTime::unlocked()
+            },
+        };
 
         let utxo = transparent::OrderedUtxo::new(
             output,
             output_location.height(),
             output_location.transaction_index().as_usize(),
+            lock_time,
         );
 
         Some(utxo)

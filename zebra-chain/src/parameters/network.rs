@@ -2,7 +2,7 @@ use std::{convert::From, fmt, str::FromStr};
 
 use thiserror::Error;
 
-use crate::{block::Height, parameters::NetworkUpgrade::Canopy};
+use crate::{block::Height, parameters::NetworkUpgrade::Sapling};
 
 #[cfg(any(test, feature = "proptest-impl"))]
 use proptest_derive::Arbitrary;
@@ -81,7 +81,7 @@ impl Network {
     /// Get the default port associated to this network.
     pub fn default_port(&self) -> u16 {
         match self {
-            Network::Mainnet => 8233,
+            Network::Mainnet => 7770,
             Network::Testnet => 18233,
         }
     }
@@ -92,16 +92,14 @@ impl Network {
     /// If a Zcash consensus rule only applies before the mandatory checkpoint,
     /// Zebra can skip validation of that rule.
     pub fn mandatory_checkpoint_height(&self) -> Height {
-        // Currently this is after the ZIP-212 grace period.
-        //
-        // See the `ZIP_212_GRACE_PERIOD_DOCUMENTATION` for more information.
+        // Currently this is after the Sapling + approximatelly 1 day (1440 blocks)
 
-        let canopy_activation = Canopy
+        let sapling_activation = Sapling
             .activation_height(*self)
-            .expect("Canopy activation height must be present for both networks");
+            .expect("Sapling activation height must be present for both networks");
 
-        (canopy_activation + ZIP_212_GRACE_PERIOD_DURATION)
-            .expect("ZIP-212 grace period ends at a valid block height")
+        (sapling_activation + 1440)
+            .expect("mandatory grace period ends at a valid block height")
     }
 
     /// Return the network name as defined in

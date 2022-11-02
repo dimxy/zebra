@@ -193,29 +193,31 @@ pub fn transparent_coinbase_spend(
     spend_restriction: transparent::CoinbaseSpendRestriction,
     utxo: transparent::OrderedUtxo,
 ) -> Result<transparent::OrderedUtxo, ValidateContextError> {
-    if !utxo.utxo.from_coinbase {
-        return Ok(utxo);
-    }
+    Ok(utxo)
+    // if !utxo.utxo.from_coinbase {
+    //     return Ok(utxo);
+    // }
 
-    match spend_restriction {
-        OnlyShieldedOutputs { spend_height } => {
-            let min_spend_height =
-                utxo.utxo.height + block::Height(MIN_TRANSPARENT_COINBASE_MATURITY);
-            let min_spend_height =
-                min_spend_height.expect("valid UTXOs have coinbase heights far below Height::MAX");
-            if spend_height >= min_spend_height {
-                Ok(utxo)
-            } else {
-                Err(ImmatureTransparentCoinbaseSpend {
-                    outpoint,
-                    spend_height,
-                    min_spend_height,
-                    created_height: utxo.utxo.height,
-                })
-            }
-        }
-        SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
-    }
+    // match spend_restriction {
+    //     OnlyShieldedOutputs { spend_height } => {
+    //         let min_spend_height =
+    //             utxo.utxo.height + block::Height(MIN_TRANSPARENT_COINBASE_MATURITY);
+    //         let min_spend_height =
+    //             min_spend_height.expect("valid UTXOs have coinbase heights far below Height::MAX");
+    //         if spend_height >= min_spend_height {
+    //             Ok(utxo)
+    //         } else {
+    //             Err(ImmatureTransparentCoinbaseSpend {
+    //                 outpoint,
+    //                 spend_height,
+    //                 min_spend_height,
+    //                 created_height: utxo.utxo.height,
+    //             })
+    //         }
+    //     }
+    //     SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
+    // }
+
 }
 
 /// Reject negative remaining transaction value.
@@ -242,37 +244,37 @@ pub fn remaining_transaction_value(
 
         // Check the remaining transparent value pool for this transaction
         let value_balance = transaction.value_balance(&utxos_from_ordered_utxos(utxos.clone()));
-        match value_balance {
-            Ok(vb) => match vb.remaining_transaction_value() {
-                Ok(_) => Ok(()),
-                Err(amount_error @ amount::Error::Constraint { .. })
-                    if amount_error.invalid_value() < 0 =>
-                {
-                    Err(ValidateContextError::NegativeRemainingTransactionValue {
-                        amount_error,
-                        height: prepared.height,
-                        tx_index_in_block,
-                        transaction_hash: prepared.transaction_hashes[tx_index_in_block],
-                    })
-                }
-                Err(amount_error) => {
-                    Err(ValidateContextError::CalculateRemainingTransactionValue {
-                        amount_error,
-                        height: prepared.height,
-                        tx_index_in_block,
-                        transaction_hash: prepared.transaction_hashes[tx_index_in_block],
-                    })
-                }
-            },
-            Err(value_balance_error) => {
-                Err(ValidateContextError::CalculateTransactionValueBalances {
-                    value_balance_error,
-                    height: prepared.height,
-                    tx_index_in_block,
-                    transaction_hash: prepared.transaction_hashes[tx_index_in_block],
-                })
-            }
-        }?
+        // match value_balance {
+        //     Ok(vb) => match vb.remaining_transaction_value() {
+        //         Ok(_) => Ok(()),
+        //         Err(amount_error @ amount::Error::Constraint { .. })
+        //             if amount_error.invalid_value() < 0 =>
+        //         {
+        //             Err(ValidateContextError::NegativeRemainingTransactionValue {
+        //                 amount_error,
+        //                 height: prepared.height,
+        //                 tx_index_in_block,
+        //                 transaction_hash: prepared.transaction_hashes[tx_index_in_block],
+        //             })
+        //         }
+        //         Err(amount_error) => {
+        //             Err(ValidateContextError::CalculateRemainingTransactionValue {
+        //                 amount_error,
+        //                 height: prepared.height,
+        //                 tx_index_in_block,
+        //                 transaction_hash: prepared.transaction_hashes[tx_index_in_block],
+        //             })
+        //         }
+        //     },
+        //     Err(value_balance_error) => {
+        //         Err(ValidateContextError::CalculateTransactionValueBalances {
+        //             value_balance_error,
+        //             height: prepared.height,
+        //             tx_index_in_block,
+        //             transaction_hash: prepared.transaction_hashes[tx_index_in_block],
+        //         })
+        //     }
+        // }?
     }
 
     Ok(())

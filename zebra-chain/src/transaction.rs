@@ -306,6 +306,26 @@ impl Transaction {
         }
     }
 
+    /// Get raw transaction's lock time, as it written in nLockTime field of transaction.
+    /// The difference from lock_time method is in the latter combines read of nLockTime with
+    /// some arms of zcashd IsFinalTx. Here we only read RAW nLockTime field and return it,
+    /// regardless of any other conditions. Will be used in interest / reward calcs.
+    pub fn raw_lock_time(&self) -> Option<LockTime> {
+        let lock_time = match self {
+            Transaction::V1 { lock_time, .. }
+            | Transaction::V2 { lock_time, .. }
+            | Transaction::V3 { lock_time, .. }
+            | Transaction::V4 { lock_time, .. }
+            | Transaction::V5 { lock_time, .. } => *lock_time,
+        };
+
+        if lock_time == LockTime::unlocked() {
+            return None;
+        }
+
+        Some(lock_time)
+    }
+
     /// Get this transaction's lock time.
     pub fn lock_time(&self) -> Option<LockTime> {
         let lock_time = match self {
@@ -340,6 +360,11 @@ impl Transaction {
         // transparent input sequence number that is not `u32::MAX`.
         //
         // https://developer.bitcoin.org/devguide/transactions.html#non-standard-transactions
+
+        // https://github.com/zcash/zcash/blob/1a7c2a3b04bcad6549be6d571bfdff8af9a2c814/src/main.cpp#L724-L726
+        // if all tx inputs is final, i.e. for every tx vin nSequence == std::numeric_limits<uint32_t>::max()
+        // -> IsFinal() == true. Else in case of !IsFinal()
+
         let has_sequence_number_enabling_lock_time = self
             .inputs()
             .iter()
@@ -960,6 +985,23 @@ impl Transaction {
             .map_err(ValueBalanceError::Transparent)?
             .constrain()
             .expect("conversion from NonNegative to NegativeAllowed is always valid");
+
+        // DEBUG!
+        for input in self.inputs().iter() {
+            if let transparent::Input::PrevOut {
+                outpoint,
+                unlock_script,
+                ..
+            } = input {
+                // here good to have the interest calculation code, we should find
+                // the tx by outpoint.hash, check its locktime and do the calculations.
+
+                // outpoint.hash -> tx -> nlocktime
+                // TODO: how to get tx and its locktime from outpoint here?
+
+                // println!("{:?} -> {:?}", input, input.value_from_outputs(outputs));
+            }
+        }
 
         let output_value = self
             .outputs()
