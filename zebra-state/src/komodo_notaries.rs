@@ -17,18 +17,6 @@ pub const NN_LAST_BLOCK_DEPTH: usize = 65;
 #[allow(dead_code, missing_docs)]
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum NotaryValidateContextError {
-    /*
-    #[error("invalid difficulty threshold in special block header {0:?} {1:?}")]
-    InvalidDifficulty(zebra_chain::block::Height, zebra_chain::block::Hash),
-
-    #[error("special notary block {0:?} has a difficulty threshold {2:?} that is easier than the {3:?} difficulty limit {4:?}, hash: {1:?}")]
-    TargetDifficultyLimit(
-        zebra_chain::block::Height,
-        zebra_chain::block::Hash,
-        zebra_chain::work::difficulty::ExpandedDifficulty,
-        zebra_chain::parameters::Network,
-        zebra_chain::work::difficulty::ExpandedDifficulty,
-    ), */
 
     #[error("special notary block height {0:?}, hash {1:?} not valid ({2:?})")]
     NotaryBlockInvalid(zebra_chain::block::Height, zebra_chain::block::Hash, String),
@@ -47,12 +35,7 @@ pub enum NotaryValidateContextError {
 }
 
 
-/// check notary is unique for depth of 'NN_LAST_BLOCK_DEPTH' blocks (actual rules since height >= 82000)
-//fn komodo_check_last_65_blocks<C>(relevant_chain: &Vec<<C as IntoIterator>::Item>, notary_id: i32) -> Result<(), NotaryValidateContextError> 
-//where
-    //C: IntoIterator,
-    //C::Item: Borrow<Block>,
-    //C::IntoIter: ExactSizeIterator,
+/// check notary is unique for depth of 'NN_LAST_BLOCK_DEPTH' blocks (it's currently the actual rules, since height >= 82000)
 fn komodo_check_last_65_blocks_for_dups<C>(height: Height, relevant_chain: &Vec<Block>, notary_id: i32) -> Result<(), NotaryValidateContextError> 
 {
     tracing::debug!("komodo_check_last_65_blocks_for_dups enterred for height={:?}", height);
@@ -188,13 +171,13 @@ where
                 .map(|b| b.borrow().to_owned())
                 .collect::<Vec<Block>>();
 
-                let check_last_65_result = komodo_check_last_65_blocks_for_dups::<C>(height, &relevant_chain, notary_id);
+                let check_last_65_result = komodo_check_last_65_blocks_for_dups::<C>(height, &relevant_chain, notary_id);  // do not return error here
 
-                komodo_check_notary_blocktime::<C>(height, &relevant_chain, block)?;  // returns if error
+                komodo_check_notary_blocktime::<C>(height, &relevant_chain, block)?;  // returns error if blocktime invalid
 
                 if check_last_65_result.is_err() {
                     if NetworkUpgrade::komodo_is_gap_after_second_block_allowed(network, height) {
-                        komodo_check_if_second_block_allowed::<C>(notary_id, height, &relevant_chain, block)?;  // returns if error
+                        komodo_check_if_second_block_allowed::<C>(notary_id, height, &relevant_chain, block)?;  // returns error if second block invalid
                     } else {
                         return Err(check_last_65_result.err().unwrap()); // return error
                     }
