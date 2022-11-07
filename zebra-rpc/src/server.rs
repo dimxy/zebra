@@ -10,7 +10,7 @@
 use jsonrpc_core::{Compatibility, MetaIoHandler};
 use jsonrpc_http_server::ServerBuilder;
 use tokio::task::JoinHandle;
-use tower::{buffer::Buffer, Service};
+use tower::{buffer::Buffer, Service, util::BoxService};
 use tracing::*;
 use tracing_futures::Instrument;
 
@@ -22,6 +22,10 @@ use crate::{
     methods::{Rpc, RpcImpl},
     server::{compatibility::FixHttpRequestMiddleware, tracing_middleware::TracingMiddleware},
 };
+
+pub use zebra_network::AddressBook;
+pub use zebra_network::address_book::InboundConns;
+use std::sync::Arc;
 
 pub mod compatibility;
 mod tracing_middleware;
@@ -39,6 +43,8 @@ impl RpcServer {
         state: State,
         latest_chain_tip: Tip,
         network: Network,
+        address_book: Arc<std::sync::Mutex<AddressBook>>,
+        inbound_conns: Arc<std::sync::Mutex<InboundConns>>,
     ) -> (JoinHandle<()>, JoinHandle<()>)
     where
         Version: ToString,
@@ -61,7 +67,7 @@ impl RpcServer {
 
             // Initialize the rpc methods with the zebra version
             let (rpc_impl, rpc_tx_queue_task_handle) =
-                RpcImpl::new(app_version, mempool, state, latest_chain_tip, network);
+                RpcImpl::new(app_version, mempool, state, latest_chain_tip, network, address_book, inbound_conns);
 
             // Create handler compatible with V1 and V2 RPC protocols
             let mut io: MetaIoHandler<(), _> =

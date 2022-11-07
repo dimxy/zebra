@@ -10,7 +10,7 @@ use tokio::{
 use tracing::Span;
 
 use crate::{
-    address_book::AddressMetrics, meta_addr::MetaAddrChange, AddressBook, BoxError, Config,
+    address_book::AddressMetrics, meta_addr::MetaAddrChange, AddressBook, BoxError, Config, address_book::InboundConns,
 };
 
 /// The `AddressBookUpdater` hooks into incoming message streams for each peer
@@ -40,6 +40,7 @@ impl AddressBookUpdater {
         local_listener: SocketAddr,
     ) -> (
         Arc<std::sync::Mutex<AddressBook>>,
+        Arc<std::sync::Mutex<InboundConns>>,
         mpsc::Sender<MetaAddrChange>,
         watch::Receiver<AddressMetrics>,
         JoinHandle<Result<(), BoxError>>,
@@ -58,7 +59,14 @@ impl AddressBookUpdater {
         let address_metrics = address_book.address_metrics_watcher();
         let address_book = Arc::new(std::sync::Mutex::new(address_book));
 
+        let inbound_conns = InboundConns::new(
+            config.network,
+        );
+        let inbound_conns = Arc::new(std::sync::Mutex::new(inbound_conns));
+
         let worker_address_book = address_book.clone();
+        let worker_inbound_conns = inbound_conns.clone();
+
         let worker = move || {
             info!("starting the address book updater");
 
@@ -70,6 +78,11 @@ impl AddressBookUpdater {
                 // Briefly hold the address book threaded mutex, to update the
                 // state for a single address.
                 worker_address_book
+                    .lock()
+                    .expect("mutex should be unpoisoned")
+                    .update(event);
+
+                worker_inbound_conns
                     .lock()
                     .expect("mutex should be unpoisoned")
                     .update(event);
@@ -88,6 +101,7 @@ impl AddressBookUpdater {
 
         (
             address_book,
+            inbound_conns,
             worker_tx,
             address_metrics,
             address_book_updater_task_handle,

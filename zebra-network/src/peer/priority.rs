@@ -75,7 +75,7 @@ impl PeerPreference {
         // This check only prefers the configured network,
         // because the address book and initial peer connections reject the port used by the other network.
         let canonical_port =
-            AttributePreference::preferred_from([8232, 18232].contains(&peer_addr.port()));
+            AttributePreference::preferred_from([8232, 18232].contains(&peer_addr.port()));   // TODO: change ports for komodo?
 
         Ok(PeerPreference { canonical_port })
     }

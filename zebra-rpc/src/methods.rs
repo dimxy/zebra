@@ -6,6 +6,8 @@
 //! Some parts of the `zcashd` RPC documentation are outdated.
 //! So this implementation follows the `zcashd` server and `lightwalletd` client implementations.
 
+use std::net::SocketAddr;
+use std::str::FromStr;
 use std::{collections::HashSet, io, sync::Arc};
 
 use chrono::Utc;
@@ -28,6 +30,8 @@ use zebra_chain::{
     transaction::{self, SerializedTransaction, Transaction, UnminedTx},
     transparent::{self, Address},
 };
+use zebra_network::AddressBook;
+use zebra_network::address_book::InboundConns;
 use zebra_network::constants::USER_AGENT;
 use zebra_node_services::{mempool, BoxError};
 use zebra_state::{OutputIndex, OutputLocation, TransactionLocation};
@@ -230,6 +234,13 @@ pub trait Rpc {
         &self,
         address_strings: AddressStrings,
     ) -> BoxFuture<Result<Vec<GetAddressUtxos>>>;
+
+    /// Returns active peers
+    #[rpc(name = "getpeerinfo")]
+    fn get_peer_info(
+        &self,
+    ) -> Result<Vec<GetPeerInfo>>;
+
 }
 
 /// RPC method implementations.
@@ -261,6 +272,10 @@ where
 
     /// A sender component of a channel used to send transactions to the queue.
     queue_sender: Sender<Option<UnminedTx>>,
+
+    address_book: Arc<std::sync::Mutex<AddressBook>>,
+
+    inbound_conns: Arc<std::sync::Mutex<InboundConns>>,
 }
 
 impl<Mempool, State, Tip> RpcImpl<Mempool, State, Tip>
@@ -283,6 +298,8 @@ where
         state: State,
         latest_chain_tip: Tip,
         network: Network,
+        address_book: Arc<std::sync::Mutex<AddressBook>>,
+        inbound_conns: Arc<std::sync::Mutex<InboundConns>>,
     ) -> (Self, JoinHandle<()>)
     where
         Version: ToString,
@@ -305,6 +322,8 @@ where
             latest_chain_tip: latest_chain_tip.clone(),
             network,
             queue_sender: runner.sender(),
+            address_book,
+            inbound_conns,
         };
 
         // run the process queue
@@ -938,6 +957,79 @@ where
         }
         .boxed()
     }
+
+    fn get_peer_info(
+        &self,
+    ) -> Result<Vec<GetPeerInfo>> {
+        let mut response_peer_info = vec![];
+
+
+        // get peers
+        let peers = self.address_book.lock().unwrap().clone();
+        //let peers_live = peers.recently_live_peers(Utc::now());
+        let peers_live = peers.peers();
+
+        let peers2 = peers_live.into_iter().collect::<Vec<_>>();
+        tracing::info!("found live peers()={}", peers2.len());
+
+        for peer_info in peers2 {
+            let addr = peer_info.addr();
+            let last_attempt = match peer_info.last_attempt() {
+                Some(val) => val.elapsed().as_secs(),
+                None => 0 as u64,
+            };
+            //let last_attempt: chrono::DateTime<Utc> = last_attempt;
+            
+            // Create a NaiveDateTime from the timestamp
+            //let naive = chrono::NaiveDateTime::from_timestamp(last_attempt.try_into().unwrap(), 0);
+                
+            // Create a normal DateTime from the NaiveDateTime
+            //let last_attempt: chrono::DateTime<Utc> = chrono::DateTime::from_utc(naive, Utc);
+
+            let entry = GetPeerInfo {
+                addr,
+                last_attempt: u32::try_from(last_attempt).unwrap_or_default(),
+                is_inbound: false,
+            };
+            response_peer_info.push(entry);
+        }
+
+           // add inbound peers
+
+           let inbound_conns = self.inbound_conns.lock().unwrap().clone();
+           //let peers_live = peers.recently_live_peers(Utc::now());
+           //let peers_live = peers.peers();
+   
+           let in_peers = inbound_conns.peers().into_iter().collect::<Vec<_>>();
+           tracing::info!("found live inbound peers()={}", in_peers.len());
+   
+           for peer_info in in_peers {
+               let addr = peer_info.addr();
+               /*let last_attempt = match peer_info.last_attempt() {
+                   Some(val) => val.elapsed().as_secs(),
+                   None => 0 as u64,
+               };*/
+
+               let last_attempt = 0 as u64;
+               //let last_attempt: chrono::DateTime<Utc> = last_attempt;
+               
+               // Create a NaiveDateTime from the timestamp
+               //let naive = chrono::NaiveDateTime::from_timestamp(last_attempt.try_into().unwrap(), 0);
+                   
+               // Create a normal DateTime from the NaiveDateTime
+               //let last_attempt: chrono::DateTime<Utc> = chrono::DateTime::from_utc(naive, Utc);
+   
+               let entry = GetPeerInfo {
+                   addr,
+                   last_attempt: u32::try_from(last_attempt).unwrap_or_default(),
+                   is_inbound: true,
+               };
+               response_peer_info.push(entry);
+           }
+
+        Ok(response_peer_info)
+    }
+
 }
 
 /// Response to a `getinfo` RPC request.
@@ -1269,3 +1361,15 @@ fn check_height_range(start: Height, end: Height, chain_height: Height) -> Resul
 
     Ok(())
 }
+
+/// Response to a `getpeerinfo` RPC request (dimxy).
+///
+/// See the notes for the [`Rpc::get_peer_info` method].
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+pub struct GetPeerInfo {
+    addr: SocketAddr,
+    //last_attempt: chrono::DateTime<Utc>,
+    last_attempt: u32,
+    is_inbound: bool,
+}
+
