@@ -1,5 +1,5 @@
 
-use crate::block::{Height, Block};
+use crate::block::{Height};
 use crate::transparent::Output;
 use crate::{serialization::DateTime32};
 //use chrono::{DateTime, Utc};
@@ -8,7 +8,7 @@ use thiserror::Error;
 
 use lazy_static::lazy_static;
 use std::sync::{Arc, Mutex};
-
+use crate::komodo_utils::{parse_p2pk};
 
 // load NNData
 lazy_static! {
@@ -609,7 +609,6 @@ impl NNData<'_> {
     /// checks if pubkey is a NN for this height
     fn komodo_get_notary_id_for_height(&self, height: &Height, pk: &PublicKey) -> Result<i32, NotaryDataError>
     {
-        //if let Some(pk) = Self::parse_p2pk(spk_raw) {
         let season = self.get_kmd_season(height)?; 
         //return Ok(season.into_iter().any(|t| { t.1 == *pk }));
         if let Some(nid) = season.iter().position(|&t| { t.1 == *pk }) {
@@ -626,7 +625,6 @@ impl NNData<'_> {
     {
         //let season = self.get_ac_season(timestamp)?; 
         //Ok(season.into_iter().any(|t| { t.1 == *pk }))
-        //if let Some(pk) = Self::parse_p2pk(spk_raw) {
         let season = self.get_ac_season(timestamp)?; 
         //return Ok(season.into_iter().any(|t| { t.1 == *pk }));
         if let Some(nid) = season.iter().position(|&t| { t.1 == *pk }) {
@@ -638,20 +636,6 @@ impl NNData<'_> {
         //Ok(false)
     }
 
-}
-
-/// Parse p2pk script pubkey and return pubkey or None 
-/// TODO: move to zebra_script
-/// TODO: use script param not raw bytes
-fn parse_p2pk(spk_raw: &[u8]) -> Option<PublicKey>
-{
-    if spk_raw.len() == 35 && spk_raw[0] == 0x21 && spk_raw[34] == 0xac {
-        let pk_raw = &spk_raw[1..34];
-        if let Ok(pk) = PublicKey::from_slice(pk_raw) {
-            return Some(pk);
-        }
-    }
-    None
 }
 
 /// check if notary id is present in the season for this height
@@ -680,8 +664,8 @@ pub fn komodo_is_notary_node_output(height: &Height, output: &Output) -> bool {
     // println!("height = {:?}, pubkey = {:02x?}", *height, pk);
 
     if let Ok(nndata) = NNDATA.lock() {
-        let lock_script_raw = output.lock_script.as_raw_bytes();
-        if let Some(pk) = parse_p2pk(lock_script_raw) {
+        //let lock_script_raw = output.lock_script.as_raw_bytes();
+        if let Some(pk) = parse_p2pk(&output.lock_script) {
             return nndata.komodo_get_notary_id_for_height(height, &pk).unwrap() >= 0; // panics if the season invalid
         }
     } else {
@@ -699,18 +683,6 @@ pub fn komodo_is_notary_pubkey(height: &Height, pk: &PublicKey) -> bool {
         error!("no notary pubkeys initialised");
     }
     false
-}
-
-/// get pubkey from coinbase p2pk output.0
-/// TODO: move to komodo_utils.rs
-pub fn komodo_get_block_pubkey(block: &Block) -> Option<PublicKey> {
-    
-    if block.transactions.len() > 0 {
-        if block.transactions[0].outputs().len() > 0 {
-            return parse_p2pk(block.transactions[0].outputs()[0].lock_script.as_raw_bytes());
-        }
-    }
-    None
 }
 
 /// returns s6 height

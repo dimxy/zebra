@@ -14,6 +14,7 @@ use zebra_chain::{
 
 use crate::{error::*, parameters::SLOW_START_INTERVAL};
 use zebra_chain::komodo_hardfork::*;
+use zebra_chain::komodo_utils::*;
 
 use super::subsidy;
 

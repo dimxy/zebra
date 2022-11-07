@@ -8,6 +8,8 @@ use zebra_chain::parameters::{Network, NetworkUpgrade, MAINNET_MAX_FUTURE_BLOCK_
 use zebra_chain::block::{Block, Height};
 
 use zebra_chain::komodo_hardfork::*;
+use zebra_chain::komodo_utils::*;
+
 //use secp256k1::PublicKey;
 use tracing::error;
 use thiserror::Error;
