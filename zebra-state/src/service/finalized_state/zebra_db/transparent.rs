@@ -57,7 +57,7 @@ impl ZebraDb {
     /// if it is in the finalized state.
     pub fn address_balance(&self, address: &transparent::Address) -> Option<Amount<NonNegative>> {
         self.address_balance_location(address)
-            .map(|abl| abl.balance())
+            .map(|abl|  Amount::<NonNegative>::try_from(i64::from(abl.balance())).expect("invalid address balance") )
     }
 
     /// Returns the first output that sent funds to a [`transparent::Address`],

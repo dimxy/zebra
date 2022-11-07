@@ -9,8 +9,9 @@ use std::{cmp::max, fmt::Debug};
 
 use serde::{Deserialize, Serialize};
 
+use tower::util::error::optional::None;
 use zebra_chain::{
-    amount::{self, Amount, NonNegative, MAX_MONEY},
+    amount::{self, Amount, MaxInt64},
     block::Height,
     parameters::Network::*,
     serialization::{ZcashDeserializeInto, ZcashSerialize},
@@ -209,7 +210,7 @@ pub type AddressLocation = OutputLocation;
 )]
 pub struct AddressBalanceLocation {
     /// The total balance of all UTXOs sent to an address.
-    balance: Amount<NonNegative>,
+    balance: Amount<MaxInt64>,
 
     /// The location of the first [`transparent::Output`] sent to an address.
     location: AddressLocation,
@@ -228,12 +229,12 @@ impl AddressBalanceLocation {
     }
 
     /// Returns the current balance for the address.
-    pub fn balance(&self) -> Amount<NonNegative> {
+    pub fn balance(&self) -> Amount<MaxInt64> {
         self.balance
     }
 
     /// Returns a mutable reference to the current balance for the address.
-    pub fn balance_mut(&mut self) -> &mut Amount<NonNegative> {
+    pub fn balance_mut(&mut self) -> &mut Amount<MaxInt64> {
         &mut self.balance
     }
 
@@ -242,7 +243,7 @@ impl AddressBalanceLocation {
         &mut self,
         unspent_output: &transparent::Output,
     ) -> Result<(), amount::Error> {
-        self.balance = (self.balance + unspent_output.value()).unwrap_or(MAX_MONEY.try_into()?);
+        self.balance = ( self.balance +  Amount::<MaxInt64>::try_from(i64::from(unspent_output.value())) )?; 
 
         Ok(())
     }
@@ -252,8 +253,7 @@ impl AddressBalanceLocation {
         &mut self,
         spent_output: &transparent::Output,
     ) -> Result<(), amount::Error> {
-        self.balance = (self.balance - spent_output.value()).unwrap_or(Amount::zero());
-
+        self.balance = (self.balance - Amount::<MaxInt64>::try_from(i64::from(spent_output.value())))?;  
         Ok(())
     }
 
@@ -526,7 +526,7 @@ impl FromDisk for transparent::Address {
     }
 }
 
-impl IntoDisk for Amount<NonNegative> {
+impl IntoDisk for Amount<MaxInt64> {
     type Bytes = [u8; BALANCE_DISK_BYTES];
 
     fn as_bytes(&self) -> Self::Bytes {
@@ -534,7 +534,7 @@ impl IntoDisk for Amount<NonNegative> {
     }
 }
 
-impl FromDisk for Amount<NonNegative> {
+impl FromDisk for Amount<MaxInt64> {
     fn from_bytes(bytes: impl AsRef<[u8]>) -> Self {
         let array = bytes.as_ref().try_into().unwrap();
         Amount::from_bytes(array).unwrap()
