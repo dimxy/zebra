@@ -134,9 +134,12 @@ pub fn difficulty_is_valid(
             return Ok(())   // TODO fix diff check for hardcoded notaries
         }
 
-        if let Some(pk) = komodo_get_block_pubkey(block) {
-            if komodo_is_notary_pubkey(height, &pk) {
-                return Ok(());
+        // check if this is a notary block
+        if network == Network::Mainnet {
+            if let Some(pk) = komodo_get_block_pubkey(block) {
+                if komodo_is_notary_pubkey(height, &pk) {
+                    return Ok(()); // skip the next difficulty check rule  
+                }
             }
         }
 

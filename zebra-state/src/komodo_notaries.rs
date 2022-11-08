@@ -133,10 +133,10 @@ fn komodo_check_if_second_block_allowed<C>(notary_id: i32, height: Height, relev
     let threshold = tip_blocktime + Duration::seconds(max_gap_allowed);
 
     if is_second_block_allowed(notary_id, blocktime, threshold, MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA, &v_priority_list)? {
-        tracing::info!("dimxyyy komodo notary hf22 second block allowed for ht={:?}", height);
+        tracing::info!("komodo notary hf22 second block allowed for ht={:?}", height);
         return Ok(());
     }
-    error!("invalid second block generated for notary_id={} block.header={:?}", notary_id, block.header);
+    error!("komodo invalid second block generated for notary_id={} block.header={:?}", notary_id, block.header);
     Err(NotaryValidateContextError::NotaryBlockInvalid(height, block.hash(), String::from("invalid second block after gap")))
 }
 
@@ -145,7 +145,7 @@ fn komodo_check_if_second_block_allowed<C>(notary_id: i32, height: Height, relev
 /// if the block is special and valid then returns true
 /// if the block is not special then returns false
 /// if the block is special and invalid then throws a error
-pub fn is_kmd_special_notary_block<C>(
+pub fn komodo_is_special_notary_block<C>(
     block: &Block,
     height: Height,
     network: Network,
@@ -160,6 +160,11 @@ where
     C::IntoIter: ExactSizeIterator,
     //<C as IntoIterator>::Item: ExactSizeIterator,
 {
+
+    if network != Network::Mainnet {
+        return Ok(false);
+    }
+
     if height > Height(34000) {
 
         if let Some(block_pk) = komodo_get_block_pubkey(block) {
@@ -184,11 +189,11 @@ where
                         return Err(check_last_65_result.err().unwrap()); // return error
                     }
                 }
-
                 return Ok(true);
             }
         }
     } else {
+        error!("komodo_is_special_notary_block {:?} returns error NotaryMustCheckpointValidate", height);
         return Err(NotaryValidateContextError::NotaryMustCheckpointValidate());
     }
 
