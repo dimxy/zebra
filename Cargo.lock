@@ -6358,7 +6358,6 @@ dependencies = [
  "rand 0.7.3",
  "rand 0.8.5",
  "rayon",
- "secp256k1",
  "serde",
  "spandoc",
  "thiserror",
