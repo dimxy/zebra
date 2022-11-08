@@ -21,12 +21,12 @@ use proptest::prelude::*;
 mod magics {
     pub mod p2sh {
         pub const MAINNET: [u8; 1] = [85];
-        pub const TESTNET: [u8; 1] = [0];
+        pub const TESTNET: [u8; 1] = [5];
     }
 
     pub mod p2pkh {
         pub const MAINNET: [u8; 1] = [60];
-        pub const TESTNET: [u8; 1] = [5];
+        pub const TESTNET: [u8; 1] = [0];
     }
 }
 
