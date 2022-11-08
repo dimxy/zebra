@@ -60,7 +60,7 @@ where
     check::block_is_not_orphaned(finalized_tip_height, prepared.height)?;
 
     // The maximum number of blocks used by contextual checks
-    const MAX_CONTEXT_BLOCKS: usize = if POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN > NN_LAST_BLOCK_DEPTH { POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN } else { NN_LAST_BLOCK_DEPTH };
+    let MAX_CONTEXT_BLOCKS: usize = if network != Network::Mainnet || POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN > NN_LAST_BLOCK_DEPTH { POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN } else { NN_LAST_BLOCK_DEPTH };
     let relevant_chain: Vec<_> = relevant_chain
         .into_iter()
         .take(MAX_CONTEXT_BLOCKS)
@@ -103,7 +103,7 @@ where
         difficulty_adjustment,
     )?;
 
-    if is_kmd_special_notary_block(&prepared.block, prepared.height, network, relevant_chain.into_iter())? {  // returns error if special block invalid
+    if network == Network::Mainnet && is_kmd_special_notary_block(&prepared.block, prepared.height, network, relevant_chain.into_iter())? {  // returns error if special block invalid
         use zebra_chain::work::difficulty::ExpandedDifficulty;
         tracing::info!("dimxyyy block ht={:?} is komodo special", prepared.height);
         // check min difficulty for a special block:
