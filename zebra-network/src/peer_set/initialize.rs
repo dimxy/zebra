@@ -103,7 +103,7 @@ where
 
     let (tcp_listener, listen_addr) = open_listener(&config.clone()).await;
 
-    let (address_book,  inbound_conns, address_book_updater, address_metrics, address_book_updater_guard) =
+    let (address_book, inbound_conns, address_book_updater, address_metrics, address_book_updater_guard) =
         AddressBookUpdater::spawn(&config, listen_addr);
 
     // Create a broadcast channel for peer inventory advertisements.
