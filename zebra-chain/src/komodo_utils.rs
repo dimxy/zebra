@@ -2,8 +2,7 @@ use crate::{block::{Block}, transparent::Script};
 use secp256k1::PublicKey;
 
 /// Parse p2pk script pubkey and return pubkey or None 
-/// TODO: move to zebra_script
-/// TODO: use script param not raw bytes
+/// TODO: move to zebra_script?
 pub fn parse_p2pk(lock_script: &Script) -> Option<PublicKey>
 {
     let spk_raw = lock_script.as_raw_bytes();
@@ -16,8 +15,14 @@ pub fn parse_p2pk(lock_script: &Script) -> Option<PublicKey>
     None
 }
 
+/*pub get_script_address(lock_script: &Script) -> {
+    let legacy_script = zcash_primitives::legacy::Script::from(lock_script);
+    let alt_addr = legacy_script.address();
+
+    alt_addr
+}*/
+
 /// get pubkey from coinbase p2pk output.0
-/// TODO: move to komodo_utils.rs
 pub fn komodo_get_block_pubkey(block: &Block) -> Option<PublicKey> {
     
     if block.transactions.len() > 0 {
