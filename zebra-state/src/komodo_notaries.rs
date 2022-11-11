@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::collections::{HashMap, HashSet};
 
 use chrono::{Utc, DateTime, NaiveDateTime, Duration};
+use regex::internal::Input;
 use zebra_chain::parameters::{Network, NetworkUpgrade, MAINNET_MAX_FUTURE_BLOCK_TIME, MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA};
 use zebra_chain::transparent::Script;
 use zebra_chain::{
@@ -29,19 +30,21 @@ pub const NN_LAST_BLOCK_DEPTH: usize = 65;
 enum OpCode {
     // push value
     PushData1 = 0x4c,
-    PushData2 = 0x4d,
-    PushData4 = 0x4e,
+    // PushData2 = 0x4d,
+    // PushData4 = 0x4e,
 
     // stack ops
-    Dup = 0x76,
+    //Dup = 0x76,
 
     // bit logic
-    Equal = 0x87,
-    EqualVerify = 0x88,
+    // Equal = 0x87,
+    // EqualVerify = 0x88,
 
     // crypto
-    Hash160 = 0xa9,
-    CheckSig = 0xac,
+    // Hash160 = 0xa9,
+    // CheckSig = 0xac,
+
+    // exit
     OpReturn = 0x6a,
 }
 
@@ -263,12 +266,14 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
         let mut signedmask: u64 = 0;
         signedmask |= if *height < Height(91400) { 1 } else { 0 };
         for input in tx.inputs() {
-            let ordered_utxo = spent_utxos.get(&input.outpoint().unwrap()).unwrap();
-            //if let Some(prev_address) = transparent_output_address(&ordered_utxo.utxo.output, Network::Mainnet) {
-            //    if 
-            //}
-            if let Some(n_id) = komodo_get_notary_id_for_spent_output(height, &ordered_utxo.utxo.output) {
-                signedmask |= 1 << n_id;
+            if let transparent::Input::Coinbase{..} = input { continue; } // skip coinbase input
+
+            if let Some(outpoint) = input.outpoint() {
+                if let Some(ordered_utxo) = spent_utxos.get(&outpoint) {
+                    if let Some(n_id) = komodo_get_notary_id_for_spent_output(height, &ordered_utxo.utxo.output) {
+                        signedmask |= 1 << n_id;
+                    }
+                }
             }
         }
 
@@ -283,7 +288,7 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
 
         if numbits >= komodo_minratify(height) {
             for output in tx.outputs() {
-                let _ =parse_kmd_back_notarisation_tx_opreturn(&output.lock_script);
+                let _ = parse_kmd_back_notarisation_tx_opreturn(&output.lock_script);
             }
         }
     }
