@@ -339,7 +339,8 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
 
     if off >= bytes.len() { info!("dimxyyy ret 6"); return None; }
     info!("dimxyyy bytes from off={}: {},{},{} to_vec()={:?}", off, bytes[off], if off+1 < bytes.len() {bytes[off+1]}else{0xff}, if off+2 < bytes.len() {bytes[off+2]}else{0xff}, bytes[off..bytes.len()].to_vec());
-    if let Ok(symbol) = String::from_utf8(bytes[off..bytes.len()].to_vec()) { 
+    let end = if bytes[bytes.len()-1] == 0 as u8 { bytes.len()-1 } else { bytes.len() };
+    if let Ok(symbol) = String::from_utf8(bytes[off..end].to_vec()) { 
         info!("dimxyyy symbol={}", symbol);
         nota.symbol = symbol;
     }
