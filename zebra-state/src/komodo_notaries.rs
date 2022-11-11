@@ -346,7 +346,7 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
     else {
         info!("dimxyyy ret no symbol"); return None;
     }
-    if nota.symbol != "KMD" { info!("dimxyyy ret 7 (not kmd) nota.symbol={}", nota.symbol); return None; }
+    if nota.symbol != String::from("KMD") { info!("dimxyyy ret 7 (not kmd) nota.symbol={}", nota.symbol); return None; }
 
     info!("dimxyyy found nota {:?}", nota);
     Some(nota)
