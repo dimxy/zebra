@@ -7,8 +7,11 @@ use secp256k1::PublicKey;
 use thiserror::Error;
 
 use lazy_static::lazy_static;
+use zcash_primitives::legacy::TransparentAddress;
 use std::sync::{Arc, Mutex};
 use crate::komodo_utils::{parse_p2pk};
+use ripemd::Digest as RipemdDigest;
+use sha2::{Digest as Sha2Digest, Sha256};
 
 // load NNData
 lazy_static! {
@@ -16,10 +19,14 @@ lazy_static! {
     pub static ref NNDATA: Arc<Mutex<NNData<'static>>> = Arc::new(Mutex::new(NNData::new()));   // TODO: do we need a mutex here for the readonly object?
 }
 
+const KOMODO_NOTARIES_HARDCODED_HT: u32 = 180000; // height since NNs appear
 const NUM_KMD_NOTARIES: usize = 64;
 const NUM_KMD_SEASONS: usize = 7;
+pub fn komodo_minratify (height: &Height) -> i32 { if *height < Height(90000) { 7 } else { 11 } }
 
 type NotarySeasonPubkeys<'a> = Vec<(&'a str, PublicKey)>;
+
+pub type NotaryId = u32;
 
 /// Notarisation constants: HF activation timestamps and heights, notary pubkeys 
 #[allow(non_snake_case, dead_code)]
@@ -580,12 +587,14 @@ impl NNData<'_> {
     /// get the kmd season based on height (used on the KMD chain)
     pub fn get_kmd_season(&self, height: &Height) -> Result<& NotarySeasonPubkeys, NotaryDataError>
     {
-        if  *height <= self.KMD_SEASON_HEIGHTS[0] {
-            return Ok(&self.notaries_elected[0]);
-        }
-        for i in 1 as usize .. self.KMD_SEASON_HEIGHTS.len() { 
-            if *height <= self.KMD_SEASON_HEIGHTS[i] && *height > self.KMD_SEASON_HEIGHTS[i-1] {
-                return Ok(&self.notaries_elected[i]);
+        if *height >= Height(KOMODO_NOTARIES_HARDCODED_HT) {
+            if  *height <= self.KMD_SEASON_HEIGHTS[0] {
+                return Ok(&self.notaries_elected[0]);
+            }
+            for i in 1 as usize .. self.KMD_SEASON_HEIGHTS.len() { 
+                if *height <= self.KMD_SEASON_HEIGHTS[i] && *height > self.KMD_SEASON_HEIGHTS[i-1] {
+                    return Ok(&self.notaries_elected[i]);
+                }
             }
         }
         Err(NotaryDataError::NoSeasonForHeight)
@@ -605,41 +614,48 @@ impl NNData<'_> {
         Err(NotaryDataError::NoSeasonForTimestamp)
     }
 
-    /// TODO: move to zebra-script
-    /// checks if pubkey is a NN for this height
-    fn komodo_get_notary_id_for_height(&self, height: &Height, pk: &PublicKey) -> Result<i32, NotaryDataError>
+    /// checks if pubkey is a NN which is valid (elected) for this height
+    fn komodo_get_notary_id_for_height(&self, height: &Height, pk: &PublicKey) -> Result<Option<NotaryId>, NotaryDataError>
     {
         let season = self.get_kmd_season(height)?; 
-        //return Ok(season.into_iter().any(|t| { t.1 == *pk }));
         if let Some(nid) = season.iter().position(|&t| { t.1 == *pk }) {
-            Ok(nid as i32)
+            Ok(Some(nid as NotaryId))
         } else {
-            Ok(-1)
+            Ok(None)
         }
-        //}
-        //Ok(false)
     }
 
-    /// checks if pubkey is a NN for this timestamp
-    fn komodo_get_notary_id_for_timestamp(&self, timestamp: &DateTime32, pk: &PublicKey) -> Result<i32, NotaryDataError>
+    /// checks if an addr made by NN which is valid for this height
+    fn komodo_get_notary_id_for_addr_for_height(&self, height: &Height, taddr: &TransparentAddress) -> Result<Option<NotaryId>, NotaryDataError>
     {
-        //let season = self.get_ac_season(timestamp)?; 
-        //Ok(season.into_iter().any(|t| { t.1 == *pk }))
-        let season = self.get_ac_season(timestamp)?; 
-        //return Ok(season.into_iter().any(|t| { t.1 == *pk }));
-        if let Some(nid) = season.iter().position(|&t| { t.1 == *pk }) {
-            Ok(nid as i32)
+        let season = self.get_kmd_season(height)?; 
+        
+        if let Some(nid) = season.iter().position(|&t| { 
+            let pk_bin = t.1.serialize();
+            TransparentAddress::PublicKey(*ripemd::Ripemd160::digest(Sha256::digest(&pk_bin)).as_ref()) == *taddr 
+        }) {
+            Ok(Some(nid as NotaryId))
         } else {
-            Ok(-1)
+            Ok(None)
         }
-        //}
-        //Ok(false)
+    }
+
+
+    /// checks if pubkey is a NN for this timestamp
+    fn komodo_get_notary_id_for_timestamp(&self, timestamp: &DateTime32, pk: &PublicKey) -> Result<Option<NotaryId>, NotaryDataError>
+    {
+        let season = self.get_ac_season(timestamp)?; 
+        if let Some(nid) = season.iter().position(|&t| { t.1 == *pk }) {
+            Ok(Some(nid as NotaryId))
+        } else {
+            Ok(None)
+        }
     }
 
 }
 
 /// check if notary id is present in the season for this height
-pub fn komodo_get_notary_id_for_height(height: &Height, pk: &PublicKey) -> Result<i32, NotaryDataError>
+pub fn komodo_get_notary_id_for_height(height: &Height, pk: &PublicKey) -> Result<Option<NotaryId>, NotaryDataError>
 {
     if let Ok(nndata) = NNDATA.lock() {
         return nndata.komodo_get_notary_id_for_height(height, &pk); // panics if the season invalid
@@ -649,7 +665,7 @@ pub fn komodo_get_notary_id_for_height(height: &Height, pk: &PublicKey) -> Resul
 }
 
 /// check if notary id is present in the season for this height
-pub fn komodo_get_notary_id_for_timestamp(timestamp: &DateTime32, pk: &PublicKey) -> Result<i32, NotaryDataError>
+pub fn komodo_get_notary_id_for_timestamp(timestamp: &DateTime32, pk: &PublicKey) -> Result<Option<NotaryId>, NotaryDataError>
 {
     if let Ok(nndata) = NNDATA.lock() {
         return nndata.komodo_get_notary_id_for_timestamp(timestamp, &pk); // panics if the season invalid
@@ -658,9 +674,9 @@ pub fn komodo_get_notary_id_for_timestamp(timestamp: &DateTime32, pk: &PublicKey
     }
 }
 
-
+/// unused
 /// Check if a tx output at height corresponding to KMD notary node
-pub fn komodo_is_notary_node_output(height: &Height, output: &Output) -> bool {
+/* pub fn komodo_is_notary_node_output(height: &Height, output: &Output) -> bool {
     // println!("height = {:?}, pubkey = {:02x?}", *height, pk);
 
     if let Ok(nndata) = NNDATA.lock() {
@@ -672,13 +688,31 @@ pub fn komodo_is_notary_node_output(height: &Height, output: &Output) -> bool {
         error!("no notary pubkeys initialised");
     }
     false
+} */
+
+/// Check if a tx output signed by a due KMD notary node for a height
+pub fn komodo_get_notary_id_for_spent_output(height: &Height, output: &Output) -> Option<NotaryId> {
+
+    if let Ok(nndata) = NNDATA.lock() {
+        let script = zcash_primitives::legacy::Script::from(&output.lock_script);
+
+        if let Some(addr) = script.address() {
+            return match nndata.komodo_get_notary_id_for_addr_for_height(height, &addr) {
+                Ok(id) => id,
+                Err(_) => None,
+            };
+        }
+    } else {
+        error!("no notary pubkeys initialised");
+    }
+    None
 }
 
 /// Check if a public key at height corresponding to KMD notary node
 pub fn komodo_is_notary_pubkey(height: &Height, pk: &PublicKey) -> bool {
 
     if let Ok(nndata) = NNDATA.lock() {
-        return nndata.komodo_get_notary_id_for_height(height, &pk).unwrap() >= 0; // panics if the season invalid
+        return nndata.komodo_get_notary_id_for_height(height, &pk).unwrap().is_some(); // panics if the season invalid
     } else {
         error!("no notary pubkeys initialised");
     }
@@ -717,22 +751,22 @@ mod tests {
         let pk = PublicKey::from_slice(hex::decode("03f54b2c24f82632e3cdebe4568ba0acf487a80f8a89779173cdb78f74514847ce").expect("decode hex").as_ref()).unwrap();
 
         if let Ok(nndata) = NNDATA.lock() {
-            assert!(nndata.komodo_get_notary_id_for_height(&Height(814000-1), &pk).expect("valid season for height") >= 0, "notary pubkey check broken");
+            assert!(nndata.komodo_get_notary_id_for_height(&Height(814000-1), &pk).expect("valid season for height").is_some(), "notary pubkey check broken");
         }
         else {
             assert!(false, "no nn pubkeys initialised");
         }
     }
 
+    // too early height before NNs started to use 
     #[test]
-    #[ignore]
     fn nn_spk_height_season_64105() {
         let _init_guard = zebra_test::init();
 
         let pk = PublicKey::from_slice(hex::decode("033fb7231bb66484081952890d9a03f91164fb27d392d9152ec41336b71b15fbd0").expect("decode hex").as_ref()).unwrap();
 
         if let Ok(nndata) = NNDATA.lock() {
-            assert!(nndata.komodo_get_notary_id_for_height(&Height(64105), &pk).expect("valid season for height") >= 0, "notary pubkey check broken");
+            assert!(nndata.komodo_get_notary_id_for_height(&Height(64105), &pk).is_err(), "notary pubkey check broken");
         }
         else {
             assert!(false, "no nn pubkeys initialised");
@@ -746,7 +780,7 @@ mod tests {
         let pk = PublicKey::from_slice(hex::decode("03f54b2c24f82632e3cdebe4568ba0acf487a80f8a89779173cdb78f74514847ce").expect("decode hex").as_ref()).unwrap();
 
         if let Ok(nndata) = NNDATA.lock() {
-            assert!(nndata.komodo_get_notary_id_for_timestamp(&DateTime32::from(1525132800-1), &pk).expect("valid season for timestamp") >= 0, "notary pubkey check broken");
+            assert!(nndata.komodo_get_notary_id_for_timestamp(&DateTime32::from(1525132800-1), &pk).expect("valid season for timestamp").is_some(), "notary pubkey check broken");
         }
         else {
             assert!(false, "no nn pubkeys initialised");

@@ -19,7 +19,7 @@ use zebra_chain::{
 use crate::{
     request::ContextuallyValidBlock,
     service::{check, finalized_state::ZebraDb},
-    FinalizedBlock, PreparedBlock, ValidateContextError,
+    FinalizedBlock, PreparedBlock, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx,
 };
 
 mod chain;
@@ -156,6 +156,8 @@ impl NonFinalizedState {
         // and drop the cloned parent Arc, or newly created chain fork.
         let modified_chain = self.validate_and_commit(parent_chain, prepared, finalized_state)?;
 
+        //let modified_chain_tip_hash = modified_chain.non_finalized_tip_hash();
+
         // If the block is valid:
         // - add the new chain fork or updated chain to the set of recent chains
         // - remove the parent chain, if it was in the chain set
@@ -163,6 +165,13 @@ impl NonFinalizedState {
         self.chain_set.insert(modified_chain);
         self.chain_set
             .retain(|chain| chain.non_finalized_tip_hash() != parent_hash);
+
+        // if new chain is best chain then run check where the last notarised block is
+        //if self.best_chain().unwrap().as_ref().non_finalized_tip_hash() == modified_chain_tip_hash {
+            //komodo_check_
+            //self.chain_set
+            //    .retain(|chain| chain.non_finalized_tip_hash() != modified_chain_tip_hash);
+        //}
 
         self.update_metrics_for_committed_block(height, hash);
 
@@ -244,6 +253,8 @@ impl NonFinalizedState {
                 spent_utxo_count: spent_utxos.len(),
             }
         })?;
+
+        komodo_block_has_notarisation_tx(&prepared.block, &spent_utxos, &prepared.height);
 
         Self::validate_and_update_parallel(new_chain, contextual, sprout_final_treestates)
     }
