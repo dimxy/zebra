@@ -322,18 +322,19 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
     };
 
     if off + 32 >= bytes.len() { info!("dimxyyy ret 3"); return None; }
-    let hash_arr: [u8;32] = bytes[off..off+32].try_into().unwrap();
-    nota.block_hash = block::Hash::from(hash_arr);
+    let hash_bytes: [u8;32] = bytes[off..off+32].try_into().unwrap();
+    nota.block_hash = block::Hash::from(hash_bytes);
     off += 32;
 
     if off + 4 >= bytes.len() { info!("dimxyyy ret 4"); return None; }
-    let ht = u32::from_le_bytes(bytes[off..off+4].try_into().unwrap());
+    let u32_bytes: [u8;4] = bytes[off..off+4].try_into().unwrap();
+    let ht = u32::from_le_bytes(u32_bytes);
     nota.notarised_height = Height(ht);
     off += 4;
 
     if off + 32 >= bytes.len() { info!("dimxyyy ret 5"); return None; }
-    let hash_arr: [u8;32] = bytes[off..off+32].try_into().unwrap();
-    nota.tx_hash = transaction::Hash::from(hash_arr);
+    let hash_bytes: [u8;32] = bytes[off..off+32].try_into().unwrap();
+    nota.tx_hash = transaction::Hash::from(hash_bytes);
     off += 32;
 
     if off >= bytes.len() { info!("dimxyyy ret 6"); return None; }
