@@ -305,14 +305,25 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
 
     let bytes = script.as_raw_bytes();
 
-    if bytes.len() < 1 { info!("dimxyyy ret 1"); return None; }
+    if bytes.len() < 1 { return None; }
 
-    if bytes[0] != OpCode::OpReturn as u8 { info!("dimxyyy ret 2"); return None; }
+    if bytes[0] != OpCode::OpReturn as u8 { return None; }
 
     let mut off: usize;
     if bytes.len() > 3 && bytes[1] < OpCode::PushData1 as u8 { off = 2; }
     else if bytes.len() > 5 && bytes[1] == OpCode::PushData1 as u8 { off = 4; }
-    else { info!("dimxyyy ret 2.1"); return None; }
+    else { return None; }
+
+    // check if this is kmd back nota:
+    let mut is_kmd_back = false;
+    if off + 72 <= bytes.len() {
+        const KMD_NAME: [u8;4] = [0x4b, 0x4d, 0x44, 0x00];
+        if bytes[off+68..off+72] == KMD_NAME {  // exact comparison with trailing 0
+            is_kmd_back = true;
+        }
+    } 
+
+    if !is_kmd_back { return None; } // TODO: parse notas for other chains
 
     let mut nota = BackNotarisationData{     
         block_hash: block::Hash([0; 32]),
@@ -321,33 +332,35 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
         symbol: String::default(),
     };
 
-    if off + 32 >= bytes.len() { info!("dimxyyy ret 3"); return None; }
+    if off + 32 >= bytes.len() { return None; }
     let hash_bytes: [u8;32] = bytes[off..off+32].try_into().unwrap();
     nota.block_hash = block::Hash::from(hash_bytes);
     off += 32;
 
-    if off + 4 >= bytes.len() { info!("dimxyyy ret 4"); return None; }
+    if off + 4 >= bytes.len() { return None; }
     let u32_bytes: [u8;4] = bytes[off..off+4].try_into().unwrap();
     let ht = u32::from_le_bytes(u32_bytes);
     nota.notarised_height = Height(ht);
     off += 4;
 
-    if off + 32 >= bytes.len() { info!("dimxyyy ret 5"); return None; }
+    if off + 32 >= bytes.len() { return None; }
     let hash_bytes: [u8;32] = bytes[off..off+32].try_into().unwrap();
     nota.tx_hash = transaction::Hash::from(hash_bytes);
     off += 32;
 
-    if off >= bytes.len() { info!("dimxyyy ret 6"); return None; }
-    info!("dimxyyy bytes from off={}: {},{},{} to_vec()={:?}", off, bytes[off], if off+1 < bytes.len() {bytes[off+1]}else{0xff}, if off+2 < bytes.len() {bytes[off+2]}else{0xff}, bytes[off..bytes.len()].to_vec());
-    let end = if bytes[bytes.len()-1] == 0 as u8 { bytes.len()-1 } else { bytes.len() };
+    if off >= bytes.len() { return None; }
+    let end = { 
+        let mut i = off; 
+        while bytes[i] != 0 && i < bytes.len() { i += 1; }
+        i
+    };
     if let Ok(symbol) = String::from_utf8(bytes[off..end].to_vec()) { 
-        info!("dimxyyy symbol={}", symbol);
         nota.symbol = symbol;
     }
     else {
-        info!("dimxyyy ret no symbol"); return None;
+        return None;
     }
-    if nota.symbol != String::from("KMD") { info!("dimxyyy ret 7 (not kmd) nota.symbol={}", nota.symbol); return None; }
+    if nota.symbol != String::from("KMD") { return None; }
 
     info!("dimxyyy found nota {:?}", nota);
     Some(nota)
