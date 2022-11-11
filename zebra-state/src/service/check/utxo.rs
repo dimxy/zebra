@@ -34,7 +34,7 @@ use crate::{
 ///
 /// Invalid spends:
 /// - spends of an immature transparent coinbase output,
-/// - unshielded spends of a transparent coinbase output.
+/// - unshielded spends of a transparent coinbase output (this should be allowed in kmd though, if not immature cb)
 pub fn transparent_spend(
     prepared: &PreparedBlock,
     non_finalized_chain_unspent_utxos: &HashMap<transparent::OutPoint, transparent::OrderedUtxo>,
@@ -216,7 +216,7 @@ pub fn transparent_coinbase_spend(
         }
         //SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
         // dimxy for kmd allow spending coinbases with transparent  
-        SomeTransparentOutputs => Ok(utxo),
+        SomeTransparentOutputs => Ok(utxo), // TODO: check coinbase maturity
     }
 }
 
