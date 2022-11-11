@@ -290,8 +290,9 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
         info!("dimxyyy numbits={}", numbits);
 
         if numbits >= komodo_minratify(height) {
+            // several notas are possible in the same nota tx
             for output in tx.outputs() {
-                info!("dimxyyy entering parse_kmd_back_notarisation_tx_opreturn");
+                info!("dimxyyy entering parse_kmd_back_notarisation_tx_opreturn for height={:?}", height);
                 let r = parse_kmd_back_notarisation_tx_opreturn(&output.lock_script);
                 info!("dimxyyy parse_kmd_back_notarisation_tx_opreturn result={:?}", r);
             }
@@ -304,14 +305,14 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
 
     let bytes = script.as_raw_bytes();
 
-    if bytes.len() < 1 { return None; }
+    if bytes.len() < 1 { info!("dimxyyy ret 1"); return None; }
 
-    if bytes[0] != OpCode::OpReturn as u8 { return None; }
+    if bytes[0] != OpCode::OpReturn as u8 { info!("dimxyyy ret 2"); return None; }
 
     let mut off: usize;
     if bytes.len() > 3 && bytes[1] < OpCode::PushData1 as u8 { off = 2; }
     else if bytes.len() > 5 && bytes[1] == OpCode::PushData1 as u8 { off = 4; }
-    else { return None; }
+    else { info!("dimxyyy ret 2.1"); return None; }
 
     let mut nota = BackNotarisationData{     
         block_hash: block::Hash([0; 32]),
@@ -320,29 +321,29 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
         symbol: String::default(),
     };
 
-    if off + 32 >= bytes.len() { return None; }
+    if off + 32 >= bytes.len() { info!("dimxyyy ret 3"); return None; }
     let hash_arr: [u8;32] = bytes[off..off+32].try_into().unwrap();
     nota.block_hash = block::Hash::from(hash_arr);
     off += 32;
 
-    if off + 4 >= bytes.len() { return None; }
+    if off + 4 >= bytes.len() { info!("dimxyyy ret 4"); return None; }
     let ht = u32::from_le_bytes(bytes[off..off+4].try_into().unwrap());
     nota.notarised_height = Height(ht);
     off += 4;
 
-    if off + 32 >= bytes.len() { return None; }
+    if off + 32 >= bytes.len() { info!("dimxyyy ret 5"); return None; }
     let hash_arr: [u8;32] = bytes[off..off+32].try_into().unwrap();
     nota.tx_hash = transaction::Hash::from(hash_arr);
     off += 32;
 
-    if off >= bytes.len() { return None; }
+    if off >= bytes.len() { info!("dimxyyy ret 6"); return None; }
     if let Ok(symbol) = String::from_utf8(bytes[off..bytes.len()].to_vec()) { 
         nota.symbol = symbol;
     }
     else {
         return None;
     }
-    if nota.symbol != "KMD" { return None; }
+    if nota.symbol != "KMD" { info!("dimxyyy ret 7"); return None; }
 
     info!("dimxyyy found nota {:?}", nota);
     Some(nota)
