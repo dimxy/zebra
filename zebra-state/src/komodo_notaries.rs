@@ -27,7 +27,7 @@ pub enum NotaryValidateContextError {
     NotaryPubkeysError(#[from] NotaryDataError),
 
     #[error("this notary {1:?} already mined recently for this height {0:?}")]
-    NotaryAlreadyMinedError(zebra_chain::block::Height, i32),
+    NotaryAlreadyMinedError(zebra_chain::block::Height, NotaryId),
 
     #[error("notary internal error: {0:?}")]
     NotaryInternalError(String),
@@ -38,7 +38,7 @@ pub enum NotaryValidateContextError {
 
 
 /// check notary is unique for depth of 'NN_LAST_BLOCK_DEPTH' blocks (it's currently the actual rules, since height >= 82000)
-fn komodo_check_last_65_blocks_for_dups<C>(height: Height, relevant_chain: &Vec<Block>, notary_id: i32) -> Result<(), NotaryValidateContextError> 
+fn komodo_check_last_65_blocks_for_dups<C>(height: Height, relevant_chain: &Vec<Block>, notary_id: NotaryId) -> Result<(), NotaryValidateContextError> 
 {
     tracing::debug!("komodo_check_last_65_blocks_for_dups enterred for height={:?}", height);
     if height >= Height(82000) {
@@ -48,10 +48,11 @@ fn komodo_check_last_65_blocks_for_dups<C>(height: Height, relevant_chain: &Vec<
         let mut has_duplicates = false;
         for block in relevant_chain.into_iter() {
             if let Some(block_pk) = komodo_get_block_pubkey(&block) {
-                let block_notary_id = komodo_get_notary_id_for_height(&height, &block_pk)?;    
-                if notary_id == block_notary_id {
-                    has_duplicates = true;
-                    break;
+                if let Some(block_notary_id) = komodo_get_notary_id_for_height(&height, &block_pk)? {    
+                    if notary_id == block_notary_id {
+                        has_duplicates = true;
+                        break;
+                    }
                 }
             }
         }
@@ -89,16 +90,16 @@ fn komodo_check_notary_blocktime<C>(height: Height, relevant_chain: &Vec<Block>,
 }
 
 /// check if a notary_id is in priority list part allowed for second block mining
-fn is_second_block_allowed(notary_id: i32, blocktime: DateTime<Utc>, threshold: DateTime<Utc>, delta: i32, v_priority_list: &Vec<i32>) -> Result<bool, NotaryValidateContextError>
+fn is_second_block_allowed(notary_id: NotaryId, blocktime: DateTime<Utc>, threshold: DateTime<Utc>, delta: i32, v_priority_list: &Vec<u32>) -> Result<bool, NotaryValidateContextError>
 {
     if v_priority_list.len() != 64 {
         return Err(NotaryValidateContextError::NotaryInternalError(String::from("invalid priority list")));
     }
-    if blocktime >= threshold && delta > 0 && notary_id >= 0    {
+    if blocktime >= threshold && delta > 0   {
         if let Ok(pos) = usize::try_from((blocktime - threshold).num_seconds() / delta as i64) {
             if pos < v_priority_list.len()  {
                 // if nodeid found in current range of priority -> allow it
-                if v_priority_list.iter().take(pos + 1).any(|mid| *mid == notary_id) {
+                if v_priority_list.iter().take(pos + 1).any(|mid| *mid == notary_id as u32) {
                     return Ok(true);
                 }
             }
@@ -110,15 +111,14 @@ fn is_second_block_allowed(notary_id: i32, blocktime: DateTime<Utc>, threshold: 
     Ok(false)
 }
 
-fn komodo_check_if_second_block_allowed<C>(notary_id: i32, height: Height, relevant_chain: &Vec<Block>, block: &Block) -> Result<(), NotaryValidateContextError> 
+fn komodo_check_if_second_block_allowed<C>(notary_id: NotaryId, height: Height, relevant_chain: &Vec<Block>, block: &Block) -> Result<(), NotaryValidateContextError> 
 {
 
-    let mut v_priority_list: Vec<i32> = (0..64).collect();
+    let mut v_priority_list: Vec<u32> = (0..64).collect();
     for block in relevant_chain.iter().rev() {
         if let Some(block_pk) = komodo_get_block_pubkey(&block) {
-            let block_notary_id = komodo_get_notary_id_for_height(&height, &block_pk)?;  
-            if block_notary_id >= 0 {
-                if let Some(pos) = v_priority_list.iter().position(|&mid| mid == block_notary_id) {
+            if let Some(block_notary_id) = komodo_get_notary_id_for_height(&height, &block_pk)?  {  
+                if let Some(pos) = v_priority_list.iter().position(|&mid| mid == block_notary_id as u32) {
                     if pos + 1 < v_priority_list.len()  {
                         v_priority_list[pos..].rotate_left(1);
                     }
@@ -169,14 +169,13 @@ where
 
         if let Some(block_pk) = komodo_get_block_pubkey(block) {
         
-            let notary_id = komodo_get_notary_id_for_height(&height, &block_pk)?;  // low-level error converted to NotaryValidateContextError
-            if notary_id >= 0 {
+            if let Some(notary_id) = komodo_get_notary_id_for_height(&height, &block_pk)? {  // low-level error converted to NotaryValidateContextError
 
                 // convert to Vec of block refs for convenience:
                 let relevant_chain: Vec<_> = relevant_chain
-                .into_iter()
-                .map(|b| b.borrow().to_owned())
-                .collect::<Vec<Block>>();
+                    .into_iter()
+                    .map(|b| b.borrow().to_owned())
+                    .collect::<Vec<Block>>();
 
                 let check_last_65_result = komodo_check_last_65_blocks_for_dups::<C>(height, &relevant_chain, notary_id);  // do not return error here
 
