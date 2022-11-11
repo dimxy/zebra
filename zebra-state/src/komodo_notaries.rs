@@ -265,6 +265,7 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
         
         let mut signedmask: u64 = 0;
         signedmask |= if *height < Height(91400) { 1 } else { 0 };
+        info!("dimxyyy inputs.len={}", tx.inputs().len());
         for input in tx.inputs() {
             if let transparent::Input::Coinbase{..} = input { continue; } // skip coinbase input
 
@@ -272,6 +273,7 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
                 if let Some(ordered_utxo) = spent_utxos.get(&outpoint) {
                     if let Some(n_id) = komodo_get_notary_id_for_spent_output(height, &ordered_utxo.utxo.output) {
                         signedmask |= 1 << n_id;
+                        info!("dimxyyy found signed notary={}", n_id);
                     }
                 }
             }
@@ -285,10 +287,13 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
             }
             n
         };
+        info!("dimxyyy numbits={}", numbits);
 
         if numbits >= komodo_minratify(height) {
             for output in tx.outputs() {
-                let _ = parse_kmd_back_notarisation_tx_opreturn(&output.lock_script);
+                info!("dimxyyy entering parse_kmd_back_notarisation_tx_opreturn");
+                let r = parse_kmd_back_notarisation_tx_opreturn(&output.lock_script);
+                info!("dimxyyy parse_kmd_back_notarisation_tx_opreturn result={:?}", r);
             }
         }
     }
