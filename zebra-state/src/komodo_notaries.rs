@@ -341,9 +341,9 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
         nota.symbol = symbol;
     }
     else {
-        return None;
+        info!("dimxyyy ret no symbol"); return None;
     }
-    if nota.symbol != "KMD" { info!("dimxyyy ret 7"); return None; }
+    if nota.symbol != "KMD" { info!("dimxyyy ret 7 (not kmd)"); return None; }
 
     info!("dimxyyy found nota {:?}", nota);
     Some(nota)
