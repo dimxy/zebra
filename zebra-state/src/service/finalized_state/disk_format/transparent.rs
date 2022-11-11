@@ -243,7 +243,7 @@ impl AddressBalanceLocation {
         &mut self,
         unspent_output: &transparent::Output,
     ) -> Result<(), amount::Error> {
-        self.balance = ( self.balance +  Amount::<MaxInt64>::try_from(i64::from(unspent_output.value())) )?; 
+        self.balance = ( self.balance + unspent_output.value().constrain::<MaxInt64>() ) ?; 
 
         Ok(())
     }
@@ -253,7 +253,7 @@ impl AddressBalanceLocation {
         &mut self,
         spent_output: &transparent::Output,
     ) -> Result<(), amount::Error> {
-        self.balance = (self.balance - Amount::<MaxInt64>::try_from(i64::from(spent_output.value())))?;  
+        self.balance = ( self.balance - spent_output.value().constrain::<MaxInt64>() )?;  
         Ok(())
     }
 
