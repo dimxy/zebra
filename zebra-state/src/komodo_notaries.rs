@@ -318,7 +318,7 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
     let mut is_kmd_back = false;
     if off + 72 <= bytes.len() {
         const KMD_NAME: [u8;4] = [0x4b, 0x4d, 0x44, 0x00];
-        if bytes[off+68..off+72] == KMD_NAME {  // exact comparison with trailing 0
+        if bytes[off+68..off+72] == KMD_NAME {  // exact comparison including trailing 0
             is_kmd_back = true;
         }
     } 
@@ -349,11 +349,9 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
     off += 32;
 
     if off >= bytes.len() { return None; }
-    let end = { 
-        let mut i = off; 
-        while bytes[i] != 0 && i < bytes.len() { i += 1; }
-        i
-    };
+    // find network name end pos: it is either 0x0's pos or the next pos after the last sym 
+    // (we need to exclude trailing 0 bcz String::from_utf8 does not recognize it as a stop sym)
+    let end = if let Some(pos0) = bytes.iter().skip(off).position(|&b| b == 0 as u8) { off+pos0 } else { bytes.len() };
     if let Ok(symbol) = String::from_utf8(bytes[off..end].to_vec()) { 
         nota.symbol = symbol;
     }
