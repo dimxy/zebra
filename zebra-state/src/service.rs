@@ -559,7 +559,7 @@ impl StateService {
     fn komodo_init_last_nota(&mut self) {
 
         if let Some(tip) = self.disk.tip() {
-            info!("komodo looking back for the last notarisation for no more than 1440 blocks...");
+            info!("komodo looking back for the last notarisation for no more than 1440 blocks for tip at {:?}...", tip.0);
             let mut finalised_chain = self.any_ancestor_blocks(tip.1);
             let mut depth = 0;
             while depth < 1440 {
@@ -578,8 +578,12 @@ impl StateService {
                         }
                     }
                 }
+                else {
+                    break;
+                }
                 depth += 1;
             }
+            info!("komodo last nota not found, depth={:?}", depth);
         }
     }
 }
