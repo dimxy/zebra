@@ -296,7 +296,7 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
             }
             n
         };
-        info!("dimxyyy numbits={}", numbits);
+        info!("dimxyyy numbits={} height={:?}", numbits, height);
 
         if numbits >= komodo_minratify(height) {
             // several notas are possible in the same nota tx
