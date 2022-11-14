@@ -565,11 +565,13 @@ impl StateService {
             while depth < 1440 {
                 if let Some(block) = finalised_chain.next() {
                     let prepared = block.prepare();
+                    info!("komodo last nota checking prepared.height={:?}", prepared.height);
                     if let Ok(spent_utxos) = check::utxo::transparent_spend(
                         &prepared,
                         &Default::default(),
                         &Default::default(),
                         &self.disk) {
+                        info!("komodo last nota prepared.height={:?} spent_utxos.len={}", prepared.height, spent_utxos.len());
 
                         if let Some(nota) = komodo_block_has_notarisation_tx(&prepared.block, &spent_utxos, &prepared.height) {
                             self.mem.last_nota = Some(nota);
