@@ -278,6 +278,9 @@ pub enum ValidateContextError {
 
     #[error("special notary block invalid")]
     SpecialBlockInvalid(#[from] NotaryValidateContextError),
+
+    #[error("komodo notarised chain with block {0:?} forked at height {1:?} below last notarised height {2:?}")]
+    InvalidNotarisedChain(zebra_chain::block::Hash, zebra_chain::block::Height, zebra_chain::block::Height),
 }
 
 /// Trait for creating the corresponding duplicate nullifier error from a nullifier.

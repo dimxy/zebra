@@ -48,7 +48,7 @@ use crate::{
         watch_receiver::WatchReceiver,
     },
     BoxError, CloneError, CommitBlockError, Config, FinalizedBlock, PreparedBlock, ReadRequest,
-    ReadResponse, Request, Response, ValidateContextError,
+    ReadResponse, Request, Response, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx, arbitrary::Prepare,
 };
 
 pub mod block_iter;
@@ -190,7 +190,7 @@ impl StateService {
         let queued_blocks = QueuedBlocks::default();
         let pending_utxos = PendingUtxos::default();
 
-        let state = Self {
+        let mut state = Self {  // TODO remove mut when 'nota' moved from state.mem to its own object
             disk,
             mem,
             queued_blocks,
@@ -200,6 +200,7 @@ impl StateService {
             chain_tip_sender,
             best_chain_sender,
         };
+
         timer.finish(module_path!(), line!(), "initializing state service");
 
         tracing::info!("starting legacy chain check");
@@ -228,6 +229,10 @@ impl StateService {
         }
         tracing::info!("no legacy chain found");
         timer.finish(module_path!(), line!(), "legacy chain check");
+
+        let timer = CodeTimer::start();
+        state.komodo_init_last_nota();
+        timer.finish(module_path!(), line!(), "komodo last nota init");
 
         (state, read_only_service, latest_chain_tip, chain_tip_change)
     }
@@ -548,6 +553,34 @@ impl StateService {
             blocks, and the canopy activation block, must be committed to the state as finalized \
             blocks"
         );*/ 
+    }
+
+    /// look back from the finalised tip for the lates nota 
+    fn komodo_init_last_nota(&mut self) {
+
+        if let Some(tip) = self.disk.tip() {
+            info!("komodo looking back for the last notarisation for no more than 1440 blocks...");
+            let mut finalised_chain = self.any_ancestor_blocks(tip.1);
+            let mut depth = 0;
+            while depth < 1440 {
+                if let Some(block) = finalised_chain.next() {
+                    let prepared = block.prepare();
+                    if let Ok(spent_utxos) = check::utxo::transparent_spend(
+                        &prepared,
+                        &Default::default(),
+                        &Default::default(),
+                        &self.disk) {
+
+                        if let Some(nota) = komodo_block_has_notarisation_tx(&prepared.block, &spent_utxos, &prepared.height) {
+                            self.mem.last_nota = Some(nota);
+                            info!("komodo found last nota at height {:?}", prepared.height);
+                            break;
+                        }
+                    }
+                }
+                depth += 1;
+            }
+        }
     }
 }
 

@@ -234,21 +234,21 @@ where
 
 
 /// Notarisation transaction validation errors
-#[allow(dead_code, missing_docs)]
+/*#[allow(dead_code, missing_docs)]
 #[derive(Error, Debug, PartialEq, Eq)]
 pub enum NotarisationTxError {
 
     #[error("notarisation transaction invalid")]
     NotarisationTxInvalid,
-}
+}*/
 
 /// kmd back notarisation data 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct BackNotarisationData {
-    block_hash: block::Hash,
-    notarised_height: Height,
-    tx_hash: transaction::Hash,
-    symbol: String,
+    pub block_hash: block::Hash,
+    pub notarised_height: Height,
+    pub tx_hash: transaction::Hash,
+    pub symbol: String,
 
     // assets chains data:
     // mom: block::Root,
@@ -257,10 +257,19 @@ pub struct BackNotarisationData {
     // mom_depth: u32,
 }
 
+impl BackNotarisationData {
+    pub fn new() -> Self {
+        Self {     
+            block_hash: block::Hash([0; 32]),
+            notarised_height: Height(0),
+            tx_hash: transaction::Hash([0; 32]),
+            symbol: String::default(),
+        }
+    }
+}
 
-pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<transparent::OutPoint, transparent::OrderedUtxo>, height: &Height)
+pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<transparent::OutPoint, transparent::OrderedUtxo>, height: &Height) -> Option<BackNotarisationData> 
 {
-
     for tx in &block.transactions {
         
         let mut signedmask: u64 = 0;
@@ -292,12 +301,13 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
         if numbits >= komodo_minratify(height) {
             // several notas are possible in the same nota tx
             for output in tx.outputs() {
-                info!("dimxyyy entering parse_kmd_back_notarisation_tx_opreturn for height={:?}", height);
-                let r = parse_kmd_back_notarisation_tx_opreturn(&output.lock_script);
-                info!("dimxyyy parse_kmd_back_notarisation_tx_opreturn result={:?}", r);
+                if let Some(nota) = parse_kmd_back_notarisation_tx_opreturn(&output.lock_script) {
+                    return Some(nota);
+                }
             }
         }
     }
+    None
 }
 
 /// parse notarisation tx opreturn with data which height is notarisation 
@@ -325,12 +335,7 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
 
     if !is_kmd_back { return None; } // TODO: parse notas for other chains
 
-    let mut nota = BackNotarisationData{     
-        block_hash: block::Hash([0; 32]),
-        notarised_height: Height(0),
-        tx_hash: transaction::Hash([0; 32]),
-        symbol: String::default(),
-    };
+    let mut nota = BackNotarisationData::new();
 
     if off + 32 >= bytes.len() { return None; }
     let hash_bytes: [u8;32] = bytes[off..off+32].try_into().unwrap();

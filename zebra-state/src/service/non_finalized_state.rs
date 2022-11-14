@@ -16,10 +16,12 @@ use zebra_chain::{
     sapling, sprout, transparent,
 };
 
+use crate::komodo_notaries::{BackNotarisationData, komodo_block_has_notarisation_tx};
+
 use crate::{
     request::ContextuallyValidBlock,
     service::{check, finalized_state::ZebraDb},
-    FinalizedBlock, PreparedBlock, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx,
+    FinalizedBlock, PreparedBlock, ValidateContextError
 };
 
 mod chain;
@@ -44,6 +46,8 @@ pub struct NonFinalizedState {
     //
     // Note: this field is currently unused, but it's useful for debugging.
     pub network: Network,
+
+    pub last_nota: Option<BackNotarisationData>,
 }
 
 impl NonFinalizedState {
@@ -52,6 +56,7 @@ impl NonFinalizedState {
         NonFinalizedState {
             chain_set: Default::default(),
             network,
+            last_nota: None,
         }
     }
 
@@ -213,7 +218,7 @@ impl NonFinalizedState {
     /// or the finalized tip.
     #[tracing::instrument(level = "debug", skip(self, finalized_state, new_chain))]
     fn validate_and_commit(
-        &self,
+        &mut self,  // TODO remove mut when last_nota moved to channel
         new_chain: Arc<Chain>,
         prepared: PreparedBlock,
         finalized_state: &ZebraDb,
@@ -254,7 +259,9 @@ impl NonFinalizedState {
             }
         })?;
 
-        komodo_block_has_notarisation_tx(&prepared.block, &spent_utxos, &prepared.height);
+        self.komodo_find_nota_and_update_last(&prepared.block, &spent_utxos, &prepared.height);
+
+        self.komodo_check_fork_is_valid(&new_chain)?;
 
         Self::validate_and_update_parallel(new_chain, contextual, sprout_final_treestates)
     }
@@ -521,5 +528,56 @@ impl NonFinalizedState {
             "state.memory.best.chain.length",
             self.best_chain_len() as f64,
         );
+    }
+
+    /// check if block has a back KMD nota and update latest nota in the mem state
+    fn komodo_find_nota_and_update_last(&mut self, block: &Block, spent_utxos: &HashMap<transparent::OutPoint, transparent::OrderedUtxo>, height: &block::Height) {
+        match (komodo_block_has_notarisation_tx(block, spent_utxos, height), self.last_nota.as_ref()) {
+            (Some(found_nota), Some(last_nota)) => {
+                if last_nota.notarised_height < found_nota.notarised_height {
+                    self.last_nota = Some(found_nota);
+                }
+            },
+            (Some(found_nota), None) =>  {
+                self.last_nota = Some(found_nota);
+            },
+            (None, _) => (),
+        }
+    }
+
+    /// check if new chain is notarised and allowed to fork
+    /// it should not fork below last notarised block
+    pub fn komodo_check_fork_is_valid(&self, chain_with_new_block: &Chain) -> Result<(), ValidateContextError> {
+
+        // condition description:
+        // if chain_with_new_block has more work than best_chain (that is, new best chain)
+        // and chain_with_new_block does not contain last nota
+        // and chain_with_new_block.root.height < last_nota.height
+        // and best_chain.height > last_nota.height 
+        // then do not allow this fork
+
+        if let Some(last_nota) = &self.last_nota {
+            if let Some(best_chain) = self.best_chain() {
+
+                info!(
+                    new_chain_has_more_power = chain_with_new_block > best_chain,
+                    new_chain_has_last_nota = !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash),
+                    best_chain_tip_height_over_notarised_height = best_chain.non_finalized_tip_height() > last_nota.notarised_height,
+                    new_chain_root_below_notarised_height = chain_with_new_block.non_finalized_root().1 < last_nota.notarised_height,
+                    best_chain_root_height = best_chain.non_finalized_tip_height().0,
+                    new_chain_root_height = chain_with_new_block.non_finalized_root().1.0,
+                    last_notarised_height = last_nota.notarised_height.0,
+                    "komodo check notarised height for new chain"
+                );
+
+                if chain_with_new_block > best_chain &&  // new chain has most power
+                    !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash)  &&
+                    best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not exist without notas
+                    chain_with_new_block.non_finalized_root().1 < last_nota.notarised_height {  
+                    return Err(ValidateContextError::InvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), chain_with_new_block.non_finalized_root().1, last_nota.notarised_height));
+                }
+            }
+        }
+        Ok(())
     }
 }
