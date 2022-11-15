@@ -51,7 +51,7 @@ pub fn transparent_spend(
             .iter()
             .filter_map(transparent::Input::outpoint);
 
-        info!(spends_len = spends.len(), "spends found");
+        info!("spends found {:?}", spends);
         for spend in spends {
             let utxo = transparent_spend_chain_order(
                 spend,

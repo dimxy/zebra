@@ -566,7 +566,7 @@ impl StateService {
                 if let Some(block) = finalised_chain.next() {
                     let prepared = block.prepare();
                     info!("komodo last nota checking prepared.height={:?}", prepared.height);
-                    info!(new_outputs_len = prepared.new_ordered_outputs.len(),
+                    info!(new_outputs_len = prepared.new_outputs.len(),
                           transaction_hashes_len = prepared.transaction_hashes.len(),
                         "komodo prepared");
 
