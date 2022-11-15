@@ -51,6 +51,7 @@ pub fn transparent_spend(
             .iter()
             .filter_map(transparent::Input::outpoint);
 
+        info!(spends_len = spends.len(), "spends found");
         for spend in spends {
             let utxo = transparent_spend_chain_order(
                 spend,
@@ -60,6 +61,7 @@ pub fn transparent_spend(
                 non_finalized_chain_spent_utxos,
                 finalized_state,
             )?;
+            info!("ordered utxo found {:?}", utxo);
 
             // The state service returns UTXOs from pending blocks,
             // which can be rejected by later contextual checks.
@@ -72,6 +74,7 @@ pub fn transparent_spend(
             // using known valid UTXOs during non-finalized chain validation.
             let spend_restriction = transaction.coinbase_spend_restriction(prepared.height);
             let utxo = transparent_coinbase_spend(spend, spend_restriction, utxo)?;
+            info!("ordered utxo filtered {:?}", utxo);
 
             // We don't delete the UTXOs until the block is committed,
             // so we  need to check for duplicate spends within the same block.

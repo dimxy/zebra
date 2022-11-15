@@ -556,7 +556,7 @@ impl StateService {
     }
 
     /// look back from the finalised tip for the lates nota 
-    fn komodo_init_last_nota(&mut self) {
+    pub fn komodo_init_last_nota(&mut self) {
 
         if let Some(tip) = self.disk.tip() {
             info!("komodo looking back for the last notarisation for no more than 1440 blocks for tip at {:?}...", tip.0);
@@ -566,6 +566,10 @@ impl StateService {
                 if let Some(block) = finalised_chain.next() {
                     let prepared = block.prepare();
                     info!("komodo last nota checking prepared.height={:?}", prepared.height);
+                    info!(new_outputs_len = prepared.new_ordered_outputs.len(),
+                          transaction_hashes_len = prepared.transaction_hashes.len(),
+                        "komodo prepared");
+
                     if let Ok(spent_utxos) = check::utxo::transparent_spend(
                         &prepared,
                         &Default::default(),
