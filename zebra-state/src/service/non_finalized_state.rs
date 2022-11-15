@@ -563,12 +563,12 @@ impl NonFinalizedState {
                 //info!("dimxyyy best_chain={:?}", best_chain.blocks.iter().map(|p| (p.0, p.1.hash)).collect::<Vec<_>>());
 
                 // find the fork point
-                // i think it is important to start search from the tip (in rev() order) as the bottom part of the chain has many common blocks with the best_chain
+                // i think it is important to start search from the tip (in rev() order) as the bottom part of the chain has many common blocks with the best_chain as both grow from the finalized tip
                 if let Some(fork) = chain_with_new_block.blocks.iter().rev().find(|pair| best_chain.height_by_hash.contains_key(&pair.1.hash) ) {
 
                     let blocks_truncated = chain_with_new_block.blocks.iter().skip_while(|e| e.1 != fork.1);
                     let blocks_truncated = blocks_truncated.collect::<Vec<_>>();
-                    info!("blocks_truncated={:?}", blocks_truncated);
+                    info!("blocks_truncated={:?}", blocks_truncated.iter().map(|p| (p.0, p.1.hash)).collect::<Vec<_>>());
 
                     let has_nota = blocks_truncated.iter().find(|pair| pair.1.hash == last_nota.block_hash).is_some();
                     info!(
