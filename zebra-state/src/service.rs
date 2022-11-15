@@ -570,18 +570,22 @@ impl StateService {
                           transaction_hashes_len = prepared.transaction_hashes.len(),
                         "komodo prepared");
 
-                    if let Ok(spent_utxos) = check::utxo::transparent_spend(
+                    match check::utxo::transparent_spend(
                         &prepared,
                         &Default::default(),
                         &Default::default(),
                         &self.disk) {
-                        info!("komodo last nota prepared.height={:?} spent_utxos.len={}", prepared.height, spent_utxos.len());
 
-                        if let Some(nota) = komodo_block_has_notarisation_tx(&prepared.block, &spent_utxos, &prepared.height) {
-                            self.mem.last_nota = Some(nota);
-                            info!("komodo found last nota at height {:?}", prepared.height);
-                            break;
-                        }
+                        Ok(spent_utxos) => {
+                            info!("komodo last nota prepared.height={:?} spent_utxos.len={}", prepared.height, spent_utxos.len());
+
+                            if let Some(nota) = komodo_block_has_notarisation_tx(&prepared.block, &spent_utxos, &prepared.height) {
+                                self.mem.last_nota = Some(nota);
+                                info!("komodo found last nota at height {:?}", prepared.height);
+                                break;
+                            }
+                        },
+                        Err(e) => { info!("error {:?}", e) }
                     }
                 }
                 else {
