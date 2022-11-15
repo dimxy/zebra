@@ -553,23 +553,31 @@ impl NonFinalizedState {
         if let Some(last_nota) = &self.last_nota {
             if let Some(best_chain) = self.best_chain() {
 
-                info!(
-                    chain_with_new_block_non_fin_height = chain_with_new_block.non_finalized_tip_height().0,
-                    best_chain_non_fin_height = best_chain.non_finalized_tip_height().0,
-                    new_chain_has_last_nota = !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash),
-                    best_chain_tip_height_over_notarised_height = best_chain.non_finalized_tip_height() > last_nota.notarised_height,
-                    new_chain_root_below_notarised_height = chain_with_new_block.non_finalized_root().1 < last_nota.notarised_height,
-                    best_chain_root_height = best_chain.non_finalized_tip_height().0,
-                    new_chain_root_height = chain_with_new_block.non_finalized_root().1.0,
-                    last_notarised_height = last_nota.notarised_height.0,
-                    "komodo check notarised height for new chain"
-                );
+                // find the fork point
+                if let Some(fork) = chain_with_new_block.blocks.iter().rev().find(|pair| best_chain.height_by_hash.contains_key(&pair.1.hash) ) {
 
-                if chain_with_new_block > best_chain &&  // new chain has most power
-                    !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash)  &&
-                    best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not exist without notas
-                    chain_with_new_block.non_finalized_root().1 < last_nota.notarised_height {  
-                    return Err(ValidateContextError::InvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), chain_with_new_block.non_finalized_root().1, last_nota.notarised_height));
+                    info!(
+                        chain_with_new_block_non_fin_height = chain_with_new_block.non_finalized_tip_height().0,
+                        best_chain_non_fin_height = best_chain.non_finalized_tip_height().0,
+                        new_chain_has_last_nota = !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash),
+                        best_chain_tip_height_over_notarised_height = best_chain.non_finalized_tip_height() > last_nota.notarised_height,
+                        is_fork_below_notarised_height = chain_with_new_block.non_finalized_root().1 < last_nota.notarised_height,
+                        best_chain_root_height = best_chain.non_finalized_tip_height().0,
+                        fork_height = fork.0.0,
+                        last_notarised_height = last_nota.notarised_height.0,
+                        "komodo checking notarised height for new chain:"
+                    );
+
+                    if chain_with_new_block > best_chain &&  // new chain has most power
+                        !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash)  &&
+                        best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not exist without notas
+                        fork.0 < &last_nota.notarised_height {  
+                        return Err(ValidateContextError::InvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), chain_with_new_block.non_finalized_root().1, last_nota.notarised_height));
+                    }
+                }
+                else {
+                    // this should not happen actually
+                    error!("komodo internal error: could not find fork point for chain {:?}", chain_with_new_block);
                 }
             }
         }
