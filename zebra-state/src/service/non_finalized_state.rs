@@ -568,7 +568,7 @@ impl NonFinalizedState {
 
                     let mut blocks_truncated = chain_with_new_block.blocks.iter().skip_while(|e| e.0 != fork.0 || e.1 != fork.1);
                     let has_nota = blocks_truncated.find(|pair| pair.1.hash == last_nota.block_hash).is_some();
-                    info!("blocks_truncated={:?}", blocks_truncated);
+                    info!("blocks_truncated={:?}", blocks_truncated.collect::<Vec<_>>());
                     info!(
                         chain_with_new_block_non_fin_height = chain_with_new_block.non_finalized_tip_height().0,
                         best_chain_non_fin_height = best_chain.non_finalized_tip_height().0,
