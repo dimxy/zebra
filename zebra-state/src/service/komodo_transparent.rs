@@ -1,7 +1,7 @@
 /// Komodo helpers for working with state service
 
 use std::collections::HashMap;
-use zebra_chain::transparent::{self, OrderedUtxo};
+use zebra_chain::transparent::{self, Output};
 
 use super::finalized_state::ZebraDb;
 
@@ -10,12 +10,10 @@ use super::finalized_state::ZebraDb;
 pub fn komodo_transparent_spend_finalized(
     prepared: &crate::PreparedBlock,
     finalized_state: &ZebraDb,
-) -> HashMap<transparent::OutPoint, transparent::OrderedUtxo> {
+) -> HashMap<transparent::OutPoint, transparent::Output> {
     let mut block_spends = HashMap::new();
 
-    for (spend_tx_index_in_block, transaction) in prepared.block.transactions.iter().enumerate() {
-        // Coinbase inputs represent new coins,
-        // so there are no UTXOs to mark as spent.
+    for (_, transaction) in prepared.block.transactions.iter().enumerate() {
         let spends = transaction
             .inputs()
             .iter()
@@ -25,13 +23,10 @@ pub fn komodo_transparent_spend_finalized(
         for spend in spends {
 
             if let Some((tx, height)) = finalized_state.transaction(spend.hash)  {
-                //let output = transparent::Output::new();
                 let output = tx.outputs().get(spend.index as usize).unwrap().clone();
-                let utxo = OrderedUtxo::new(output, height, 0);
-
-                info!("ordered utxo found {:?}", utxo);
+                info!("output found {:?}", output);
     
-                block_spends.insert(spend, utxo);
+                block_spends.insert(spend, output);
             }
         }
     }

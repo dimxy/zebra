@@ -45,7 +45,7 @@ use crate::{
         finalized_state::{FinalizedState, ZebraDb},
         non_finalized_state::{Chain, NonFinalizedState, QueuedBlocks},
         pending_utxos::PendingUtxos,
-        watch_receiver::WatchReceiver,
+        watch_receiver::WatchReceiver, komodo_transparent::komodo_transparent_spend_finalized,
     },
     BoxError, CloneError, CommitBlockError, Config, FinalizedBlock, PreparedBlock, ReadRequest,
     ReadResponse, Request, Response, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx, arbitrary::Prepare,
@@ -572,23 +572,13 @@ impl StateService {
                           transaction_hashes_len = prepared.transaction_hashes.len(),
                         "komodo prepared");
 
-                    match check::utxo::transparent_spend(
-                        &prepared,
-                        &Default::default(),
-                        &Default::default(),
-                        &self.disk) {
+                    let spent_outputs = komodo_transparent_spend_finalized(&prepared, self.disk.db());
+                    info!("komodo last nota prepared.height={:?} spent_outputs.len={}", prepared.height, spent_outputs.len());
 
-                        Ok(spent_ordered_utxos) => {
-                            info!("komodo last nota prepared.height={:?} spent_utxos.len={}", prepared.height, spent_ordered_utxos.len());
-                            let spent_utxos = spent_ordered_utxos.into_iter().map(|o| (o.0, o.1.utxo)).collect();
-
-                            if let Some(nota) = komodo_block_has_notarisation_tx(&prepared.block, &spent_utxos, &prepared.height) {
-                                self.mem.last_nota = Some(nota);
-                                info!("komodo found last nota at height {:?}", prepared.height);
-                                break;
-                            }
-                        },
-                        Err(e) => { info!("error {:?}", e) }
+                    if let Some(nota) = komodo_block_has_notarisation_tx(&prepared.block, &spent_outputs, &prepared.height) {
+                        self.mem.last_nota = Some(nota);
+                        info!("komodo found last nota at height {:?}", prepared.height);
+                        break;
                     }
                 }
                 else {

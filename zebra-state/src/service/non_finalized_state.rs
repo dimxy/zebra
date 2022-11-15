@@ -259,8 +259,8 @@ impl NonFinalizedState {
             }
         })?;
 
-        let spent_transparent_utxos = spent_utxos.into_iter().map(|u| (u.0, u.1.utxo)).collect();
-        self.komodo_find_block_nota_and_update_last(&prepared.block, &spent_transparent_utxos, &prepared.height);
+        let spent_outputs = spent_utxos.into_iter().map(|u| (u.0, u.1.utxo.output)).collect();
+        self.komodo_find_block_nota_and_update_last(&prepared.block, &spent_outputs, &prepared.height);
 
         self.komodo_check_fork_is_valid(&new_chain)?;
 
@@ -532,8 +532,8 @@ impl NonFinalizedState {
     }
 
     /// check if block has a back KMD nota and update latest nota in the mem state
-    fn komodo_find_block_nota_and_update_last(&mut self, block: &Block, spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>, height: &block::Height) {
-        match (komodo_block_has_notarisation_tx(block, spent_utxos, height), self.last_nota.as_ref()) {
+    fn komodo_find_block_nota_and_update_last(&mut self, block: &Block, spent_outputs: &HashMap<transparent::OutPoint, transparent::Output>, height: &block::Height) {
+        match (komodo_block_has_notarisation_tx(block, spent_outputs, height), self.last_nota.as_ref()) {
             (Some(found_nota), Some(last_nota)) => {
                 if last_nota.notarised_height < found_nota.notarised_height {
                     self.last_nota = Some(found_nota);
