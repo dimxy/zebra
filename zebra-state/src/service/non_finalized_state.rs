@@ -559,6 +559,9 @@ impl NonFinalizedState {
         if let Some(last_nota) = &self.last_nota {
             if let Some(best_chain) = self.best_chain() {
 
+                info!("dimxyyy chain_with_new_block={:?}", chain_with_new_block);
+                info!("dimxyyy best_chain={:?}", best_chain);
+
                 // find the fork point
                 // i think it is important to start search from the tip (in rev() order) as the bottom part of the chain has many common blocks with the best_chain
                 if let Some(fork) = chain_with_new_block.blocks.iter().rev().find(|pair| best_chain.height_by_hash.contains_key(&pair.1.hash) ) {
