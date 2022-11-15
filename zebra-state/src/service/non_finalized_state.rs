@@ -565,6 +565,7 @@ impl NonFinalizedState {
                         best_chain_root_height = best_chain.non_finalized_tip_height().0,
                         fork_height = fork.0.0,
                         last_notarised_height = last_nota.notarised_height.0,
+                        new_chain_has_more_power = chain_with_new_block > best_chain,
                         "komodo checking notarised height for new chain:"
                     );
 
