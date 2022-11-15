@@ -161,7 +161,7 @@ impl NonFinalizedState {
         // and drop the cloned parent Arc, or newly created chain fork.
         let modified_chain = self.validate_and_commit(parent_chain, prepared, finalized_state)?;
 
-        //let modified_chain_tip_hash = modified_chain.non_finalized_tip_hash();
+        self.komodo_check_fork_is_valid(&modified_chain)?;
 
         // If the block is valid:
         // - add the new chain fork or updated chain to the set of recent chains
@@ -170,13 +170,6 @@ impl NonFinalizedState {
         self.chain_set.insert(modified_chain);
         self.chain_set
             .retain(|chain| chain.non_finalized_tip_hash() != parent_hash);
-
-        // if new chain is best chain then run check where the last notarised block is
-        //if self.best_chain().unwrap().as_ref().non_finalized_tip_hash() == modified_chain_tip_hash {
-            //komodo_check_
-            //self.chain_set
-            //    .retain(|chain| chain.non_finalized_tip_hash() != modified_chain_tip_hash);
-        //}
 
         self.update_metrics_for_committed_block(height, hash);
 
@@ -203,6 +196,8 @@ impl NonFinalizedState {
 
         // If the block is invalid, return the error, and drop the newly created chain fork
         let chain = self.validate_and_commit(Arc::new(chain), prepared, finalized_state)?;
+
+        self.komodo_check_fork_is_valid(&chain)?;
 
         // If the block is valid, add the new chain fork to the set of recent chains.
         self.chain_set.insert(chain);
@@ -261,8 +256,6 @@ impl NonFinalizedState {
 
         let spent_outputs = spent_utxos.into_iter().map(|u| (u.0, u.1.utxo.output)).collect();
         self.komodo_find_block_nota_and_update_last(&prepared.block, &spent_outputs, &prepared.height);
-
-        self.komodo_check_fork_is_valid(&new_chain)?;
 
         Self::validate_and_update_parallel(new_chain, contextual, sprout_final_treestates)
     }
