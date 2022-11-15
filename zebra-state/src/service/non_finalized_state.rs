@@ -559,8 +559,8 @@ impl NonFinalizedState {
         if let Some(last_nota) = &self.last_nota {
             if let Some(best_chain) = self.best_chain() {
 
-                info!("dimxyyy chain_with_new_block={:?}", chain_with_new_block.blocks.iter().map(|p| (p.0, p.1.hash)));
-                info!("dimxyyy best_chain={:?}", best_chain.blocks.iter().map(|p| (p.0, p.1.hash)));
+                info!("dimxyyy chain_with_new_block={:?}", chain_with_new_block.blocks.iter().map(|p| (p.0, p.1.hash)).collect::<Vec<_>>());
+                info!("dimxyyy best_chain={:?}", best_chain.blocks.iter().map(|p| (p.0, p.1.hash)).collect::<Vec<_>>());
 
                 // find the fork point
                 // i think it is important to start search from the tip (in rev() order) as the bottom part of the chain has many common blocks with the best_chain
