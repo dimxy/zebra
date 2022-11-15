@@ -62,6 +62,8 @@ mod non_finalized_state;
 mod pending_utxos;
 pub(crate) mod read;
 
+mod komodo_transparent;
+
 #[cfg(any(test, feature = "proptest-impl"))]
 pub mod arbitrary;
 
@@ -576,8 +578,9 @@ impl StateService {
                         &Default::default(),
                         &self.disk) {
 
-                        Ok(spent_utxos) => {
-                            info!("komodo last nota prepared.height={:?} spent_utxos.len={}", prepared.height, spent_utxos.len());
+                        Ok(spent_ordered_utxos) => {
+                            info!("komodo last nota prepared.height={:?} spent_utxos.len={}", prepared.height, spent_ordered_utxos.len());
+                            let spent_utxos = spent_ordered_utxos.into_iter().map(|o| (o.0, o.1.utxo)).collect();
 
                             if let Some(nota) = komodo_block_has_notarisation_tx(&prepared.block, &spent_utxos, &prepared.height) {
                                 self.mem.last_nota = Some(nota);

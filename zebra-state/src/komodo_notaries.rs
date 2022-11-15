@@ -268,7 +268,7 @@ impl BackNotarisationData {
     }
 }
 
-pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<transparent::OutPoint, transparent::OrderedUtxo>, height: &Height) -> Option<BackNotarisationData> 
+pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>, height: &Height) -> Option<BackNotarisationData> 
 {
     for tx in &block.transactions {
         
@@ -279,8 +279,8 @@ pub fn komodo_block_has_notarisation_tx(block: &Block, spent_utxos: &HashMap<tra
             if let transparent::Input::Coinbase{..} = input { continue; } // skip coinbase input
 
             if let Some(outpoint) = input.outpoint() {
-                if let Some(ordered_utxo) = spent_utxos.get(&outpoint) {
-                    if let Some(n_id) = komodo_get_notary_id_for_spent_output(height, &ordered_utxo.utxo.output) {
+                if let Some(utxo) = spent_utxos.get(&outpoint) {
+                    if let Some(n_id) = komodo_get_notary_id_for_spent_output(height, &utxo.output) {
                         signedmask |= 1 << n_id;
                         info!("dimxyyy found signed notary={}", n_id);
                     }
