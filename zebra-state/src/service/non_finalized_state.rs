@@ -561,7 +561,7 @@ impl NonFinalizedState {
                         best_chain_non_fin_height = best_chain.non_finalized_tip_height().0,
                         new_chain_has_last_nota = !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash),
                         best_chain_tip_height_over_notarised_height = best_chain.non_finalized_tip_height() > last_nota.notarised_height,
-                        is_fork_below_notarised_height = chain_with_new_block.non_finalized_root().1 < last_nota.notarised_height,
+                        is_fork_below_notarised_height = fork.0 < &last_nota.notarised_height,
                         best_chain_root_height = best_chain.non_finalized_tip_height().0,
                         fork_height = fork.0.0,
                         last_notarised_height = last_nota.notarised_height.0,
