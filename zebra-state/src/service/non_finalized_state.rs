@@ -161,7 +161,9 @@ impl NonFinalizedState {
         // and drop the cloned parent Arc, or newly created chain fork.
         let modified_chain = self.validate_and_commit(parent_chain, prepared, finalized_state)?;
 
-        self.komodo_check_fork_is_valid(&modified_chain)?;
+        if self.network == Network::Mainnet {
+            self.komodo_check_fork_is_valid(&modified_chain)?;
+        }
 
         // If the block is valid:
         // - add the new chain fork or updated chain to the set of recent chains
@@ -197,7 +199,9 @@ impl NonFinalizedState {
         // If the block is invalid, return the error, and drop the newly created chain fork
         let chain = self.validate_and_commit(Arc::new(chain), prepared, finalized_state)?;
 
-        self.komodo_check_fork_is_valid(&chain)?;
+        if self.network == Network::Mainnet {
+            self.komodo_check_fork_is_valid(&chain)?;
+        }
 
         // If the block is valid, add the new chain fork to the set of recent chains.
         self.chain_set.insert(chain);
@@ -254,8 +258,10 @@ impl NonFinalizedState {
             }
         })?;
 
-        let spent_outputs = spent_utxos.into_iter().map(|u| (u.0, u.1.utxo.output)).collect();
-        self.komodo_find_block_nota_and_update_last(&prepared.block, &spent_outputs, &prepared.height);
+        if self.network == Network::Mainnet {
+            let spent_outputs = spent_utxos.into_iter().map(|u| (u.0, u.1.utxo.output)).collect();
+            self.komodo_find_block_nota_and_update_last(&prepared.block, &spent_outputs, &prepared.height);
+        }
 
         Self::validate_and_update_parallel(new_chain, contextual, sprout_final_treestates)
     }
@@ -544,7 +550,7 @@ impl NonFinalizedState {
     pub fn komodo_check_fork_is_valid(&self, chain_with_new_block: &Chain) -> Result<(), ValidateContextError> {
 
         // condition description:
-        // if chain_with_new_block has more work than best_chain (that is, new best chain)
+        // if chain_with_new_block has more work than best_chain (that is, a new best chain candidate)
         // and chain_with_new_block does not contain last nota
         // and chain_with_new_block.root.height < last_nota.height
         // and best_chain.height > last_nota.height 
@@ -554,6 +560,7 @@ impl NonFinalizedState {
             if let Some(best_chain) = self.best_chain() {
 
                 // find the fork point
+                // i think it is important to start search from the tip (in rev() order) as the bottom part of the chain has many common blocks with the best_chain
                 if let Some(fork) = chain_with_new_block.blocks.iter().rev().find(|pair| best_chain.height_by_hash.contains_key(&pair.1.hash) ) {
 
                     info!(

@@ -232,9 +232,11 @@ impl StateService {
         tracing::info!("no legacy chain found");
         timer.finish(module_path!(), line!(), "legacy chain check");
 
-        let timer = CodeTimer::start();
-        state.komodo_init_last_nota();
-        timer.finish(module_path!(), line!(), "komodo last nota init");
+        if network == Network::Mainnet {
+            let timer = CodeTimer::start();
+            state.komodo_init_last_nota();
+            timer.finish(module_path!(), line!(), "komodo last nota init");
+        }
 
         (state, read_only_service, latest_chain_tip, chain_tip_change)
     }
@@ -586,7 +588,10 @@ impl StateService {
                 }
                 depth += 1;
             }
-            info!("komodo last nota not found, depth={:?}", depth);
+            // ht=250000 is the beginning of current notarisation protocol 
+            if tip.0 >= block::Height(250000) && !self.mem.last_nota.is_some() {
+                panic!("last notarisation not found for mainnet, shutdown");            
+            }
         }
     }
 }
