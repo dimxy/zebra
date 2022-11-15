@@ -566,11 +566,14 @@ impl NonFinalizedState {
                 // i think it is important to start search from the tip (in rev() order) as the bottom part of the chain has many common blocks with the best_chain
                 if let Some(fork) = chain_with_new_block.blocks.iter().rev().find(|pair| best_chain.height_by_hash.contains_key(&pair.1.hash) ) {
 
-                    //let blocks_truncated = chain_with_new_block.blocks.iter().skip_while(|e| e.0 != fork.0).collect();
+                    let mut blocks_truncated = chain_with_new_block.blocks.iter().skip_while(|e| e.0 != fork.0 || e.1 != fork.1);
+                    let has_nota = blocks_truncated.find(|pair| pair.1.hash == last_nota.block_hash).is_some();
+                    info!("blocks_truncated={:?}", blocks_truncated);
                     info!(
                         chain_with_new_block_non_fin_height = chain_with_new_block.non_finalized_tip_height().0,
                         best_chain_non_fin_height = best_chain.non_finalized_tip_height().0,
                         new_chain_has_last_nota = chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash),
+                        blocks_truncated_has_last_nota = has_nota,
                         best_chain_tip_height_over_notarised_height = best_chain.non_finalized_tip_height() > last_nota.notarised_height,
                         is_fork_below_notarised_height = fork.0 < &last_nota.notarised_height,
                         best_chain_root_height = best_chain.non_finalized_tip_height().0,
