@@ -1,3 +1,5 @@
+//! Komodo notarisation utilities for special block contextual validation
+
 use std::borrow::Borrow;
 use std::sync::MutexGuard;
 

@@ -1,3 +1,5 @@
+//! Utils lib for komodo code development, particularly transparent scripts parsing 
+
 use crate::{block::{Block}, transparent::Script};
 use secp256k1::PublicKey;
 

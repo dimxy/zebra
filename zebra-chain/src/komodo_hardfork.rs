@@ -1,3 +1,4 @@
+//! Notary season pubkeys and functions to access them 
 
 use crate::block::{Height};
 use crate::transparent::Output;
@@ -19,7 +20,10 @@ lazy_static! {
 const NUM_KMD_NOTARIES: usize = 64;
 const NUM_KMD_SEASONS: usize = 7;
 
+/// array of notary pubkeys for a season
 type NotarySeasonPubkeys<'a> = Vec<(&'a str, PublicKey)>;
+
+/// notary pubkey id in the season pubkey array
 pub type NotaryId = u32;
 
 /// Notarisation constants: HF activation timestamps and heights, notary pubkeys 
