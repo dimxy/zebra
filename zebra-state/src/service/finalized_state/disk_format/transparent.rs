@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 
 use tower::util::error::optional::None;
 use zebra_chain::{
-    amount::{self, Amount, MaxInt64},
+    amount::{self, Amount, MaxInt64, NonNegative},
     block::Height,
     parameters::Network::*,
     serialization::{ZcashDeserializeInto, ZcashSerialize},
@@ -535,6 +535,21 @@ impl IntoDisk for Amount<MaxInt64> {
 }
 
 impl FromDisk for Amount<MaxInt64> {
+    fn from_bytes(bytes: impl AsRef<[u8]>) -> Self {
+        let array = bytes.as_ref().try_into().unwrap();
+        Amount::from_bytes(array).unwrap()
+    }
+}
+
+impl IntoDisk for Amount<NonNegative> {
+    type Bytes = [u8; BALANCE_DISK_BYTES];
+
+    fn as_bytes(&self) -> Self::Bytes {
+        self.to_bytes()
+    }
+}
+
+impl FromDisk for Amount<NonNegative> {
     fn from_bytes(bytes: impl AsRef<[u8]>) -> Self {
         let array = bytes.as_ref().try_into().unwrap();
         Amount::from_bytes(array).unwrap()
