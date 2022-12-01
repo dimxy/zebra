@@ -20,6 +20,8 @@ use std::cmp::max;
 
 use crate::komodo_notaries::*;
 
+use crate::komodo_notaries::*;
+
 pub(crate) mod anchors;
 pub(crate) mod difficulty;
 pub(crate) mod nullifier;
@@ -60,7 +62,7 @@ where
     check::block_is_not_orphaned(finalized_tip_height, prepared.height)?;
 
     // The maximum number of blocks used by contextual checks
-    let max_context_blocks: usize = if network == Network::Mainnet && POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN < NN_LAST_BLOCK_DEPTH { NN_LAST_BLOCK_DEPTH } else { POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN };
+    let max_context_blocks: usize = if POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN < NN_DUP_CHECK_DEPTH { NN_DUP_CHECK_DEPTH } else { POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN };
     let relevant_chain: Vec<_> = relevant_chain
         .into_iter()
         .take(max_context_blocks)
@@ -103,7 +105,7 @@ where
     )?;
 
     // check komodo contextual rules for special notary blocks:
-    if komodo_is_special_notary_block(&prepared.block, prepared.height, network, relevant_chain.into_iter())? {  // returns error if special block invalid
+    if komodo_is_special_notary_block(&prepared.block, &prepared.height, network, relevant_chain.into_iter())? {  // returns error if special block invalid
         use zebra_chain::work::difficulty::ExpandedDifficulty;
         tracing::info!("block ht={:?} is a komodo special block", prepared.height);
 
