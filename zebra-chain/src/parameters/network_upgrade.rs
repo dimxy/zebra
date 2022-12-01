@@ -15,8 +15,6 @@ use hex::{FromHex, ToHex};
 #[cfg(any(test, feature = "proptest-impl"))]
 use proptest_derive::Arbitrary;
 
-use crate::komodo_hardfork::*;
-
 /// A Zcash network upgrade.
 ///
 /// Network upgrades can change the Zcash network protocol or consensus rules in
@@ -99,8 +97,8 @@ const FAKE_MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
 pub(super) const TESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
     (block::Height(1), BeforeOverwinter),
-    (block::Height(207_500), Overwinter),
-    (block::Height(280_000), Sapling),
+    (block::Height(1), Overwinter),
+    (block::Height(1), Sapling),
     (block::Height(584_000), Blossom),
     (block::Height(903_800), Heartwood),
     (block::Height(1_028_500), Canopy),
@@ -111,14 +109,15 @@ pub(super) const TESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] 
 #[allow(unused)]
 const FAKE_TESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
-    (block::Height(5), BeforeOverwinter),
-    (block::Height(10), Overwinter),
-    (block::Height(15), Sapling),
-    (block::Height(20), Blossom),
-    (block::Height(25), Heartwood),
-    (block::Height(30), Canopy),
-    (block::Height(35), Nu5),
+    (block::Height(1), BeforeOverwinter),
+    (block::Height(1), Overwinter),
+    (block::Height(1), Sapling),
+    (block::Height(u32::MAX), Blossom),
+    (block::Height(u32::MAX), Heartwood),
+    (block::Height(u32::MAX), Canopy),
+    (block::Height(u32::MAX), Nu5),
 ];
+
 
 /// The Consensus Branch Id, used to bind transactions and blocks to a
 /// particular network upgrade.
@@ -263,6 +262,7 @@ impl NetworkUpgrade {
                 (MAINNET_ACTIVATION_HEIGHTS, TESTNET_ACTIVATION_HEIGHTS)
             }
         };
+
         match network {
             Mainnet => mainnet_heights,
             Testnet => testnet_heights,
@@ -336,12 +336,11 @@ impl NetworkUpgrade {
     ///
     /// Based on [`PRE_BLOSSOM_POW_TARGET_SPACING`] and
     /// [`POST_BLOSSOM_POW_TARGET_SPACING`] from the Zcash specification.
-    pub fn target_spacing(&self) -> Duration {
+    pub fn target_spacing(&self, network: Network) -> Duration {
         let spacing_seconds = match self {
-            Genesis | BeforeOverwinter | Overwinter | Sapling => PRE_BLOSSOM_POW_TARGET_SPACING,
+            Genesis | BeforeOverwinter | Overwinter | Sapling => if network == Network::Testnet { 5 * PRE_BLOSSOM_POW_TARGET_SPACING / 2 } else { PRE_BLOSSOM_POW_TARGET_SPACING },
             Blossom | Heartwood | Canopy | Nu5 => POST_BLOSSOM_POW_TARGET_SPACING,
         };
-
         Duration::seconds(spacing_seconds)
     }
 
@@ -349,13 +348,13 @@ impl NetworkUpgrade {
     ///
     /// See [`NetworkUpgrade::target_spacing`] for details.
     pub fn target_spacing_for_height(network: Network, height: block::Height) -> Duration {
-        NetworkUpgrade::current(network, height).target_spacing()
+        NetworkUpgrade::current(network, height).target_spacing(network)
     }
 
     /// Returns all the target block spacings for `network` and the heights where they start.
     pub fn target_spacings(network: Network) -> impl Iterator<Item = (block::Height, Duration)> {
         [
-            (NetworkUpgrade::Genesis, PRE_BLOSSOM_POW_TARGET_SPACING),
+            (NetworkUpgrade::Genesis, if network == Network::Testnet { 5 * PRE_BLOSSOM_POW_TARGET_SPACING / 2 } else { PRE_BLOSSOM_POW_TARGET_SPACING }), // dimxy fix for kmd testnet
             (NetworkUpgrade::Blossom, POST_BLOSSOM_POW_TARGET_SPACING),
         ]
         .into_iter()
@@ -383,8 +382,8 @@ impl NetworkUpgrade {
             (Network::Mainnet, _) => None,
             (Network::Testnet, _) => {
                 let network_upgrade = NetworkUpgrade::current(network, height);
-                Some(network_upgrade.target_spacing() * TESTNET_MINIMUM_DIFFICULTY_GAP_MULTIPLIER)
-            }
+                Some(network_upgrade.target_spacing(network) * TESTNET_MINIMUM_DIFFICULTY_GAP_MULTIPLIER)  // TODO check for kmd testnet
+            },
         }
     }
 
@@ -422,8 +421,8 @@ impl NetworkUpgrade {
     /// Returns the averaging window timespan for the network upgrade.
     ///
     /// `AveragingWindowTimespan` from the Zcash specification.
-    pub fn averaging_window_timespan(&self) -> Duration {
-        self.target_spacing() * POW_AVERAGING_WINDOW.try_into().expect("fits in i32")
+    pub fn averaging_window_timespan(&self, network: Network) -> Duration {
+        self.target_spacing(network) * POW_AVERAGING_WINDOW.try_into().expect("fits in i32")
     }
 
     /// Returns the averaging window timespan for `network` and `height`.
@@ -433,7 +432,7 @@ impl NetworkUpgrade {
         network: Network,
         height: block::Height,
     ) -> Duration {
-        NetworkUpgrade::current(network, height).averaging_window_timespan()
+        NetworkUpgrade::current(network, height).averaging_window_timespan(network)
     }
 
     /// Returns true if the maximum block time rule is active for `network` and `height`.
@@ -447,7 +446,8 @@ impl NetworkUpgrade {
     pub fn is_max_block_time_enforced(network: Network, height: block::Height) -> bool {
         match network {
             Network::Mainnet => true,
-            Network::Testnet => height >= TESTNET_MAX_TIME_START_HEIGHT,
+            // allow long stops for testnet TODO: dimxy check
+            Network::Testnet => false, // height >= TESTNET_MAX_TIME_START_HEIGHT,
         }
     }
     /// Returns the NetworkUpgrade given an u32 as ConsensusBranchId
@@ -457,44 +457,6 @@ impl NetworkUpgrade {
             .find(|id| id.1 == ConsensusBranchId(branch_id))
             .map(|nu| nu.0)
     }
-
-    /// Returns if gap after second block is allowed for easy mining by a NN
-    pub fn komodo_is_gap_after_second_block_allowed(
-        network: Network,
-        height: block::Height,
-    ) -> bool {
-        match (network, height) {
-            (Network::Mainnet, height) => {
-                if let Ok(height_s6) = komodo_s6_hardfork_height() {
-                    let height_gap_allowed = height_s6 + 7 * 1440;
-                    return height > height_gap_allowed.unwrap();
-                }
-                false
-            },
-            (Network::Testnet, _) => {
-                false
-            },
-        }
-    }
-
-    /// returns if the s1 Dec hf is active for height 
-    pub fn komodo_s1_december_hardfork_active(
-        network: Network,
-        height: block::Height,
-    ) -> bool {
-        match (network, height) {
-            (Network::Mainnet, height) => {
-                if let Ok(height_s1) = komodo_s1_hardfork_height() {
-                    return height > height_s1;
-                }
-                false
-            },
-            (Network::Testnet, _) => {
-                false
-            },
-        }
-    }
-
 }
 
 impl ConsensusBranchId {
