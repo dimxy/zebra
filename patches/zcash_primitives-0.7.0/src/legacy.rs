@@ -4,6 +4,9 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::io::{self, Read, Write};
 use std::ops::Shl;
 
+use ripemd::Digest as RipemdDigest;
+use sha2::{Digest as Sha2Digest, Sha256};
+
 use zcash_encoding::Vector;
 
 #[cfg(feature = "transparent-inputs")]
@@ -51,6 +54,15 @@ impl Script {
             let mut hash = [0; 20];
             hash.copy_from_slice(&self.0[3..23]);
             Some(TransparentAddress::PublicKey(hash))
+        } else if self.0.len() == 1+0x21+1 // dimxy add support for p2pk for kmd
+            && self.0[0] == 0x21 as u8 
+            && self.0[34] == OpCode::CheckSig as u8 
+        {
+            let mut pk = [0; 33];
+            pk.copy_from_slice(&self.0[1..34]);
+            Some(TransparentAddress::PublicKey(
+                *ripemd::Ripemd160::digest(Sha256::digest(&pk)).as_ref(),
+            )) 
         } else if self.0.len() == 23
             && self.0[0..2] == [OpCode::Hash160 as u8, 0x14]
             && self.0[22] == OpCode::Equal as u8
