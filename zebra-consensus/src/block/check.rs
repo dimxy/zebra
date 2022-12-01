@@ -106,7 +106,7 @@ pub fn difficulty_is_valid(
     // The difficulty filter is also context-free.
     if hash > &difficulty_threshold {
         /* pow (non easy-diff) blocks with incorrect diff, considered as exceptions */
-        if height >= &Height(205641) && height <= &Height(791989) {
+        if height >= &Height(205641) && height <= &Height(791989) {     // TODO: add mainnet check
             return Ok(());
         }
 
@@ -130,16 +130,20 @@ pub fn difficulty_is_valid(
             }
         }
         */
-        if height < &Height(250000) {
-            return Ok(())   // TODO fix diff check for hardcoded notaries
+
+        if network == Network::Mainnet && height < &Height(250000) {
+            return Ok(())   // skip diff check for mainnet while hardcoded notaries. TODO: fix diff check for hardcoded notaries
+        }
+
+        
+        if height == &Height(0)  {  
+            return Ok(());   // skip genesis, TODO: fix genesis diff for testnet
         }
 
         // check if this is a notary block
-        if network == Network::Mainnet {
-            if let Some(pk) = komodo_get_block_pubkey(block) {
-                if komodo_is_notary_pubkey(height, &pk) {
-                    return Ok(()); // skip the next difficulty check rule  
-                }
+        if let Some(pk) = komodo_get_block_pubkey(block) {
+            if NN::komodo_is_notary_pubkey(network, &height, &pk) {
+                return Ok(()); // skip the next difficulty check rule  
             }
         }
 
