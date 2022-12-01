@@ -7,6 +7,8 @@
 //! See the full list of
 //! [Differences between JSON-RPC 1.0 and 2.0.](https://www.simple-is-better.org/rpc/#differences-between-1-0-and-2-0)
 
+use std::sync::Arc;
+
 use jsonrpc_core::{Compatibility, MetaIoHandler};
 use jsonrpc_http_server::ServerBuilder;
 use tokio::task::JoinHandle;
@@ -16,6 +18,7 @@ use tracing_futures::Instrument;
 
 use zebra_chain::{chain_tip::ChainTip, parameters::Network};
 use zebra_node_services::{mempool, BoxError};
+use zebra_network::AddressBook;
 
 use crate::{
     config::Config,
@@ -39,6 +42,7 @@ impl RpcServer {
         state: State,
         latest_chain_tip: Tip,
         network: Network,
+        address_book: Arc<std::sync::Mutex<AddressBook>>,
     ) -> (JoinHandle<()>, JoinHandle<()>)
     where
         Version: ToString,
@@ -61,7 +65,7 @@ impl RpcServer {
 
             // Initialize the rpc methods with the zebra version
             let (rpc_impl, rpc_tx_queue_task_handle) =
-                RpcImpl::new(app_version, mempool, state, latest_chain_tip, network);
+                RpcImpl::new(app_version, mempool, state, latest_chain_tip, network, address_book);
 
             // Create handler compatible with V1 and V2 RPC protocols
             let mut io: MetaIoHandler<(), _> =

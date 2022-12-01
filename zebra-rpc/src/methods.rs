@@ -17,6 +17,8 @@ use jsonrpc_derive::rpc;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
 use tower::{buffer::Buffer, Service, ServiceExt};
 use tracing::Instrument;
+use std::net::{SocketAddr, ToSocketAddrs};
+use zebra_network::AddressBook;
 
 use zebra_chain::{
     block::{self, Height, SerializedBlock},
@@ -230,6 +232,15 @@ pub trait Rpc {
         &self,
         address_strings: AddressStrings,
     ) -> BoxFuture<Result<Vec<GetAddressUtxos>>>;
+
+    /// Manually add new peer
+    /// TODO add param 'onetry'
+    #[rpc(name = "addnode")]
+    fn add_node(
+        &self,
+        address_string: String,
+    ) -> Result<String>;
+
 }
 
 /// RPC method implementations.
@@ -261,6 +272,9 @@ where
 
     /// A sender component of a channel used to send transactions to the queue.
     queue_sender: Sender<Option<UnminedTx>>,
+
+    /// address book to manage peers by rpcs
+    address_book: Arc<std::sync::Mutex<AddressBook>>,
 }
 
 impl<Mempool, State, Tip> RpcImpl<Mempool, State, Tip>
@@ -283,6 +297,7 @@ where
         state: State,
         latest_chain_tip: Tip,
         network: Network,
+        address_book: Arc<std::sync::Mutex<AddressBook>>,
     ) -> (Self, JoinHandle<()>)
     where
         Version: ToString,
@@ -305,6 +320,7 @@ where
             latest_chain_tip: latest_chain_tip.clone(),
             network,
             queue_sender: runner.sender(),
+            address_book,
         };
 
         // run the process queue
@@ -938,6 +954,27 @@ where
         }
         .boxed()
     }
+
+    fn add_node(
+        &self,
+        address_string: String,
+    ) -> Result<String> {
+
+        let v_addrs = address_string.to_socket_addrs().
+            map_err(|error| {
+                Error::invalid_params(&format!("invalid address {address_string:?}: {error}"))
+            })?;
+
+        let mut addr_book = self.address_book.lock().unwrap();
+        let mut added = 0;
+        for addr in v_addrs {
+            if addr_book.add_address(addr).is_some() {
+                added += 1;
+            }
+        }
+        Ok(String::from(format!("added {}", added)))
+    }
+
 }
 
 /// Response to a `getinfo` RPC request.

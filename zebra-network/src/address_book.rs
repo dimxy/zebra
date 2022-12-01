@@ -595,6 +595,13 @@ impl AddressBook {
             );
         }
     }
+
+    /// add one socket addr to the address book
+    pub fn add_address(&mut self, addr: SocketAddr) -> Option<MetaAddr> {
+        let change = MetaAddrChange::NewInitial { addr };
+
+        self.update(change)
+    }
 }
 
 impl Extend<MetaAddrChange> for AddressBook {
