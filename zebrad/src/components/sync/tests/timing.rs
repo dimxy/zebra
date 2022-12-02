@@ -66,7 +66,7 @@ fn ensure_timeouts_consistent() {
     assert!(
         BLOCK_VERIFY_TIMEOUT.as_secs()
             > 2 * zebra_chain::parameters::NetworkUpgrade::Blossom
-                .target_spacing()
+                .target_spacing(Network::Mainnet)
                 .num_seconds() as u64,
         "Block verify should allow for at least one new block to be generated and distributed"
     );

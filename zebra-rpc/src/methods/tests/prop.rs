@@ -9,6 +9,7 @@ use proptest::{collection::vec, prelude::*};
 use thiserror::Error;
 use tower::buffer::Buffer;
 
+use tracing::Span;
 use zebra_chain::{
     amount::{Amount, NonNegative},
     block::{Block, Height},
@@ -30,6 +31,11 @@ use super::super::{
     AddressBalance, AddressStrings, NetworkUpgradeStatus, Rpc, RpcImpl, SentTransactionHash,
 };
 
+use std::sync::Arc;
+use zebra_network::AddressBook;
+use std::net::SocketAddr;
+use std::str::FromStr;
+
 proptest! {
     /// Test that when sending a raw transaction, it is received by the mempool service.
     #[test]
@@ -45,6 +51,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
             let hash = SentTransactionHash(transaction.hash());
 
@@ -97,6 +104,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let transaction_bytes = transaction
@@ -154,6 +162,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let transaction_bytes = transaction
@@ -219,6 +228,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let send_task = tokio::spawn(rpc.send_raw_transaction(non_hex_string));
@@ -273,6 +283,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let send_task = tokio::spawn(rpc.send_raw_transaction(hex::encode(random_bytes)));
@@ -325,6 +336,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let call_task = tokio::spawn(rpc.get_raw_mempool());
@@ -380,6 +392,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let send_task = tokio::spawn(rpc.get_raw_transaction(non_hex_string, 0));
@@ -436,6 +449,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let send_task = tokio::spawn(rpc.get_raw_transaction(hex::encode(random_bytes), 0));
@@ -481,6 +495,7 @@ proptest! {
             Buffer::new(state.clone(), 1),
             NoChainTip,
             network,
+            Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
         );
 
         let response = rpc.get_blockchain_info();
@@ -529,6 +544,7 @@ proptest! {
             Buffer::new(state.clone(), 1),
             chain_tip,
             network,
+            Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
         );
         let response = rpc.get_blockchain_info();
 
@@ -613,6 +629,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 chain_tip,
                 network,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             // Build the future to call the RPC
@@ -674,6 +691,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 chain_tip,
                 network,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let address_strings = AddressStrings {
@@ -723,6 +741,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             // send a transaction
@@ -810,6 +829,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let mut transactions_hash_set = HashSet::new();
