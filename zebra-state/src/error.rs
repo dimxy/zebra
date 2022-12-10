@@ -14,6 +14,8 @@ use zebra_chain::{
     work::difficulty::CompactDifficulty,
 };
 
+use crate::komodo_notaries::NotaryValidateContextError;
+
 use crate::constants::MIN_TRANSPARENT_COINBASE_MATURITY;
 
 /// A wrapper for type erased errors that is itself clonable and implements the
@@ -260,6 +262,25 @@ pub enum ValidateContextError {
         tx_index_in_block: usize,
         transaction_hash: transaction::Hash,
     },
+
+    // komodo notary errors:
+    #[error("invalid difficulty threshold in special block header {0:?} {1:?}")]
+    SpecialBlockInvalidDifficulty(zebra_chain::block::Height, zebra_chain::block::Hash),
+
+    #[error("special notary block {0:?} has a difficulty threshold {2:?} that is easier than the {3:?} difficulty limit {4:?}, hash: {1:?}")]
+    SpecialBlockTargetDifficultyLimit(
+        zebra_chain::block::Height,
+        zebra_chain::block::Hash,
+        zebra_chain::work::difficulty::ExpandedDifficulty,
+        zebra_chain::parameters::Network,
+        zebra_chain::work::difficulty::ExpandedDifficulty,
+    ),
+
+    #[error("special notary block invalid")]
+    SpecialBlockInvalid(#[from] NotaryValidateContextError),
+
+    #[error("komodo notarised chain with block {0:?} forked at height {1:?} below last notarised height {2:?}")]
+    InvalidNotarisedChain(zebra_chain::block::Hash, zebra_chain::block::Height, zebra_chain::block::Height),
 }
 
 /// Trait for creating the corresponding duplicate nullifier error from a nullifier.

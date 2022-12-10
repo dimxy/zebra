@@ -41,7 +41,6 @@ mod parameters;
 mod primitives;
 mod script;
 mod interest;
-mod notaries;
 pub mod transaction;
 
 pub mod chain;

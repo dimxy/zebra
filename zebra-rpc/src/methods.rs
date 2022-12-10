@@ -6,7 +6,6 @@
 //! Some parts of the `zcashd` RPC documentation are outdated.
 //! So this implementation follows the `zcashd` server and `lightwalletd` client implementations.
 
-use std::net::SocketAddr;
 use std::str::FromStr;
 use std::{collections::HashSet, io, sync::Arc};
 
@@ -19,6 +18,7 @@ use jsonrpc_derive::rpc;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
 use tower::{buffer::Buffer, Service, ServiceExt};
 use tracing::Instrument;
+use std::net::{SocketAddr, ToSocketAddrs};
 
 use zebra_chain::{
     block::{self, Height, SerializedBlock},
@@ -240,6 +240,13 @@ pub trait Rpc {
     fn get_peer_info(
         &self,
     ) -> Result<Vec<GetPeerInfo>>;
+    /// Manually add new peer
+    /// TODO add param 'onetry'
+    #[rpc(name = "addnode")]
+    fn add_node(
+        &self,
+        address_string: String,
+    ) -> Result<String>;
 
 }
 
@@ -956,6 +963,26 @@ where
             Ok(response_utxos)
         }
         .boxed()
+    }
+
+    fn add_node(
+        &self,
+        address_string: String,
+    ) -> Result<String> {
+
+        let v_addrs = address_string.to_socket_addrs().
+            map_err(|error| {
+                Error::invalid_params(&format!("invalid address {address_string:?}: {error}"))
+            })?;
+
+        let mut addr_book = self.address_book.lock().unwrap();
+        let mut added = 0;
+        for addr in v_addrs {
+            if addr_book.add_address(addr).is_some() {
+                added += 1;
+            }
+        }
+        Ok(String::from(format!("added {}", added)))
     }
 
     fn get_peer_info(

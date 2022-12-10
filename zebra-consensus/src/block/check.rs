@@ -1,6 +1,7 @@
 //! Consensus check functions
 
 use chrono::{DateTime, Utc};
+use zebra_state::komodo_notaries;
 use std::{collections::HashSet, sync::Arc};
 
 use zebra_chain::{
@@ -12,12 +13,14 @@ use zebra_chain::{
 };
 
 use crate::{error::*, parameters::SLOW_START_INTERVAL};
-use crate::{notaries::*};
+use zebra_chain::komodo_hardfork::*;
+use zebra_chain::komodo_utils::*;
 
 use super::subsidy;
 
 use std::fs::OpenOptions;
 use std::io::prelude::*;
+//use secp256k1::PublicKey;
 
 /// Checks if there is exactly one coinbase transaction in `Block`,
 /// and if that coinbase transaction is the first transaction in the block.
@@ -103,21 +106,44 @@ pub fn difficulty_is_valid(
     // The difficulty filter is also context-free.
     if hash > &difficulty_threshold {
         /* pow (non easy-diff) blocks with incorrect diff, considered as exceptions */
-        if height >= &Height(205641) && height <= &Height(791989) {
+        if height >= &Height(205641) && height <= &Height(791989) {     // TODO: add mainnet check
             return Ok(());
         }
 
         /* check if it's valid easy-diff NN mining */
+        /* 
         let cb_tx = block.transactions.get(0);
         if cb_tx.is_some() {
             if cb_tx.unwrap().outputs().len() > 0 {
                 let lock_script_raw = &cb_tx.unwrap().outputs()[0].lock_script.as_raw_bytes();
-                if lock_script_raw.len() == 35 && lock_script_raw[0] == 0x21 && lock_script_raw[34] == 0xac {
+                /*if lock_script_raw.len() == 35 && lock_script_raw[0] == 0x21 && lock_script_raw[34] == 0xac {
                     let pk = &lock_script_raw[1..34];
-                    if is_notary_node(height, pk) {
-                        return Ok(());
+                    if let Ok(pk) = PublicKey::from_slice(pk) {
+                        if is_notary_node(height, &pk) {
+                            return Ok(());
+                        }
                     }
+                }*/
+                if komodo_is_notary_node_output(height, &cb_tx.unwrap().outputs()[0]) {
+                    return Ok(());
                 }
+            }
+        }
+        */
+
+        if network == Network::Mainnet && height < &Height(250000) {
+            return Ok(())   // skip diff check for mainnet while hardcoded notaries. TODO: fix diff check for hardcoded notaries
+        }
+
+        
+        if height == &Height(0)  {  
+            return Ok(());   // skip genesis, TODO: fix genesis diff for testnet
+        }
+
+        // check if this is a notary block
+        if let Some(pk) = komodo_get_block_pubkey(block) {
+            if NN::komodo_is_notary_pubkey(network, &height, &pk) {
+                return Ok(()); // skip the next difficulty check rule  
             }
         }
 

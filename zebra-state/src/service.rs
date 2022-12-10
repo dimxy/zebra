@@ -36,7 +36,7 @@ use zebra_chain::{
     block::{self, CountedHeader},
     diagnostic::CodeTimer,
     parameters::{Network, NetworkUpgrade},
-    transparent,
+    transparent, komodo_hardfork::NN,
 };
 
 use crate::{
@@ -45,10 +45,10 @@ use crate::{
         finalized_state::{FinalizedState, ZebraDb},
         non_finalized_state::{Chain, NonFinalizedState, QueuedBlocks},
         pending_utxos::PendingUtxos,
-        watch_receiver::WatchReceiver,
+        watch_receiver::WatchReceiver, komodo_transparent::komodo_transparent_spend_finalized,
     },
     BoxError, CloneError, CommitBlockError, Config, FinalizedBlock, PreparedBlock, ReadRequest,
-    ReadResponse, Request, Response, ValidateContextError,
+    ReadResponse, Request, Response, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx, arbitrary::Prepare,
 };
 
 pub mod block_iter;
@@ -61,6 +61,8 @@ mod finalized_state;
 mod non_finalized_state;
 mod pending_utxos;
 pub(crate) mod read;
+
+mod komodo_transparent;
 
 #[cfg(any(test, feature = "proptest-impl"))]
 pub mod arbitrary;
@@ -190,7 +192,7 @@ impl StateService {
         let queued_blocks = QueuedBlocks::default();
         let pending_utxos = PendingUtxos::default();
 
-        let state = Self {
+        let mut state = Self {  // TODO remove mut when 'nota' moved from state.mem to its own object
             disk,
             mem,
             queued_blocks,
@@ -200,6 +202,7 @@ impl StateService {
             chain_tip_sender,
             best_chain_sender,
         };
+
         timer.finish(module_path!(), line!(), "initializing state service");
 
         tracing::info!("starting legacy chain check");
@@ -228,6 +231,10 @@ impl StateService {
         }
         tracing::info!("no legacy chain found");
         timer.finish(module_path!(), line!(), "legacy chain check");
+
+        let timer = CodeTimer::start();
+        state.komodo_init_last_nota(network);
+        timer.finish(module_path!(), line!(), "komodo last nota init");
 
         (state, read_only_service, latest_chain_tip, chain_tip_change)
     }
@@ -541,12 +548,52 @@ impl StateService {
     /// Assert some assumptions about the prepared `block` before it is validated.
     fn assert_block_can_be_validated(&self, block: &PreparedBlock) {
         // required by validate_and_commit, moved here to make testing easier
+        /* no canopy in kmd
         assert!(
             block.height > self.network.mandatory_checkpoint_height(),
             "invalid non-finalized block height: the canopy checkpoint is mandatory, pre-canopy \
             blocks, and the canopy activation block, must be committed to the state as finalized \
             blocks"
-        );
+        );*/ 
+    }
+
+    /// look back from the finalised tip for the lates nota 
+    pub fn komodo_init_last_nota(&mut self, network: Network) {
+
+        if let Some(tip) = self.disk.tip() {
+            info!("komodo looking back for the last notarisation for no more than 1440 blocks for tip at {:?}...", tip.0);
+            let mut finalised_chain = self.any_ancestor_blocks(tip.1);
+            let mut depth = 0;
+            while depth < 1440 {
+                if let Some(block) = finalised_chain.next() {
+                    let prepared = block.prepare();
+                    info!("komodo last nota checking prepared.height={:?}", prepared.height);
+                    info!(new_outputs_len = prepared.new_outputs.len(),
+                          transaction_hashes_len = prepared.transaction_hashes.len(),
+                        "komodo prepared");
+
+                    let spent_outputs = komodo_transparent_spend_finalized(&prepared, self.disk.db());
+                    //info!("komodo last nota prepared.height={:?} spent_outputs.len={}", prepared.height, spent_outputs.len());
+
+                    if let Some(nota) = komodo_block_has_notarisation_tx(network, &prepared.block, &spent_outputs, &prepared.height) {
+                        self.mem.last_nota = Some(nota);
+                        info!("komodo found last nota at height {:?}", prepared.height);
+                        break;
+                    }
+                }
+                else {
+                    break;
+                }
+                depth += 1;
+            }
+            // ht=250000 is the beginning of current notarisation protocol 
+            if !self.mem.last_nota.is_some() {
+                info!("last notarisation not found"); 
+                if network == Network::Mainnet && NN::komodo_hardcoded_notaries_ended(network, &tip.0) {    // for testnet last checkpoint is not required
+                    panic!("last notarisation not found for mainnet at the height where it must exist, shutdown");            
+                }
+            }
+        }
     }
 }
 
@@ -972,7 +1019,10 @@ impl Service<ReadRequest> for ReadStateService {
 
                         // The work is done in the future.
                         timer.finish(module_path!(), line!(), "ReadRequest::Block");
-
+                        match &block  {
+                            Some(b) => println!("block {}", b),
+                            None => println!("block not found"), 
+                        }
                         Ok(ReadResponse::Block(block))
                     })
                 })

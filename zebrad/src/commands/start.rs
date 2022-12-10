@@ -73,6 +73,7 @@ use futures::FutureExt;
 use tokio::{pin, select, sync::oneshot};
 use tower::{builder::ServiceBuilder, util::BoxService};
 use tracing_futures::Instrument;
+use std::sync::Arc;
 
 use zebra_rpc::server::RpcServer;
 
@@ -88,8 +89,6 @@ use crate::{
     config::ZebradConfig,
     prelude::*,
 };
-
-use std::sync::Arc;
 
 /// `start` subcommand
 #[derive(Command, Debug, Options)]

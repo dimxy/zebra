@@ -1,8 +1,8 @@
 //! Consensus critical contextual checks
 
-use std::{borrow::Borrow, sync::Arc};
+use std::{borrow::Borrow, sync::Arc, time::SystemTime};
 
-use chrono::Duration;
+use chrono::{Duration, DateTime, Utc};
 
 use zebra_chain::{
     block::{self, Block, ChainHistoryBlockTxAuthCommitmentHash, CommitmentError},
@@ -16,6 +16,11 @@ use crate::{constants, BoxError, PreparedBlock, ValidateContextError};
 
 // use self as check
 use super::check;
+use std::cmp::max;
+
+use crate::komodo_notaries::*;
+
+use crate::komodo_notaries::*;
 
 pub(crate) mod anchors;
 pub(crate) mod difficulty;
@@ -57,10 +62,10 @@ where
     check::block_is_not_orphaned(finalized_tip_height, prepared.height)?;
 
     // The maximum number of blocks used by contextual checks
-    const MAX_CONTEXT_BLOCKS: usize = POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN;
+    let max_context_blocks: usize = if POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN < NN_DUP_CHECK_DEPTH { NN_DUP_CHECK_DEPTH } else { POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN };
     let relevant_chain: Vec<_> = relevant_chain
         .into_iter()
-        .take(MAX_CONTEXT_BLOCKS)
+        .take(max_context_blocks)
         .collect();
 
     let parent_block = relevant_chain
@@ -79,9 +84,8 @@ where
     }
     // process_queued also checks the chain length, so we can skip this assertion during testing
     // (tests that want to check this code should use the correct number of blocks)
-    assert_eq!(
-        relevant_chain.len(),
-        POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN,
+    assert!(
+        relevant_chain.len() >= POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN,
         "state must contain enough blocks to do proof of work contextual validation, \
          and validation must receive the exact number of required blocks"
     );
@@ -92,12 +96,35 @@ where
             block.borrow().header.time,
         )
     });
+    
     let difficulty_adjustment =
         AdjustedDifficulty::new_from_block(&prepared.block, network, relevant_data);
     check::difficulty_threshold_is_valid(
         prepared.block.header.difficulty_threshold,
         difficulty_adjustment,
     )?;
+
+    // check komodo contextual rules for special notary blocks:
+    if komodo_is_special_notary_block(&prepared.block, &prepared.height, network, relevant_chain.into_iter())? {  // returns error if special block invalid
+        use zebra_chain::work::difficulty::ExpandedDifficulty;
+        tracing::info!("block ht={:?} is a komodo special block", prepared.height);
+
+        // check min difficulty for a special block:
+        let difficulty_threshold_exp = prepared.block.header.difficulty_threshold.to_expanded().ok_or(ValidateContextError::SpecialBlockInvalidDifficulty(prepared.height, prepared.hash))?;
+        if difficulty_threshold_exp > ExpandedDifficulty::target_difficulty_limit(network) {
+            return Err(ValidateContextError::SpecialBlockTargetDifficultyLimit(
+                prepared.height,
+                prepared.hash,
+                difficulty_threshold_exp,
+                network,
+                ExpandedDifficulty::target_difficulty_limit(network),
+            ))?;
+        }
+    }
+    else {
+        // ordinary block, nothing to check, all checks must have completed 
+        tracing::info!("block ht={:?} is an ordinary komodo block", prepared.height);
+    }
 
     Ok(())
 }
@@ -263,14 +290,24 @@ fn difficulty_threshold_is_valid(
     // of that block plus 90*60 seconds.
     //
     // https://zips.z.cash/protocol/protocol.pdf#blockheader
-    if NetworkUpgrade::is_max_block_time_enforced(network, candidate_height)
+    // disable zcash rule, use komodo nMaxFutureBlockTime instead
+    /*if NetworkUpgrade::is_max_block_time_enforced(network, candidate_height)
         && candidate_time > block_time_max
     {
         Err(ValidateContextError::TimeTooLate {
             candidate_time,
             block_time_max,
         })?
+    }*/
+
+    // using komodo nMaxFutureBlockTime rule instead of zcash is_max_block_time_enforced
+    if candidate_time > DateTime::<Utc>::from(SystemTime::now()) + Duration::seconds(7 * 60) {
+        Err(ValidateContextError::TimeTooLate {
+            candidate_time,
+            block_time_max,
+        })?
     }
+
 
     // # Consensus
     //

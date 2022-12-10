@@ -1,9 +1,10 @@
 //! Snapshot tests for Zebra JSON-RPC responses.
 
-use std::sync::Arc;
+use std::{sync::Arc, str::FromStr};
 
 use insta::dynamic_redaction;
 
+use tracing::Span;
 use zebra_chain::{
     block::Block,
     parameters::Network::{Mainnet, Testnet},
@@ -48,6 +49,7 @@ async fn test_rpc_response_data_for_network(network: Network) {
         read_state,
         latest_chain_tip,
         network,
+        Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
     );
 
     // Start snapshots of RPC responses.

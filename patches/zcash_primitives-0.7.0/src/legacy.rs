@@ -4,10 +4,10 @@ use byteorder::{ReadBytesExt, WriteBytesExt};
 use std::io::{self, Read, Write};
 use std::ops::Shl;
 
-use zcash_encoding::Vector;
-
 use ripemd::Digest as RipemdDigest;
 use sha2::{Digest as Sha2Digest, Sha256};
+
+use zcash_encoding::Vector;
 
 #[cfg(feature = "transparent-inputs")]
 pub mod keys;
