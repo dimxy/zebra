@@ -108,6 +108,7 @@ async fn test_populated_state_responds_correctly(
                         output,
                         height,
                         from_coinbase,
+                        lock_time: transaction::LockTime::unlocked(),
                     };
 
                     transcript.push((Request::AwaitUtxo(outpoint), Ok(Response::Utxo(utxo))));
