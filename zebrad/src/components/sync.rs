@@ -266,6 +266,9 @@ where
 
     /// The lengths of recent sync responses.
     recent_syncs: RecentSyncLengths,
+
+    /// is komodo node
+    is_komodo: bool,
 }
 
 /// Polls the network to determine whether further blocks are available and
@@ -391,6 +394,7 @@ where
             latest_chain_tip,
             prospective_tips: HashSet::new(),
             recent_syncs,
+            is_komodo: true,
         };
 
         (new_syncer, sync_status)
@@ -539,7 +543,8 @@ where
 
             let ready_tip_network = self.tip_network.ready().await;
             requests.push(tokio::spawn(ready_tip_network.map_err(|e| eyre!(e))?.call(
-                zn::Request::FindBlocks {
+                // zn::Request::FindBlocks {
+                zn::Request::FindHeaders {
                     known_blocks: block_locator.clone(),
                     stop: None,
                 },
@@ -550,9 +555,13 @@ where
         while let Some(res) = requests.next().await {
             match res
                 .expect("panic in spawned obtain tips request")
-                .map_err::<Report, _>(|e| eyre!(e))
+                //.map_err::<Report, _>(|e| eyre!(e))
+                .map_err::<Report, _>(|e| { info!("FindHeaders error={} locator.len={}", e, block_locator.len());  eyre!(e) })
             {
-                Ok(zn::Response::BlockHashes(hashes)) => {
+                // Ok(zn::Response::BlockHashes(hashes)) => {
+                Ok(zn::Response::BlockHeaders(headers)) => {
+                    let hashes = headers.iter().map(|cheader| block::Hash::from(&cheader.header)).collect::<Vec<block::Hash>>();
+
                     trace!(?hashes);
 
                     // zcashd sometimes appends an unrelated hash at the start
@@ -566,9 +575,13 @@ where
                     // tips. So we discard the last hash. (We don't need to worry
                     // about missed downloads, because we will pick them up again
                     // in ExtendTips.)
-                    let hashes = match hashes.as_slice() {
-                        [] => continue,
-                        [rest @ .., _last] => rest,
+                    let hashes = if !self.is_komodo {  
+                        match hashes.as_slice() {
+                            [] => continue,
+                            [rest @ .., _last] => rest,
+                        }
+                    } else {
+                        hashes.as_ref() // do not trim last hash for komodo
                     };
 
                     let mut first_unknown = None;
@@ -672,7 +685,8 @@ where
 
                 let ready_tip_network = self.tip_network.ready().await;
                 responses.push(tokio::spawn(ready_tip_network.map_err(|e| eyre!(e))?.call(
-                    zn::Request::FindBlocks {
+                    // zn::Request::FindBlocks {
+                    zn::Request::FindHeaders {
                         known_blocks: vec![tip.tip],
                         stop: None,
                     },
@@ -681,9 +695,12 @@ where
             while let Some(res) = responses.next().await {
                 match res
                     .expect("panic in spawned extend tips request")
-                    .map_err::<Report, _>(|e| eyre!(e))
+                    //.map_err::<Report, _>(|e| eyre!(e))
+                    .map_err::<Report, _>(|e| { info!("FindHeaders error={}", e);  eyre!(e) })
                 {
-                    Ok(zn::Response::BlockHashes(hashes)) => {
+                    // Ok(zn::Response::BlockHashes(hashes)) => {
+                    Ok(zn::Response::BlockHeaders(headers)) => {
+                        let hashes = headers.iter().map(|cheader| block::Hash::from(&cheader.header)).collect::<Vec<block::Hash>>();
                         debug!(first = ?hashes.first(), len = ?hashes.len());
                         trace!(?hashes);
 
