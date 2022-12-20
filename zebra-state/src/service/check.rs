@@ -263,7 +263,9 @@ fn difficulty_threshold_is_valid(
     let candidate_time = difficulty_adjustment.candidate_time();
     let network = difficulty_adjustment.network();
     let median_time_past = difficulty_adjustment.median_time_past();
-
+    //let block_time_max =
+    //    median_time_past + Duration::seconds(difficulty::BLOCK_MAX_TIME_SINCE_MEDIAN);
+    
     // # Consensus
     //
     // > For each block other than the genesis block, `nTime` MUST be strictly greater
