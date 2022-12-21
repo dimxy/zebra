@@ -323,6 +323,7 @@ impl ZebraDb {
 
         // In case of errors, propagate and do not write the batch.
         batch.prepare_block_batch(
+            network,
             &self.db,
             finalized,
             new_outputs_by_out_loc,
@@ -376,6 +377,7 @@ impl DiskWriteBatch {
     #[allow(clippy::too_many_arguments)]
     pub fn prepare_block_batch(
         &mut self,
+        network: Network,
         db: &DiskDb,
         finalized: FinalizedBlock,
         new_outputs_by_out_loc: BTreeMap<OutputLocation, transparent::Utxo>,
@@ -424,7 +426,7 @@ impl DiskWriteBatch {
         self.prepare_note_commitment_batch(db, &finalized, note_commitment_trees, history_tree)?;
 
         // Commit UTXOs and value pools
-        self.prepare_chain_value_pools_batch(db, &finalized, spent_utxos_by_outpoint, value_pool)?;
+        self.prepare_chain_value_pools_batch(network, db, &finalized, spent_utxos_by_outpoint, value_pool)?;
 
         // The block has passed contextual validation, so update the metrics
         block_precommit_metrics(block, *hash, *height);

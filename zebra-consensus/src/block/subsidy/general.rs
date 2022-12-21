@@ -8,10 +8,10 @@ use zebra_chain::{
     amount::{Amount, Error, NonNegative, COIN},
     block::Height,
     parameters::{Network, NetworkUpgrade::*},
-    transaction::Transaction,
+    transaction::Transaction, interest::KOMODO_ENDOFERA,
 };
 
-use crate::parameters::subsidy::*;
+use crate::{parameters::subsidy::*};
 
 /// The divisor used for halvings.
 ///
@@ -70,6 +70,26 @@ pub fn block_subsidy(height: Height, network: Network) -> Result<Amount<NonNegat
     */
     Amount::try_from(3 * COIN)
 
+}
+
+/// get kmd block reward for height
+pub fn komodo_block_subsidy(height: Height, network: Network) -> Result<Amount<NonNegative>, Error> {
+    match (network, height) {
+        (Network::Mainnet, height) => {
+            if height == Height(1)  {
+                return Ok(Amount::try_from(100000000 * COIN).unwrap()); // ICO allocation
+            } else if height < Height(KOMODO_ENDOFERA)  {
+                return Ok(Amount::try_from(3 * COIN).unwrap());
+            } else if height < Height(2 * KOMODO_ENDOFERA) {
+                return Ok(Amount::try_from(2 * COIN).unwrap());
+            } else {
+                return Ok(Amount::try_from(COIN).unwrap());              
+            }
+        },
+        (Network::Testnet, _) => {
+            return Ok(Amount::try_from(3 * COIN).unwrap());          
+        },
+    }
 }
 
 /// Returns all output amounts in `Transaction`.

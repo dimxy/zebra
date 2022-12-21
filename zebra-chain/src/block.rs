@@ -1,6 +1,7 @@
 //! Blocks and block-related structures (heights, headers, etc.)
 
 use std::{collections::HashMap, fmt, ops::Neg, sync::Arc};
+use chrono::{DateTime, Utc};
 
 use crate::{
     amount::NegativeAllowed,
@@ -203,12 +204,15 @@ impl Block {
     /// value pool.
     pub fn chain_value_pool_change(
         &self,
+        network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        height: Height,
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
         let transaction_value_balance_total = self
             .transactions
             .iter()
-            .flat_map(|t| t.value_balance(utxos))
+            .flat_map(|t| t.value_balance(network, utxos, height, last_block_time))
             .sum::<Result<ValueBalance<NegativeAllowed>, _>>()?;
 
         Ok(transaction_value_balance_total.neg())

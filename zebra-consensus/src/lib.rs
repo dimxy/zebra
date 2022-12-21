@@ -40,7 +40,6 @@ mod config;
 mod parameters;
 mod primitives;
 mod script;
-mod interest;
 pub mod transaction;
 
 pub mod chain;

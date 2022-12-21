@@ -21,13 +21,14 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
-    time::{Duration, Instant},
+    time::{Duration, Instant}, hash::Hash,
 };
 
 use futures::future::FutureExt;
 use tokio::sync::{oneshot, watch};
 use tower::{util::BoxService, Service};
 use tracing::{instrument, Instrument, Span};
+use chrono::{DateTime, Utc};
 
 #[cfg(any(test, feature = "proptest-impl"))]
 use tower::buffer::Buffer;
@@ -44,7 +45,7 @@ use crate::{
         chain_tip::{ChainTipBlock, ChainTipChange, ChainTipSender, LatestChainTip},
         finalized_state::{FinalizedState, ZebraDb},
         non_finalized_state::{Chain, NonFinalizedState, QueuedBlocks},
-        pending_utxos::PendingUtxos,
+        pending_utxos::PendingUtxos, pending_blocks::PendingBlocks,
         watch_receiver::WatchReceiver, komodo_transparent::komodo_transparent_spend_finalized,
     },
     BoxError, CloneError, CommitBlockError, Config, FinalizedBlock, PreparedBlock, ReadRequest,
@@ -60,6 +61,7 @@ pub(crate) mod check;
 mod finalized_state;
 mod non_finalized_state;
 mod pending_utxos;
+mod pending_blocks;
 pub(crate) mod read;
 
 mod komodo_transparent;
@@ -71,6 +73,7 @@ pub mod arbitrary;
 mod tests;
 
 pub use finalized_state::{OutputIndex, OutputLocation, TransactionLocation};
+
 
 pub type QueuedBlock = (
     PreparedBlock,
@@ -125,6 +128,9 @@ pub(crate) struct StateService {
 
     /// A sender channel for the current best non-finalized chain.
     best_chain_sender: watch::Sender<Option<Arc<Chain>>>,
+
+    /// The set of block hashes with pending requests for their associated Block for komodo interest calc
+    pending_blocks: PendingBlocks,
 }
 
 /// A read-only service for accessing Zebra's cached blockchain state.
@@ -191,12 +197,14 @@ impl StateService {
 
         let queued_blocks = QueuedBlocks::default();
         let pending_utxos = PendingUtxos::default();
+        let pending_blocks = PendingBlocks::default();
 
         let mut state = Self {  // TODO remove mut when 'nota' moved from state.mem to its own object
             disk,
             mem,
             queued_blocks,
             pending_utxos,
+            pending_blocks,
             network,
             last_prune: Instant::now(),
             chain_tip_sender,
@@ -233,7 +241,7 @@ impl StateService {
         timer.finish(module_path!(), line!(), "legacy chain check");
 
         let timer = CodeTimer::start();
-        state.komodo_init_last_nota(network);
+        state.komodo_init_last_nota();
         timer.finish(module_path!(), line!(), "komodo last nota init");
 
         (state, read_only_service, latest_chain_tip, chain_tip_change)
@@ -557,8 +565,8 @@ impl StateService {
         );*/ 
     }
 
-    /// look back from the finalised tip for the lates nota 
-    pub fn komodo_init_last_nota(&mut self, network: Network) {
+    /// look back from the finalised tip for the latest nota 
+    pub fn komodo_init_last_nota(&mut self) {
 
         if let Some(tip) = self.disk.tip() {
             info!("komodo looking back for the last notarisation for no more than 1440 blocks for tip at {:?}...", tip.0);
@@ -567,15 +575,15 @@ impl StateService {
             while depth < 1440 {
                 if let Some(block) = finalised_chain.next() {
                     let prepared = block.prepare();
-                    info!("komodo last nota checking prepared.height={:?}", prepared.height);
-                    info!(new_outputs_len = prepared.new_outputs.len(),
+                    trace!("komodo last nota checking prepared.height={:?}", prepared.height);
+                    trace!(new_outputs_len = prepared.new_outputs.len(),
                           transaction_hashes_len = prepared.transaction_hashes.len(),
                         "komodo prepared");
 
                     let spent_outputs = komodo_transparent_spend_finalized(&prepared, self.disk.db());
                     //info!("komodo last nota prepared.height={:?} spent_outputs.len={}", prepared.height, spent_outputs.len());
 
-                    if let Some(nota) = komodo_block_has_notarisation_tx(network, &prepared.block, &spent_outputs, &prepared.height) {
+                    if let Some(nota) = komodo_block_has_notarisation_tx(self.network, &prepared.block, &spent_outputs, &prepared.height) {
                         self.mem.last_nota = Some(nota);
                         info!("komodo found last nota at height {:?}", prepared.height);
                         break;
@@ -588,9 +596,9 @@ impl StateService {
             }
             // ht=250000 is the beginning of current notarisation protocol 
             if !self.mem.last_nota.is_some() {
-                info!("last notarisation not found"); 
-                if network == Network::Mainnet && NN::komodo_hardcoded_notaries_ended(network, &tip.0) {    // for testnet last checkpoint is not required
-                    panic!("last notarisation not found for mainnet at the height where it must exist, shutdown");            
+                info!("komodo last notarisation not found"); 
+                if self.network == Network::Mainnet && NN::komodo_hardcoded_notaries_ended(self.network, &tip.0) {    // for testnet last checkpoint is not required
+                    panic!("komodo last notarisation not found for mainnet at the height where it must exist, shutdown");            
                 }
             }
         }
@@ -631,6 +639,7 @@ impl Service<Request> for StateService {
             let old_len = self.pending_utxos.len();
 
             self.pending_utxos.prune();
+            self.pending_blocks.prune();
             self.last_prune = now;
 
             let new_len = self.pending_utxos.len();
@@ -670,6 +679,8 @@ impl Service<Request> for StateService {
 
                 self.pending_utxos
                     .check_against_ordered(&prepared.new_outputs);
+
+                self.pending_blocks.respond(prepared.block.clone());
 
                 // # Performance
                 //
@@ -716,6 +727,7 @@ impl Service<Request> for StateService {
                 let timer = CodeTimer::start();
 
                 self.pending_utxos.check_against(&finalized.new_outputs);
+                self.pending_blocks.respond(finalized.block.clone());
 
                 // # Performance
                 //
@@ -976,6 +988,29 @@ impl Service<Request> for StateService {
                 })
                 .map(|join_result| join_result.expect("panic in Request::Block"))
                 .boxed()
+            }
+
+            Request::AwaitBlock(hash) => {
+                metrics::counter!(
+                    "state.requests",
+                    1,
+                    "service" => "state",
+                    "type" => "await_block",
+                );
+
+                let timer = CodeTimer::start();
+                let span = Span::current();
+
+                let fut = self.pending_blocks.queue(hash);
+
+                if let Some(block) = self.any_ancestor_blocks(hash).next() {
+                    self.pending_blocks.respond(block.clone());
+                }
+
+                // The future waits on a channel for a response.
+                timer.finish(module_path!(), line!(), "AwaitBlock");
+
+                fut.instrument(span).boxed()
             }
         }
     }

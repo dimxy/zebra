@@ -17,7 +17,7 @@ use zebra_chain::{
     amount::NonNegative,
     history_tree::{HistoryTree, NonEmptyHistoryTree},
     orchard, sapling, transparent,
-    value_balance::ValueBalance,
+    value_balance::ValueBalance, parameters::Network,
 };
 
 use crate::{
@@ -113,6 +113,7 @@ impl DiskWriteBatch {
     #[allow(clippy::unwrap_in_result)]
     pub fn prepare_chain_value_pools_batch(
         &mut self,
+        network: Network,
         db: &DiskDb,
         finalized: &FinalizedBlock,
         utxos_spent_by_block: HashMap<transparent::OutPoint, transparent::Utxo>,
@@ -122,7 +123,7 @@ impl DiskWriteBatch {
 
         let FinalizedBlock { block, .. } = finalized;
 
-        let new_pool = value_pool.add_block(block.borrow(), &utxos_spent_by_block)?;
+        let new_pool = value_pool.add_block(network, block.borrow(), &utxos_spent_by_block)?;
         self.zs_insert(&tip_chain_value_pool, (), new_pool);
 
         Ok(())
