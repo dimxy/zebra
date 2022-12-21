@@ -119,6 +119,24 @@ where
             }
         }
     }
+
+    /// create request to state to obtain median time past
+    fn get_median_time_past(state: &Timeout<ZS>) -> impl Future<Output = Result<DateTime<Utc>, TransactionError>>   {
+
+        let state = state.clone();
+    
+        async move {
+            let query = state.oneshot(zebra_state::Request::GetMedianTimePast);
+
+            match query.await? {
+                zebra_state::Response::MedianTimePast(Some(median_time_past)) => {
+                    Ok(median_time_past)
+                },
+                zebra_state::Response::MedianTimePast(None) => { tracing::info!("cannot get MedianTimePast");  Err(TransactionError::KomodoMedianTimePastError)  }, 
+                _ => unreachable!("Incorrect response from state service"),
+            }
+        }
+    }
 }
 
 /// Specifies whether a transaction should be verified as part of a block or as
@@ -403,6 +421,20 @@ where
 
             check::spend_conflicts(&tx)?;
 
+            // Validate that tx locktime is not too early to prevent cheating with the beginning of komodo interest calculation period 
+            let _ = match req.clone() {
+                Request::Mempool { transaction, height } => {
+                    let query = Verifier::<ZS>::get_median_time_past(&state);
+                    let cmp_time = query.await? + Duration::seconds(777); 
+                    komodo_validate_interest_locktime(network, &transaction.transaction, height, cmp_time)?;
+                    
+                },
+                Request::Block { transaction, height, time, .. } => {
+                    let cmp_time = time; 
+                    komodo_validate_interest_locktime(network, &transaction, height, cmp_time)?;
+                },
+            };
+                        
             // Request the tip block from the state and read its time to calculate komodo interest
             let query = Verifier::<ZS>::get_last_block_time(&state, &req);
             let last_tip_blocktime = query.await?;
@@ -1113,4 +1145,26 @@ where
     {
         AsyncChecks(iterator.into_iter().map(FutureExt::boxed).collect())
     }
+}
+
+/// validate tx lock time so it has not stayed in mempool for a long time 
+/// to prevent cheating with the tx lock time, which is actually the start of interest period, to get extra interest value
+fn komodo_validate_interest_locktime(network: Network, tx: &Transaction, tx_height: block::Height, cmp_time: DateTime<Utc>) -> Result<(), TransactionError> {
+
+    if let Some(lock_time) = tx.raw_lock_time() {       // in komodo we should not use zcash's special lock_time()
+        if let LockTime::Time(lock_time) = lock_time {  
+            if NN::komodo_interest_active(network, &tx_height)  {
+                let mut cmp_time_adj = cmp_time;
+                if NN::komodo_interest_adjust_max_mempool_time(network, &tx_height)  {
+                    cmp_time_adj -= Duration::seconds(16000);
+                }
+                if lock_time < cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME)   {
+                    tracing::info!("komodo_validate_interest_locktime reject for ht={:?} too early secs {} locktime {} cmp_time {}\n", tx_height, (lock_time - (cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME))), lock_time.timestamp(), cmp_time_adj.timestamp());
+                    return Err(TransactionError::KomodoTxLockTimeTooEarly(lock_time.timestamp(), tx_height));
+                }
+                tracing::info!("komodo_validate_interest_locktime accept for ht={:?} locktime-maxtime secs {} locktime {} cmp_time {}\n", tx_height, (lock_time - (cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME))), lock_time.timestamp(), cmp_time_adj.timestamp());
+            }
+        }
+    }
+    Ok(())
 }

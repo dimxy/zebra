@@ -9,7 +9,7 @@ use zebra_chain::{
     history_tree::HistoryTree,
     parameters::POW_AVERAGING_WINDOW,
     parameters::{Network, NetworkUpgrade},
-    work::difficulty::CompactDifficulty,
+    work::difficulty::CompactDifficulty, transparent, amount::{Amount, NonNegative}, transaction::{LockTime, Transaction}, interest::KOMODO_MAXMEMPOOLTIME,
 };
 
 use crate::{constants, BoxError, PreparedBlock, ValidateContextError};
@@ -21,6 +21,7 @@ use std::cmp::max;
 use crate::komodo_notaries::*;
 
 use crate::komodo_notaries::*;
+use zebra_chain::komodo_hardfork::NN;
 
 pub(crate) mod anchors;
 pub(crate) mod difficulty;
@@ -265,7 +266,11 @@ fn difficulty_threshold_is_valid(
     let median_time_past = difficulty_adjustment.median_time_past();
     //let block_time_max =
     //    median_time_past + Duration::seconds(difficulty::BLOCK_MAX_TIME_SINCE_MEDIAN);
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> 69382725... added GetMedianTimePast request to validate interest,
     // # Consensus
     //
     // > For each block other than the genesis block, `nTime` MUST be strictly greater
@@ -375,4 +380,33 @@ where
     }
 
     Ok(())
+}
+
+/// get median time past for a chain
+pub(crate) fn get_median_time_past_for_chain<C>(network: Network, relevant_chain: C) -> Option<DateTime<Utc>>
+where 
+    C: IntoIterator,
+    C::Item: Borrow<Block>,
+    C::IntoIter: ExactSizeIterator,
+{
+
+    let relevant_chain: Vec<_> = relevant_chain
+                    .into_iter()
+                    .take(11)
+                    .collect();
+    if relevant_chain.is_empty()    {
+        let relevant_data = relevant_chain.iter().map(|block| {
+            (
+                block.borrow().header.difficulty_threshold,
+                block.borrow().header.time,
+            )
+        });
+                
+        let block = relevant_chain[ relevant_chain.len()-1 ].borrow();
+        let difficulty_adjustment =
+            AdjustedDifficulty::new_from_block(block, network, relevant_data);
+
+        return Some(difficulty_adjustment.median_time_past());
+    }
+    None
 }

@@ -2,6 +2,7 @@
 
 use std::{collections::BTreeMap, sync::Arc};
 
+use chrono::{DateTime, Utc};
 use zebra_chain::{
     amount::{Amount, NonNegative},
     block::{self, Block},
@@ -50,6 +51,9 @@ pub enum Response {
 
     /// The response to a `FindBlockHeaders` request.
     BlockHeaders(Vec<block::CountedHeader>),
+
+    /// The response to a `GetMedianTimePast` request.
+    MedianTimePast(Option<DateTime<Utc>>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
