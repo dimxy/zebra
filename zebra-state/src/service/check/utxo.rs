@@ -193,30 +193,44 @@ pub fn transparent_coinbase_spend(
     spend_restriction: transparent::CoinbaseSpendRestriction,
     utxo: transparent::OrderedUtxo,
 ) -> Result<transparent::OrderedUtxo, ValidateContextError> {
-    Ok(utxo)
-    // if !utxo.utxo.from_coinbase {
-    //     return Ok(utxo);
-    // }
 
-    // match spend_restriction {
-    //     OnlyShieldedOutputs { spend_height } => {
-    //         let min_spend_height =
-    //             utxo.utxo.height + block::Height(MIN_TRANSPARENT_COINBASE_MATURITY);
-    //         let min_spend_height =
-    //             min_spend_height.expect("valid UTXOs have coinbase heights far below Height::MAX");
-    //         if spend_height >= min_spend_height {
-    //             Ok(utxo)
-    //         } else {
-    //             Err(ImmatureTransparentCoinbaseSpend {
-    //                 outpoint,
-    //                 spend_height,
-    //                 min_spend_height,
-    //                 created_height: utxo.utxo.height,
-    //             })
-    //         }
-    //     }
-    //     SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
-    // }
+    if !utxo.utxo.from_coinbase {
+        return Ok(utxo);
+    }
+
+    let min_spend_height =
+                utxo.utxo.height + block::Height(MIN_TRANSPARENT_COINBASE_MATURITY);
+    let min_spend_height =
+        min_spend_height.expect("valid UTXOs have coinbase heights far below Height::MAX");
+
+    match spend_restriction {
+        OnlyShieldedOutputs { spend_height } => {
+            if spend_height >= min_spend_height {
+                Ok(utxo)
+            } else {
+                Err(ImmatureTransparentCoinbaseSpend {
+                    outpoint,
+                    spend_height,
+                    min_spend_height,
+                    created_height: utxo.utxo.height,
+                })
+            }
+        },
+
+        SomeTransparentOutputs { spend_height } => {
+            if spend_height >= min_spend_height {
+                Ok(utxo)
+            } else {
+                Err(ImmatureTransparentCoinbaseSpend {
+                    outpoint,
+                    spend_height,
+                    min_spend_height,
+                    created_height: utxo.utxo.height,
+                })
+            }
+        },
+        // SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
+    }
 
 }
 
