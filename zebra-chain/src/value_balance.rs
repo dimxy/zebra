@@ -218,8 +218,9 @@ impl ValueBalance<NonNegative> {
         network: Network,
         block: impl Borrow<Block>,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        last_block_time: Option<DateTime<Utc>>, // previous block time to calc komodo interest
     ) -> Result<ValueBalance<NonNegative>, ValueBalanceError> {
-        let chain_value_pool_change = block.borrow().chain_value_pool_change(network, utxos, block.borrow().coinbase_height().unwrap(), Some(block.borrow().header.time))?;
+        let chain_value_pool_change = block.borrow().chain_value_pool_change(network, utxos, block.borrow().coinbase_height().unwrap(), last_block_time)?;
 
         // This will error if the chain value pool balance gets negative with the change.
         self.add_chain_value_pool_change(chain_value_pool_change)

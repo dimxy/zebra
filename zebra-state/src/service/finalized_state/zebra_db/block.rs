@@ -14,6 +14,8 @@ use std::{
     sync::Arc,
 };
 
+use chrono::{DateTime, Utc};
+
 use itertools::Itertools;
 
 use zebra_chain::{
@@ -319,6 +321,13 @@ impl ZebraDb {
                 .filter_map(|address| Some((address, self.address_balance_location(&address)?)))
                 .collect();
 
+        let previous_block = self.block(HashOrHeight::Hash(finalized.block.header.previous_block_hash));
+        let last_block_time = if let Some(previous_block) = previous_block {
+            Some(previous_block.header.time)
+        } else {
+            None
+        };
+
         let mut batch = DiskWriteBatch::new(network);
 
         // In case of errors, propagate and do not write the batch.
@@ -333,6 +342,7 @@ impl ZebraDb {
             self.note_commitment_trees(),
             history_tree,
             self.finalized_value_pool(),
+            last_block_time,
         )?;
 
         self.db.write(batch)?;
@@ -387,6 +397,7 @@ impl DiskWriteBatch {
         mut note_commitment_trees: NoteCommitmentTrees,
         history_tree: Arc<HistoryTree>,
         value_pool: ValueBalance<NonNegative>,
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<(), BoxError> {
         let FinalizedBlock {
             block,
@@ -426,7 +437,7 @@ impl DiskWriteBatch {
         self.prepare_note_commitment_batch(db, &finalized, note_commitment_trees, history_tree)?;
 
         // Commit UTXOs and value pools
-        self.prepare_chain_value_pools_batch(network, db, &finalized, spent_utxos_by_outpoint, value_pool)?;
+        self.prepare_chain_value_pools_batch(network, db, &finalized, spent_utxos_by_outpoint, value_pool, last_block_time)?;
 
         // The block has passed contextual validation, so update the metrics
         block_precommit_metrics(block, *hash, *height);
