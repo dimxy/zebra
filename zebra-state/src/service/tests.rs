@@ -12,7 +12,7 @@ use zebra_chain::{
     fmt::SummaryDebug,
     parameters::{Network, NetworkUpgrade},
     serialization::{ZcashDeserialize, ZcashDeserializeInto},
-    transaction, transparent,
+    transaction::{self, LockTime}, transparent,
     value_balance::ValueBalance,
 };
 
@@ -101,6 +101,8 @@ async fn test_populated_state_responds_correctly(
                 let transaction_hash = transaction.hash();
 
                 let from_coinbase = transaction.is_coinbase();
+                let lock_time = transaction.raw_lock_time().unwrap_or_else(LockTime::unlocked);
+
                 for (index, output) in transaction.outputs().iter().cloned().enumerate() {
                     let outpoint = transparent::OutPoint::from_usize(transaction_hash, index);
 
@@ -108,6 +110,7 @@ async fn test_populated_state_responds_correctly(
                         output,
                         height,
                         from_coinbase,
+                        lock_time
                     };
 
                     transcript.push((Request::AwaitUtxo(outpoint), Ok(Response::Utxo(utxo))));
