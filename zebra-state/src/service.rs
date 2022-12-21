@@ -74,6 +74,7 @@ mod tests;
 
 pub use finalized_state::{OutputIndex, OutputLocation, TransactionLocation};
 
+use self::check::get_median_time_past_for_chain;
 
 pub type QueuedBlock = (
     PreparedBlock,
@@ -603,6 +604,17 @@ impl StateService {
             }
         }
     }
+
+    /// get median time past for the tip, to provide the data for the corresponding state request
+    pub fn get_median_time_past_for_chain(&self) -> Option<DateTime<Utc>>
+    {
+        let tip = self.best_tip();
+        if let Some(tip) = tip  { 
+            let relevant_chain = self.any_ancestor_blocks(tip.1);
+            return get_median_time_past_for_chain(self.network, relevant_chain);
+        }
+        None
+    }
 }
 
 impl ReadStateService {
@@ -1011,6 +1023,37 @@ impl Service<Request> for StateService {
                 timer.finish(module_path!(), line!(), "AwaitBlock");
 
                 fut.instrument(span).boxed()
+            }
+
+            Request::GetMedianTimePast => {
+                metrics::counter!(
+                    "state.requests",
+                    1,
+                    "service" => "state",
+                    "type" => "median_time_past",
+                );
+
+                let timer = CodeTimer::start();
+                let tip = self.best_tip();
+                let network = self.network.clone();
+                 
+                let relevant_chain = if let Some(tip) = tip  { 
+                    self.any_ancestor_blocks(tip.1)
+                } else  {
+                    block_iter::Iter {
+                        service: self,
+                        state: block_iter::IterState::Finished,
+                    }
+                };
+
+                let median_time_past = get_median_time_past_for_chain(network, relevant_chain);
+
+                // The work is all done, the future just returns the result.
+                timer.finish(module_path!(), line!(), "GetMedianTimePast");
+
+                let rsp = Ok(Response::MedianTimePast(median_time_past));
+
+                async move { rsp }.boxed()
             }
         }
     }

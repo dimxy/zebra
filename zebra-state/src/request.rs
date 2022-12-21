@@ -447,6 +447,11 @@ pub enum Request {
     /// out-of-order and invalid requests do not hang indefinitely. See the [`crate`]
     /// documentation for details.
     AwaitBlock(block::Hash),
+
+    /// Request the median time past calculated from the tip.
+    ///
+    /// This is a komodo added request, to validate komodo interest
+    GetMedianTimePast,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
