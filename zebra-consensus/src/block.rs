@@ -29,6 +29,7 @@ use zebra_chain::{
     work::equihash,
 };
 use zebra_state as zs;
+use zs::HashOrHeight;
 
 use crate::{error::*, transaction as tx, BoxError};
 
@@ -181,7 +182,7 @@ where
             check::time_is_valid_at(&block.header, now, &height, &hash)
                 .map_err(VerifyBlockError::Time)?;
             let coinbase_tx = check::coinbase_is_first(&block)?;
-            check::subsidy_is_valid(&block, network)?;
+            // check::subsidy_is_valid(&block, network)?; // not used for komodo
 
             // Now do the slower checks
 
@@ -195,6 +196,7 @@ where
                 &block,
                 &transaction_hashes,
             ));
+
             for transaction in &block.transactions {
                 let rsp = transaction_verifier
                     .ready()
@@ -205,6 +207,8 @@ where
                         known_utxos: known_utxos.clone(),
                         height,
                         time: block.header.time,
+                        hash: block.hash(),
+                        previous_hash: block.header.previous_block_hash,
                     });
                 async_checks.push(rsp);
             }
@@ -215,6 +219,7 @@ where
             // Sum up some block totals from the transaction responses.
             let mut legacy_sigop_count = 0;
             let mut block_miner_fees = Ok(Amount::zero());
+            let mut block_interest = Ok(Amount::zero());
 
             use futures::StreamExt;
             while let Some(result) = async_checks.next().await {
@@ -238,6 +243,10 @@ where
                 if let Some(miner_fee) = response.miner_fee() {
                     block_miner_fees += miner_fee;
                 }
+
+                if let Some(interest) = response.komodo_interest() {
+                    block_interest += interest;
+                }
             }
 
             // Check the summed block totals
@@ -256,7 +265,15 @@ where
                     hash,
                     source: amount_error,
                 })?;
-            check::miner_fees_are_valid(&block, network, block_miner_fees)?;
+
+            let block_interest =
+                block_interest.map_err(|amount_error| BlockError::SummingInterest {
+                    height,
+                    hash,
+                    source: amount_error,
+                })?;
+            //check::miner_fees_are_valid(&block, network, block_miner_fees)?;
+            check::komodo_miner_fees_are_valid(&block, network, block_miner_fees, block_interest)?;
 
             // Finally, submit the block for contextual verification.
             let new_outputs = Arc::try_unwrap(known_utxos)

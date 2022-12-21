@@ -1,11 +1,11 @@
 use core::num;
 
 use chrono::{DateTime, Utc, Duration, NaiveDateTime};
-use zebra_chain::{block::Height, amount::{Amount, NonNegative, COIN}, transaction::LockTime};
+use crate::{block::Height, amount::{Amount, NonNegative, COIN}, transaction::LockTime};
 
-const KOMODO_ENDOFERA: u32 = 7_777_777;
+pub const KOMODO_ENDOFERA: u32 = 7_777_777;
 const ACTIVATION: i64 = 1491350400; // Wed Apr 05 2017 00:00:00 GMT+0000
-const KOMODO_MAXMEMPOOLTIME: i64 = 3600;
+pub const KOMODO_MAXMEMPOOLTIME: i64 = 3600;
 const KOMODO_INTEREST: u64 = 5000000;
 
 /// komodo_interest - calc interest for passed params

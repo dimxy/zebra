@@ -89,6 +89,12 @@ impl<'a> NNDataMain<'a> {
     /// kmd mainnet height since notarisation active
     pub const KOMODO_NOTARISATION_ACTIVE_HT: u32 = 34000; 
 
+    /// kmd first season ht
+    pub const KOMODO_NOTARIES_HEIGHT1: u32 =  814000;
+
+    /// seems some kmd ht when a blockreward calc fix was applied
+    pub const KOMODO_NOTARIES_HEIGHT2: u32 = 2588672;
+
     // Era array of pubkeys. Add extra seasons to bottom as requried, after adding appropriate info above. 
     const NOTARIES_ELECTED_SOURCE: [[(&'static str, &'static str); NNDataMain::NUM_KMD_NOTARIES]; NNDataMain::NUM_KMD_SEASONS] = [
     //const NOTARIES_ELECTED_SOURCE: Vec<Vec<(&'static str, &'static str)>> = [
@@ -1022,10 +1028,71 @@ impl NN {
                 *height >= Height(NNDataMain::KOMODO_NOTARIES_HARDCODED_MAX_HT)                
             },
             (Network::Testnet, _) => {
-                true // never active in testnet               
+                true // hardcoded notaries never active in testnet               
             },
         }
     }
+
+    /// returns if kmd KOMODO_NOTARIES_HEIGHT1 reached
+    pub fn komodo_notaries_height1_reached(
+        network: Network,
+        height: &Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                *height >= Height(NNDataMain::KOMODO_NOTARIES_HEIGHT1)                
+            },
+            (Network::Testnet, _) => {
+                true                
+            },
+        }
+    }
+
+    /// returns if kmd KOMODO_NOTARIES_HEIGHT2 reached
+    pub fn komodo_notaries_height2_reached(
+        network: Network,
+        height: &Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                *height >= Height(NNDataMain::KOMODO_NOTARIES_HEIGHT2)                
+            },
+            (Network::Testnet, _) => {
+                true                
+            },
+        }
+    }
+
+    /// returns if for utxo at this height interest calculation is active
+    pub fn komodo_interest_active(
+        network: Network,
+        height: &Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                *height >= Height(246748)                
+            },
+            (Network::Testnet, _) => {
+                true                
+            },
+        }
+    }
+
+    /// returns if locktime max mempool time must be adjusted
+    pub fn komodo_interest_adjust_max_mempool_time(
+        network: Network,
+        height: &Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                *height < Height(247205)                
+            },
+            (Network::Testnet, _) => {
+                false                
+            },
+        }
+    }
+
 }
 
 

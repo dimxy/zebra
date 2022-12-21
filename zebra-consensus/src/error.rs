@@ -31,6 +31,9 @@ pub enum SubsidyError {
 
     #[error("a sum of amounts overflowed")]
     SumOverflow,
+
+    #[error("coinbase pays too much")]
+    KomodoCoinbasePaysTooMuch,
 }
 
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
@@ -177,6 +180,15 @@ pub enum TransactionError {
 
     #[error("must have at least one active orchard flag")]
     NotEnoughFlags,
+
+    #[error("cannot get tip time")]
+    KomodoTipTimeError,
+
+    #[error("komodo transaction locktime {0:?} too early for block height {1:?}")]
+    KomodoTxLockTimeTooEarly(i64, block::Height),
+
+    #[error("cannot get median time past")]
+    KomodoMedianTimePastError,
 }
 
 impl From<BoxError> for TransactionError {
@@ -273,6 +285,13 @@ pub enum BlockError {
 
     #[error("summing miner fees for block {height:?} {hash:?} failed: {source:?}")]
     SummingMinerFees {
+        height: zebra_chain::block::Height,
+        hash: zebra_chain::block::Hash,
+        source: amount::Error,
+    },
+
+    #[error("summing interest for block {height:?} {hash:?} failed: {source:?}")]
+    SummingInterest {
         height: zebra_chain::block::Height,
         hash: zebra_chain::block::Hash,
         source: amount::Error,

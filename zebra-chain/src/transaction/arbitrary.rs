@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use chrono::{TimeZone, Utc};
+use chrono::{TimeZone, Utc, DateTime};
 use proptest::{
     arbitrary::any, array, collection::vec, option, prelude::*, test_runner::TestRunner,
 };
@@ -16,7 +16,7 @@ use proptest::{
 use crate::{
     amount::{self, Amount, NegativeAllowed, NonNegative},
     at_least_one,
-    block::{self, arbitrary::MAX_PARTIAL_CHAIN_BLOCKS},
+    block::{self, arbitrary::MAX_PARTIAL_CHAIN_BLOCKS, Height},
     orchard,
     parameters::{Network, NetworkUpgrade},
     primitives::{
@@ -25,7 +25,7 @@ use crate::{
     },
     sapling::{self, AnchorVariant, PerSpendAnchor, SharedAnchor},
     serialization::ZcashDeserializeInto,
-    sprout, transparent,
+    sprout, transparent::{self, outputs_from_utxos},
     value_balance::{ValueBalance, ValueBalanceError},
     LedgerState,
 };
@@ -285,14 +285,18 @@ impl Transaction {
     //       remaining value in each chain value pool
     pub fn fix_chain_value_pools(
         &mut self,
+        network: Network,
         chain_value_pools: ValueBalance<NonNegative>,
-        outputs: &HashMap<transparent::OutPoint, transparent::Output>,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        height: Height,
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<(Amount<NonNegative>, ValueBalance<NonNegative>), ValueBalanceError> {
         self.fix_overflow();
 
         // a temporary value used to check that inputs don't break the chain value balance
         // consensus rules
         let mut input_chain_value_pools = chain_value_pools;
+        let outputs = &outputs_from_utxos(utxos.clone());
 
         for input in self.inputs() {
             input_chain_value_pools = input_chain_value_pools
@@ -333,17 +337,17 @@ impl Transaction {
             }
         }
 
-        let remaining_transaction_value = self.fix_remaining_value(outputs)?;
+        let remaining_transaction_value = self.fix_remaining_value(network, utxos, height, last_block_time)?;
 
         // check our calculations are correct
         let transaction_chain_value_pool_change =
             self
-            .value_balance_from_outputs(outputs)
+            .value_balance_from_outputs(network, utxos, height, last_block_time)
             .expect("chain value pool and remaining transaction value fixes produce valid transaction value balances")
             .neg();
 
         let chain_value_pools = chain_value_pools
-            .add_transaction(self, outputs)
+            .add_transaction(network, self, utxos, height, last_block_time)
             .unwrap_or_else(|err| {
                 panic!(
                     "unexpected chain value pool error: {:?}, \n\
@@ -430,7 +434,10 @@ impl Transaction {
     //       remaining value in the transaction value pool
     pub fn fix_remaining_value(
         &mut self,
-        outputs: &HashMap<transparent::OutPoint, transparent::Output>,
+        network: Network,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<Amount<NonNegative>, ValueBalanceError> {
         if self.is_coinbase() {
             // TODO: if needed, fixup coinbase:
@@ -443,6 +450,7 @@ impl Transaction {
             return Ok(Amount::zero());
         }
 
+        let outputs = &outputs_from_utxos(utxos.clone());
         let mut remaining_input_value = self.input_value_pool(outputs)?;
 
         // assign remaining input value to outputs,
@@ -490,7 +498,7 @@ impl Transaction {
 
         // check our calculations are correct
         let remaining_transaction_value = self
-            .value_balance_from_outputs(outputs)
+            .value_balance_from_outputs(network, utxos, block_height, last_block_time)
             .expect("chain is limited to MAX_MONEY")
             .remaining_transaction_value()
             .unwrap_or_else(|err| {

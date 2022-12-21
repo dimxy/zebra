@@ -5,7 +5,7 @@ use zebra_state::komodo_notaries;
 use std::{collections::HashSet, sync::Arc};
 
 use zebra_chain::{
-    amount::{Amount, Error as AmountError, NonNegative},
+    amount::{Amount, Error as AmountError, NonNegative, COIN},
     block::{Block, Hash, Header, Height},
     parameters::{Network, NetworkUpgrade},
     transaction,
@@ -16,7 +16,8 @@ use crate::{error::*, parameters::SLOW_START_INTERVAL};
 use zebra_chain::komodo_hardfork::*;
 use zebra_chain::komodo_utils::*;
 
-use super::subsidy;
+use crate::block::subsidy::{self, general::komodo_block_subsidy};
+use crate::parameters::KOMODO_EXTRASATOSHI;
 
 use std::fs::OpenOptions;
 use std::io::prelude::*;
@@ -171,11 +172,11 @@ pub fn equihash_solution_is_valid(header: &Header) -> Result<(), equihash::Error
 /// Returns `Ok(())` if the block subsidy in `block` is valid for `network`
 ///
 /// [3.9]: https://zips.z.cash/protocol/protocol.pdf#subsidyconcepts
+/// not used in komodo
 pub fn subsidy_is_valid(block: &Block, network: Network) -> Result<(), BlockError> {
     let height = block.coinbase_height().ok_or(SubsidyError::NoCoinbase)?;
     let coinbase = block.transactions.get(0).ok_or(SubsidyError::NoCoinbase)?;
 
-    /*
     // Validate funding streams
     let halving_div = subsidy::general::halving_divisor(height, network);
     let canopy_activation_height = NetworkUpgrade::Canopy
@@ -229,13 +230,12 @@ pub fn subsidy_is_valid(block: &Block, network: Network) -> Result<(), BlockErro
         // Future halving, with no founders reward or funding streams
         Ok(())
     }
-    */
-    Ok(())
 }
 
 /// Returns `Ok(())` if the miner fees consensus rule is valid.
 ///
 /// [7.1.2]: https://zips.z.cash/protocol/protocol.pdf#txnconsensus
+/// not used in komodo
 pub fn miner_fees_are_valid(
     block: &Block,
     network: Network,
@@ -253,7 +253,7 @@ pub fn miner_fees_are_valid(
     let sapling_value_balance = coinbase.sapling_value_balance().sapling_amount();
     let orchard_value_balance = coinbase.orchard_value_balance().orchard_amount();
 
-    let block_subsidy = subsidy::general::block_subsidy(height, network)
+    let block_subsidy = subsidy::general::komodo_block_subsidy(height, network)
         .expect("a valid block subsidy for this height and network");
 
     // # Consensus
@@ -264,15 +264,73 @@ pub fn miner_fees_are_valid(
     //
     // https://zips.z.cash/protocol/protocol.pdf#txnconsensus
     let left = (transparent_value_balance - sapling_value_balance - orchard_value_balance)
-        .map_err(|_| SubsidyError::SumOverflow)?;
+       .map_err(|_| SubsidyError::SumOverflow)?;
     let right = (block_subsidy + block_miner_fees).map_err(|_| SubsidyError::SumOverflow)?;
 
-    // if left > right {
-    //     return Err(SubsidyError::InvalidMinerFees)?;
-    // }
+    if left > right {
+        return Err(SubsidyError::InvalidMinerFees)?;
+    }
 
     Ok(())
 }
+
+/// Returns `Ok(())` if the miner fees consensus rule is valid.
+///
+/// implements komodo miner fee rules with interest 
+pub fn komodo_miner_fees_are_valid(
+    block: &Block,
+    network: Network,
+    block_miner_fees: Amount<NonNegative>,
+    block_interest: Amount<NonNegative>,
+) -> Result<(), BlockError> {
+    let height = block.coinbase_height().ok_or(SubsidyError::NoCoinbase)?;
+    let coinbase = block.transactions.get(0).ok_or(SubsidyError::NoCoinbase)?;
+
+    // calc coinbase pay amount
+    let cb_transparent_value_balance: Amount = subsidy::general::output_amounts(coinbase)
+        .iter()
+        .sum::<Result<Amount<NonNegative>, AmountError>>()
+        .map_err(|_| SubsidyError::SumOverflow)?
+        .constrain()
+        .expect("positive value always fit in `NegativeAllowed`");
+    let cb_sapling_value_balance = coinbase.sapling_value_balance().sapling_amount();
+    let cb_orchard_value_balance = coinbase.orchard_value_balance().orchard_amount();
+
+    let block_subsidy = subsidy::general::komodo_block_subsidy(height, network)
+        .expect("a valid block subsidy for this height and network");
+
+    // dimxy: fix zcash rule:
+    // # Consensus
+    //
+    // > The total value in zatoshi of transparent outputs from a coinbase transaction,
+    // > minus vbalanceSapling, minus vbalanceOrchard, MUST NOT be greater than the value
+    // > in zatoshi of block subsidy plus the transaction fees paid by transactions in this block.
+    //
+    // https://zips.z.cash/protocol/protocol.pdf#txnconsensus
+    let left = (cb_transparent_value_balance - cb_sapling_value_balance - cb_orchard_value_balance)
+        .map_err(|_| SubsidyError::SumOverflow)?;
+    let right = (
+            block_subsidy + block_miner_fees + 
+            if !NN::komodo_notaries_height2_reached(network, &height) { block_interest } else { Amount::zero() } +
+            Amount::try_from(KOMODO_EXTRASATOSHI).expect("valid extra satoshi")
+        ).map_err(|_| SubsidyError::SumOverflow)?;
+
+    tracing::info!("block={:?} block_subsidy={:?} minersfee={:?} block_interest={:?} left={:?} right={:?}", block.hash(), block_subsidy, block_miner_fees, block_interest, left, right);
+
+
+    if left > right {
+        if NN::komodo_notaries_height1_reached(network, &height) || coinbase.outputs()[0].value() > block_subsidy   {
+            return Err(SubsidyError::KomodoCoinbasePaysTooMuch)?;
+        }
+    }
+
+    // TODO: 
+    // Add bad-txns-fee-negative rule
+    // Add bad-txns-fee-outofrange rule
+
+    Ok(())
+}
+
 
 /// Returns `Ok(())` if `header.time` is less than or equal to
 /// 2 hours in the future, according to the node's local clock (`now`).

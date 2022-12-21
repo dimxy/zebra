@@ -13,7 +13,7 @@ use zebra_chain::{
     history_tree::HistoryTree,
     orchard,
     parameters::Network,
-    sapling, sprout, transparent,
+    sapling, sprout, transparent::{self, outputs_from_utxos, utxos_from_ordered_utxos},
 };
 
 use crate::komodo_notaries::{BackNotarisationData, komodo_block_has_notarisation_tx};
@@ -220,9 +220,12 @@ impl NonFinalizedState {
     ) -> Result<Arc<Chain>, ValidateContextError> {
         // Reads from disk
         //
+        let last_block_time = if let Some(tip) = new_chain.tip_block() { Some(tip.block.header.time) } else { None };
         // TODO: if these disk reads show up in profiles, run them in parallel, using std::thread::spawn()
         let spent_utxos = check::utxo::transparent_spend(
+            new_chain.network(),
             &prepared,
+            last_block_time,
             &new_chain.unspent_utxos(),
             &new_chain.spent_utxos,
             finalized_state,
@@ -241,7 +244,9 @@ impl NonFinalizedState {
 
         // Quick check that doesn't read from disk
         let contextual = ContextuallyValidBlock::with_block_and_spent_utxos(
+            new_chain.network(),
             prepared.clone(),
+            last_block_time,
             spent_utxos.clone(),
         )
         .map_err(|value_balance_error| {
@@ -254,7 +259,7 @@ impl NonFinalizedState {
             }
         })?;
 
-        let spent_outputs = spent_utxos.into_iter().map(|u| (u.0, u.1.utxo.output)).collect();
+        let spent_outputs = outputs_from_utxos(utxos_from_ordered_utxos(spent_utxos));
         self.komodo_find_block_nota_and_update_last(&prepared.block, &spent_outputs, &prepared.height);
 
         Self::validate_and_update_parallel(new_chain, contextual, sprout_final_treestates)

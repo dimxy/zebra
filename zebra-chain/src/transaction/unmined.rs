@@ -284,6 +284,9 @@ pub struct VerifiedUnminedTx {
 
     /// The transaction fee for this unmined transaction.
     pub miner_fee: Amount<NonNegative>,
+
+    /// komodo interest for tx
+    pub interest: Amount<NonNegative>,
 }
 
 impl fmt::Display for VerifiedUnminedTx {
@@ -297,10 +300,11 @@ impl fmt::Display for VerifiedUnminedTx {
 
 impl VerifiedUnminedTx {
     /// Create a new verified unmined transaction from a transaction and its fee.
-    pub fn new(transaction: UnminedTx, miner_fee: Amount<NonNegative>) -> Self {
+    pub fn new(transaction: UnminedTx, miner_fee: Amount<NonNegative>, interest: Amount<NonNegative>) -> Self {
         Self {
             transaction,
             miner_fee,
+            interest,
         }
     }
 
