@@ -155,6 +155,7 @@ impl StartCmd {
             sync_status.clone(),
             latest_chain_tip.clone(),
             chain_tip_change.clone(),
+            config.network.network,
         );
         let mempool = BoxService::new(mempool);
         let mempool = ServiceBuilder::new()

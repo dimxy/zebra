@@ -26,11 +26,12 @@ use std::{
     task::{Context, Poll},
 };
 
+use chrono::{DateTime, Utc};
 use futures::{future::FutureExt, stream::Stream};
 use tokio::sync::watch;
 use tower::{buffer::Buffer, timeout::Timeout, util::BoxService, Service};
 
-use zebra_chain::{block::Height, chain_tip::ChainTip, transaction::UnminedTxId};
+use zebra_chain::{block::Height, chain_tip::ChainTip, transaction::UnminedTxId, parameters::Network};
 use zebra_consensus::{error::TransactionError, transaction};
 use zebra_network as zn;
 use zebra_node_services::mempool::{Request, Response};
@@ -157,6 +158,12 @@ pub struct Mempool {
     /// Sender part of a gossip transactions channel.
     /// Used to broadcast transaction ids to peers.
     transaction_sender: watch::Sender<HashSet<UnminedTxId>>,
+
+    /// periodically updated median time past for removing outdated transactions by their lock time
+    latest_median_time_past: Option<DateTime<Utc>>,
+
+    /// network params
+    network: Network,
 }
 
 impl Mempool {
@@ -168,6 +175,7 @@ impl Mempool {
         sync_status: SyncStatus,
         latest_chain_tip: zs::LatestChainTip,
         chain_tip_change: ChainTipChange,
+        network: Network,
     ) -> (Self, watch::Receiver<HashSet<UnminedTxId>>) {
         let (transaction_sender, transaction_receiver) =
             tokio::sync::watch::channel(HashSet::new());
@@ -183,6 +191,8 @@ impl Mempool {
             state,
             tx_verifier,
             transaction_sender,
+            latest_median_time_past: None,
+            network,
         };
 
         // Make sure `is_enabled` is accurate.
@@ -367,6 +377,14 @@ impl Service<Request> for Mempool {
                 // Remove transactions that are expired from the peers list
                 send_to_peers_ids =
                     Self::remove_expired_from_peer_list(&send_to_peers_ids, &expired_transactions);
+        
+                // Remove transactions too long by lock time  from the mempool.
+                if let Some(median_time_past) = self.latest_median_time_past {
+                    let expired_transactions = storage.komodo_remove_too_early_transactions(self.network, (tip_height+1).expect("valid tip height"), median_time_past);
+                    // Remove transactions that are expired from the peers list
+                    send_to_peers_ids =
+                        Self::remove_expired_from_peer_list(&send_to_peers_ids, &expired_transactions);
+                }
             }
 
             // Send transactions that were not rejected nor expired to peers

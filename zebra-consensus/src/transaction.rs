@@ -1149,7 +1149,7 @@ where
 
 /// validate tx lock time so it has not stayed in mempool for a long time 
 /// to prevent cheating with the tx lock time, which is actually the start of interest period, to get extra interest value
-fn komodo_validate_interest_locktime(network: Network, tx: &Transaction, tx_height: block::Height, cmp_time: DateTime<Utc>) -> Result<(), TransactionError> {
+pub fn komodo_validate_interest_locktime(network: Network, tx: &Transaction, tx_height: block::Height, cmp_time: DateTime<Utc>) -> Result<(), TransactionError> {
 
     if let Some(lock_time) = tx.raw_lock_time() {       // in komodo we should not use zcash's special lock_time()
         if let LockTime::Time(lock_time) = lock_time {  
