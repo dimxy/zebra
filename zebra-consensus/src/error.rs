@@ -177,6 +177,9 @@ pub enum TransactionError {
 
     #[error("must have at least one active orchard flag")]
     NotEnoughFlags,
+
+    #[error("banned inputs usage attempt")]
+    BannedInputs,
 }
 
 impl From<BoxError> for TransactionError {
