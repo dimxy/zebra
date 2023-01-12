@@ -12,7 +12,7 @@ use zebra_chain::{
     orchard::Flags,
     parameters::{Network, NetworkUpgrade},
     primitives::zcash_note_encryption,
-    transaction::{LockTime, Transaction},
+    transaction::{LockTime, Transaction, self},
 };
 
 use crate::error::TransactionError;
@@ -138,6 +138,49 @@ pub fn coinbase_tx_no_prevout_joinsplit_spend(tx: &Transaction) -> Result<(), Tr
             }
         }
     }
+
+    Ok(())
+}
+
+/// Check if tx has banned inputs, see CheckTransaction and komodo_bannedset + komodo_checkvout calls.
+///
+/// <https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L1362>
+
+pub fn tx_has_banned_inputs(tx: &Transaction) -> Result<(), TransactionError> {
+
+    let banned_txids_1: Vec<transaction::Hash> = [
+        "78cb4e21245c26b015b888b14c4f5096e18137d2741a6de9734d62b07014dfca", // vout1 only 233559
+        "00697be658e05561febdee1aafe368b821ca33fbb89b7027365e3d77b5dfede5", //234172
+        "e909465788b32047c472d73e882d79a92b0d550f90be008f76e1edaee6d742ea", //234187
+        "f56c6873748a327d0b92b8108f8ec8505a2843a541b1926022883678fb24f9dc", //234188
+        "abf08be07d8f5b3a433ddcca7ef539e79a3571632efd6d0294ec0492442a0204", //234213
+        "3b854b996cc982fba8c06e76cf507ae7eed52ab92663f4c0d7d10b3ed879c3b0", //234367
+        "fa9e474c2cda3cb4127881a40eb3f682feaba3f3328307d518589024a6032cc4", //234635
+        "ca746fa13e0113c4c0969937ea2c66de036d20274efad4ce114f6b699f1bc0f3", //234662
+        "43ce88438de4973f21b1388ffe66e68fda592da38c6ef939be10bb1b86387041", //234697
+        "0aeb748de82f209cd5ff7d3a06f65543904c4c17387c9d87c65fd44b14ad8f8c", //234899
+        "bbd3a3d9b14730991e1066bd7c626ca270acac4127131afe25f877a5a886eb25", //235252
+        "fa9943525f2e6c32cbc243294b08187e314d83a2870830180380c3c12a9fd33c", //235253
+        "a01671c8775328a41304e31a6693bbd35e9acbab28ab117f729eaba9cb769461", //235265
+        "2ef49d2d27946ad7c5d5e4ab5c089696762ff04e855f8ab48e83bdf0cc68726d", //235295
+        "c85dcffb16d5a45bd239021ad33443414d60224760f11d535ae2063e5709efee",
+    ].iter().map(|str| str.parse::<transaction::Hash>().expect("hash should parse correctly")).collect();
+
+    let banned_txids_all: Vec<transaction::Hash> = [
+        "c4ea1462c207547cd6fb6a4155ca6d042b22170d29801a465db5c09fec55b19d", //246748
+        "305dc96d8bc23a69d3db955e03a6a87c1832673470c32fe25473a46cc473c7d1", //247204
+    ].iter().map(|str| str.parse::<transaction::Hash>().expect("hash should parse correctly")).collect();
+
+    // check if tx contains banned inputs
+    if tx.inputs().iter().any(|input| {
+        if let Some(vin) = input.outpoint() {
+            (banned_txids_1.contains(&vin.hash) && vin.index == 1) || banned_txids_all.contains(&vin.hash)
+        } else {
+            false
+        }
+    }) {
+        return Err(TransactionError::BannedInputs);
+    };
 
     Ok(())
 }
