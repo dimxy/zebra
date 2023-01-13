@@ -266,11 +266,7 @@ fn difficulty_threshold_is_valid(
     let median_time_past = difficulty_adjustment.median_time_past();
     //let block_time_max =
     //    median_time_past + Duration::seconds(difficulty::BLOCK_MAX_TIME_SINCE_MEDIAN);
-<<<<<<< HEAD
     
-=======
-
->>>>>>> 69382725... added GetMedianTimePast request to validate interest,
     // # Consensus
     //
     // > For each block other than the genesis block, `nTime` MUST be strictly greater
