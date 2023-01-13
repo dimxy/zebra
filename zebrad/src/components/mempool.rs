@@ -26,7 +26,6 @@ use std::{
     task::{Context, Poll},
 };
 
-use chrono::{DateTime, Utc};
 use futures::{future::FutureExt, stream::Stream};
 use tokio::sync::watch;
 use tower::{buffer::Buffer, timeout::Timeout, util::BoxService, Service};
@@ -159,9 +158,6 @@ pub struct Mempool {
     /// Used to broadcast transaction ids to peers.
     transaction_sender: watch::Sender<HashSet<UnminedTxId>>,
 
-    /// periodically updated median time past for removing outdated transactions by their lock time
-    latest_median_time_past: Option<DateTime<Utc>>,
-
     /// network params
     network: Network,
 }
@@ -191,7 +187,6 @@ impl Mempool {
             state,
             tx_verifier,
             transaction_sender,
-            latest_median_time_past: None,
             network,
         };
 
@@ -371,16 +366,6 @@ impl Service<Request> for Mempool {
                 storage.clear_tip_rejections();
             }
 
-            // Obtain current median time past (on the best block)
-            if let Some(mtp) = self.latest_chain_tip.get_mtp_on_best_tip() {
-                let mtp_i64 = mtp.timestamp();
-                let hash_ht = self.latest_chain_tip.best_tip_height_and_hash();
-                // TODO: implement and call storage.remove_interest_not_validated_transactions (fInterestNotValidated)
-                tracing::debug!(?hash_ht, ?mtp_i64, std::stringify!(poll_ready));
-            } else {
-                panic!("mtp on best chain tip / best block should be always known in mempool");
-            }
-
             // Remove expired transactions from the mempool.
             if let Some(tip_height) = self.latest_chain_tip.best_tip_height() {
                 let expired_transactions = storage.remove_expired_transactions(tip_height);
@@ -388,12 +373,16 @@ impl Service<Request> for Mempool {
                 send_to_peers_ids =
                     Self::remove_expired_from_peer_list(&send_to_peers_ids, &expired_transactions);
         
-                // Remove transactions too long by lock time  from the mempool.
-                if let Some(median_time_past) = self.latest_median_time_past {
-                    let expired_transactions = storage.komodo_remove_too_early_transactions(self.network, (tip_height+1).expect("valid tip height"), median_time_past);
+                // Remove transactions too long by lock time from the mempool.
+                if let Some(mtp) = self.latest_chain_tip.get_mtp_on_best_tip()  {
+                    let mtp_i64 = mtp.timestamp();
+                    tracing::debug!(?mtp_i64, std::stringify!(poll_ready));
+                    let expired_transactions = storage.komodo_remove_too_early_transactions(self.network, (tip_height+1).expect("valid tip height"), mtp);
                     // Remove transactions that are expired from the peers list
                     send_to_peers_ids =
                         Self::remove_expired_from_peer_list(&send_to_peers_ids, &expired_transactions);
+                } else {
+                    panic!("mtp on best chain tip should be always known in mempool");
                 }
             }
 

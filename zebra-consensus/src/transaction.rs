@@ -1159,10 +1159,10 @@ pub fn komodo_validate_interest_locktime(network: Network, tx: &Transaction, tx_
                     cmp_time_adj -= Duration::seconds(16000);
                 }
                 if lock_time < cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME)   {
-                    tracing::info!("komodo_validate_interest_locktime reject for ht={:?} too early secs {} locktime {} cmp_time {}\n", tx_height, (lock_time - (cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME))), lock_time.timestamp(), cmp_time_adj.timestamp());
+                    tracing::info!("komodo_validate_interest_locktime reject tx {:?} for ht={:?} too early secs {} locktime {} cmp_time {}\n", tx.hash(), tx_height, (lock_time - (cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME))), lock_time.timestamp(), cmp_time_adj.timestamp());
                     return Err(TransactionError::KomodoTxLockTimeTooEarly(lock_time.timestamp(), tx_height));
                 }
-                tracing::info!("komodo_validate_interest_locktime accept for ht={:?} locktime-maxtime secs {} locktime {} cmp_time {}\n", tx_height, (lock_time - (cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME))), lock_time.timestamp(), cmp_time_adj.timestamp());
+                tracing::debug!("komodo_validate_interest_locktime accept tx {:?} for ht={:?} locktime-maxtime secs {} locktime {} cmp_time {}\n", tx.hash(), tx_height, (lock_time - (cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME))), lock_time.timestamp(), cmp_time_adj.timestamp());
             }
         }
     }
