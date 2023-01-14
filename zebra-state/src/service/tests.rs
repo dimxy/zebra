@@ -461,7 +461,7 @@ proptest! {
             // which is not included in the UTXO set
             if block.height > block::Height(0) {
                 let utxos = &block.new_outputs;
-                let block_value_pool = &block.block.chain_value_pool_change(utxos)?;
+                let block_value_pool = &block.block.chain_value_pool_change(Network::Mainnet, utxos, block::Height(0), None)?;
                 expected_finalized_value_pool += *block_value_pool;
             }
 
@@ -485,7 +485,7 @@ proptest! {
         let mut expected_non_finalized_value_pool = Ok(expected_finalized_value_pool?);
         for block in non_finalized_blocks {
             let utxos = block.new_outputs.clone();
-            let block_value_pool = &block.block.chain_value_pool_change(&transparent::utxos_from_ordered_utxos(utxos))?;
+            let block_value_pool = &block.block.chain_value_pool_change(Network::Mainnet, &transparent::utxos_from_ordered_utxos(utxos), block::Height(0), None)?;
             expected_non_finalized_value_pool += *block_value_pool;
 
             state_service.queue_and_commit_non_finalized(block.clone());

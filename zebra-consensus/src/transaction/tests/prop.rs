@@ -454,6 +454,8 @@ fn validate(
                 known_utxos: Arc::new(known_utxos),
                 height,
                 time: block_time,
+                hash: block::Hash([0xff; 32]), // unused
+                previous_hash: block::Hash([0xff; 32]), // unused
             })
             .await
     })

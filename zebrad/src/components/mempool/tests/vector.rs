@@ -713,6 +713,7 @@ async fn setup(
         sync_status,
         latest_chain_tip,
         chain_tip_change,
+        network,
     );
 
     (mempool, peer_set, state_service, tx_verifier, recent_syncs)

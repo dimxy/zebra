@@ -56,7 +56,9 @@ fn push_genesis_chain() -> Result<()> {
             for block in chain.iter().take(count).cloned() {
                 let block =
                     ContextuallyValidBlock::with_block_and_spent_utxos(
+                        Network::Mainnet,
                         block,
+                        None,
                         only_chain.unspent_utxos(),
                     )
                     .map_err(|e| (e, chain_values.clone()))
@@ -151,7 +153,9 @@ fn forked_equals_pushed_genesis() -> Result<()> {
         );
         for block in chain.iter().take(fork_at_count).cloned() {
             let block = ContextuallyValidBlock::with_block_and_spent_utxos(
+                Network::Mainnet,
                 block,
+                None,
                 partial_chain.unspent_utxos(),
             )?;
             partial_chain = partial_chain
@@ -170,7 +174,7 @@ fn forked_equals_pushed_genesis() -> Result<()> {
         );
         for block in chain.iter().cloned() {
             let block =
-                ContextuallyValidBlock::with_block_and_spent_utxos(block, full_chain.unspent_utxos())?;
+                ContextuallyValidBlock::with_block_and_spent_utxos(Network::Mainnet, block, None, full_chain.unspent_utxos())?;
             full_chain = full_chain
                 .push(block.clone())
                 .expect("full chain push is valid");
@@ -220,7 +224,7 @@ fn forked_equals_pushed_genesis() -> Result<()> {
         // same original full chain.
         for block in chain.iter().skip(fork_at_count).cloned() {
             let block =
-                ContextuallyValidBlock::with_block_and_spent_utxos(block, forked.unspent_utxos())?;
+                ContextuallyValidBlock::with_block_and_spent_utxos(Network::Mainnet, block, None, forked.unspent_utxos())?;
             forked = forked.push(block).expect("forked chain push is valid");
         }
 

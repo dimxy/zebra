@@ -110,7 +110,7 @@ proptest! {
             mempool.enable(&mut recent_syncs).await;
 
             // Set the initial chain tip.
-            chain_tip_sender.set_best_non_finalized_tip(previous_chain_tip.clone(), None);
+            chain_tip_sender.set_best_non_finalized_tip(previous_chain_tip.clone());
 
             // Call the mempool so that it is aware of the initial chain tip.
             mempool.dummy_call().await;
@@ -140,7 +140,7 @@ proptest! {
                     .expect("Inserting a transaction should succeed");
 
                 // Set the new chain tip.
-                chain_tip_sender.set_best_non_finalized_tip(chain_tip.clone(), None);
+                chain_tip_sender.set_best_non_finalized_tip(chain_tip.clone());
 
                 // Call the mempool so that it is aware of the new chain tip.
                 mempool.dummy_call().await;
@@ -251,6 +251,7 @@ fn setup(
         sync_status,
         latest_chain_tip,
         chain_tip_change,
+        network,
     );
 
     (
@@ -290,6 +291,7 @@ impl FakeChainTip {
                     time: previous.time + mock_block_time_delta,
                     transaction_hashes: chain_tip_block.transaction_hashes.clone(),
                     previous_block_hash: previous.hash,
+                    mtp: -1,
                 }
             }
 
