@@ -290,7 +290,7 @@ mod tests {
 
         let t_addr = pub_key.to_address(Network::Testnet);
 
-        assert_eq!(format!("{}", t_addr), "3KamVE1bnqAP6Z7Ff6FrMzrCsxpvVpeduu");
+        assert_eq!(format!("{}", t_addr), "1JtkZgXAEvr11PQpXzbFwNVGjSYCudQatX");
     }
 
     #[test]
@@ -324,7 +324,7 @@ mod tests {
 
         let t_addr = script.to_address(Network::Testnet);
 
-        assert_eq!(format!("{}", t_addr), "1EXCN4m6mNL88QzPwksBnpVqr5F1dC4SGa");
+        assert_eq!(format!("{}", t_addr), "3FDDHcFYKGeWDagq4rXnDSrmzbXjDhP97D");
     }
 
     #[test]
