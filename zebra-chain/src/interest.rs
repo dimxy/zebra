@@ -88,7 +88,7 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                             // interest = Amount::<NonNegative>::try_from(numerator / denominator as u64).expect("div should be ok");
                             // interest = (interest / COIN as u64).expect("div should be ok");
 
-                            // here we also trying to avoid max_money constraint as in (a)
+                            // avoid max_money constraint as in (a)
                             let a = numerator / denominator as u64 / COIN as u64;
                             interest = Amount::<NonNegative>::try_from(a).expect("conversion should be ok");
 
@@ -106,8 +106,8 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                             tip_time < DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(ACTIVATION, 0), Utc) {
                             if tx_height < Height(250_000) ||
                                 (numerator * elapsed.num_minutes() as u64) < 365 * 24 * 60 {
-                                    interest = Amount::<NonNegative>::try_from(numerator / denominator as u64).expect("div should be ok");
-                                    interest = (interest / COIN as u64).expect("div should be ok");
+                                    // avoid max_money constraint as in (a)
+                                    interest = Amount::<NonNegative>::try_from(numerator / denominator as u64 / COIN as u64).expect("conversion should be ok");
                             } else
                             {
                                     let mut interest_value = numerator * elapsed.num_minutes() as u64;
