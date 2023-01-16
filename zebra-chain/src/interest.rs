@@ -116,8 +116,8 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                             }
                         } else if tx_height < Height(1_000_000) {
                             let numerator = u64::from(value) / 20; // assumes 5%
-                            interest = Amount::<NonNegative>::try_from(numerator.overflowing_mul(elapsed.num_minutes() as u64).0).expect("conversion should be ok");
-                            interest = (interest / (365 * 24 * 60)).expect("div to non-zero should be ok");
+                            let product = numerator.overflowing_mul(elapsed.num_minutes() as u64).0;
+                            interest = Amount::<NonNegative>::try_from(product / (365 * 24 * 60)).expect("conversion should be ok");
                             let interestnew = _komodo_interestnew(tx_height, value, LockTime::Time(lock_time), Some(tip_time));
                             if interest < interestnew {
                                 tracing::info!(?interest, ?interestnew, ?tx_height, ?value, ?lock_time, ?tip_time, "pathC");
@@ -367,6 +367,18 @@ mod tests {
             }
         }
 
+    }
+
+    #[test]
+    fn test_komodo_interest_overflow() {
+        zebra_test::init();
+
+        let tx_lock_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1665780084, 0), Utc);
+        let tip_time = tx_lock_time + Duration::minutes(49);
+
+        let calc_value = komodo_interest(Height(250002), Amount::<NonNegative>::try_from(233539804500u64).expect("conversion must be okay"), LockTime::Time(tx_lock_time), Some(tip_time));
+        let overflow_value = Amount::<NonNegative>::try_from(1877019881371345152u64).expect("conversion must be okay");
+        assert_eq!(calc_value, overflow_value);
     }
 }
 
