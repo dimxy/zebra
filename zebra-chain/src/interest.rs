@@ -71,7 +71,7 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                                 // interest = (interest / (365 * 24 * 60)).expect("div to non-zero should be ok");
 
                                 // (a) we should avoid multiplication overflow due to max_money, so we will calc in u64 and only then transform to amount
-                                let a = u64::from(numerator) * elapsed.num_minutes() as u64 / (365 * 24 * 60);
+                                let a = u64::from(numerator).overflowing_mul(elapsed.num_minutes() as u64).0 / (365 * 24 * 60);
                                 interest = Amount::<NonNegative>::try_from(a).expect("conversion should be ok");
 
                                 let interestnew = _komodo_interestnew(tx_height, value, LockTime::Time(lock_time), Some(tip_time));
@@ -102,7 +102,6 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                     } else {
                         // value <= 25_000 * COIN
                         let numerator: u64 = u64::from(value).overflowing_mul(KOMODO_INTEREST).0;
-                        info!(?tx_height, ?value, ?numerator, "elapsed.num_minutes()={}", elapsed.num_minutes());
                         if tx_height < Height(250_000) ||
                             tip_time < DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(ACTIVATION, 0), Utc) {
                             if tx_height < Height(250_000) ||
@@ -116,8 +115,8 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                                     interest = Amount::<NonNegative>::try_from(interest_value).expect("conversion expect ok");
                             }
                         } else if tx_height < Height(1_000_000) {
-                            let numerator = (value / 20).expect("div to non-zero should be ok"); // assumes 5%
-                            interest = (numerator * elapsed.num_minutes() as u64).expect("mul should be ok");
+                            let numerator = u64::from(value) / 20; // assumes 5%
+                            interest = Amount::<NonNegative>::try_from(numerator.overflowing_mul(elapsed.num_minutes() as u64).0).expect("conversion should be ok");
                             interest = (interest / (365 * 24 * 60)).expect("div to non-zero should be ok");
                             let interestnew = _komodo_interestnew(tx_height, value, LockTime::Time(lock_time), Some(tip_time));
                             if interest < interestnew {
