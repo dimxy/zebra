@@ -101,15 +101,16 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                         }
                     } else {
                         // value <= 25_000 * COIN
-                        let numerator: u64 = u64::from(value) * KOMODO_INTEREST;
+                        let numerator: u64 = u64::from(value).overflowing_mul(KOMODO_INTEREST).0;
+                        info!(?tx_height, ?value, ?numerator, "elapsed.num_minutes()={}", elapsed.num_minutes());
                         if tx_height < Height(250_000) ||
                             tip_time < DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(ACTIVATION, 0), Utc) {
                             if tx_height < Height(250_000) ||
-                                (numerator * elapsed.num_minutes() as u64) < 365 * 24 * 60 {
+                                (numerator.overflowing_mul(elapsed.num_minutes() as u64).0) < 365 * 24 * 60 {
                                     interest = Amount::<NonNegative>::try_from(numerator / denominator as u64 / COIN as u64).expect("div should be ok");
                             } else
                             {
-                                    let mut interest_value = numerator * elapsed.num_minutes() as u64;
+                                    let mut interest_value = numerator.overflowing_mul(elapsed.num_minutes() as u64).0;
                                     interest_value = interest_value / (365 * 24 * 60);
                                     interest_value = interest_value / COIN as u64;
                                     interest = Amount::<NonNegative>::try_from(interest_value).expect("conversion expect ok");
