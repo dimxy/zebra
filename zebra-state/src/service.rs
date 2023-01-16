@@ -77,6 +77,7 @@ mod tests;
 pub use finalized_state::{OutputIndex, OutputLocation, TransactionLocation};
 
 use self::check::get_median_time_past_for_chain;
+const MAX_LAST_NOTA_DEPTH: u32 = 144000;
 
 pub type QueuedBlock = (
     PreparedBlock,
@@ -589,10 +590,10 @@ impl StateService {
     pub fn komodo_init_last_nota(&mut self) {
 
         if let Some(tip) = self.disk.tip() {
-            info!("komodo looking back for the last notarisation for no more than 1440 blocks for tip at {:?}...", tip.0);
+            info!("komodo looking back for the last notarisation for no more than {} blocks for tip at {:?}...", MAX_LAST_NOTA_DEPTH, tip.0);
             let mut finalised_chain = self.any_ancestor_blocks(tip.1);
             let mut depth = 0;
-            while depth < 1440 {
+            while depth < MAX_LAST_NOTA_DEPTH {
                 if let Some(block) = finalised_chain.next() {
                     let prepared = block.prepare();
                     trace!("komodo last nota checking prepared.height={:?}", prepared.height);
@@ -622,17 +623,6 @@ impl StateService {
                 }
             }
         }
-    }
-
-    /// get median time past for the tip, to provide the data for the corresponding state request
-    pub fn get_median_time_past_for_chain(&self) -> Option<DateTime<Utc>>
-    {
-        let tip = self.best_tip();
-        if let Some(tip) = tip  { 
-            let relevant_chain = self.any_ancestor_blocks(tip.1);
-            return get_median_time_past_for_chain(self.network, relevant_chain);
-        }
-        None
     }
 }
 
