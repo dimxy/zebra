@@ -51,14 +51,10 @@ pub fn lock_time_has_passed(
         Some(LockTime::Time(unlock_time)) => {
             // > The transaction can be added to any block whose block time is greater than the locktime.
             // https://developer.bitcoin.org/devguide/transactions.html#locktime-and-sequence-number
-            if NN::komodo_s1_december_hardfork_active(network, &block_height)  {  
-                if block_time > unlock_time {
-                    Ok(())
-                } else {
-                    Err(TransactionError::LockedUntilAfterBlockTime(unlock_time))
-                }
+            if block_time > unlock_time {
+                Ok(())
             } else {
-                Ok(())  // TODO: should we check locktime in backward order like in komodod before Dec HF?
+                Err(TransactionError::LockedUntilAfterBlockTime(unlock_time))
             }
         }
         None => Ok(()),
