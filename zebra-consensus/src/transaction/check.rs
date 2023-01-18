@@ -12,7 +12,7 @@ use zebra_chain::{
     orchard::Flags,
     parameters::{Network, NetworkUpgrade},
     primitives::zcash_note_encryption,
-    transaction::{LockTime, Transaction}, 
+    transaction::{LockTime, Transaction}, transparent,
 };
 
 use zebra_chain::komodo_hardfork::NN;
@@ -59,6 +59,109 @@ pub fn lock_time_has_passed(
         }
         None => Ok(()),
     }
+}
+
+
+/// This function should match `komodod` function here: https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L924
+///
+/// Main rules:
+///
+/// 1. If nLockTime tx field set to 0 - it's final.
+/// 2. If nLockTime < nBlockHeight or nBlockTime (consider "apples are apples", mean that nLockTime represented the Height compare only
+///    with Height, and nLockTime represented Time, compare only with Time values) - tx is also considered to be final.
+/// 3. If all vins have 0xFFFFFFFF sequence tx is considered to be final regardless of nLockTime fields.
+/// 4. And finally, there is a some historical Komodo exceptions for vins with sequence == 0xFFFFFFFE, depends on komodo_hardfork_active.
+
+pub fn is_final_tx_komodo(
+    network: Network,
+    tx: &Transaction,
+    block_height: Height,
+    block_time: DateTime<Utc>,
+) -> Result<(), TransactionError> {
+
+    if let Some(lock_time) = tx.raw_lock_time() {
+
+        if lock_time == LockTime::unlocked() {
+            return Ok(());
+        }
+
+        match lock_time {
+            LockTime::Height(unlock_height) => {
+                if unlock_height < block_height {
+                    return Ok(())
+                }
+            },
+            LockTime::Time(unlock_time) => {
+                if unlock_time < block_time {
+                    return Ok(())
+                }
+            }
+        }
+
+        // in `komodod` HF check is implemented in komodo_hardfork_active function, but for KMD coin
+        // this check is implemented like chainActive.Height() > nDecemberHardforkHeight), where
+        // chain.Tip() ? chain.Tip()->nHeight : -1. In other words, it always compared with the
+        // height of a last tip (!), i.e. one block before block being validated.
+
+        let validation_height = block_height - 1;
+        let hf_active = if let Some(ht) = validation_height {
+            NN::komodo_s1_december_hardfork_active(network, &ht)
+        } else {
+            false
+        };
+
+        // now let's analyze tx vins
+        let tx_is_non_final = tx
+            .inputs()
+            .iter()
+            .map(transparent::Input::sequence)
+            .any(|sequence_number| {
+
+                // this closure should return true if vin is "non-final" (it's sequence != u32::MAX
+                // and it doesn't satisfied other komodo exceptions)
+
+                // f_exception is true, when nLockTime > (nBlockTime or nBlockHeight)
+                let f_exception = match lock_time {
+                    LockTime::Height(unlock_height) => {
+                        if unlock_height > block_height {
+                            true
+                        } else {
+                            false
+                        }
+                    },
+                    LockTime::Time(unlock_time) => {
+                        if unlock_time > block_time {
+                            true
+                        } else {
+                            false
+                        }
+                    }
+                };
+
+                if !hf_active && sequence_number == u32::MAX - 1 && f_exception
+                {
+                    false
+                } else if hf_active && sequence_number == u32::MAX - 1 && !f_exception
+                {
+                    false
+                } else {
+                    sequence_number != u32::MAX
+                }
+            });
+
+        if tx_is_non_final {
+            return match lock_time {
+                LockTime::Height(unlock_height) => Err(TransactionError::LockedUntilAfterBlockHeight(unlock_height)),
+                LockTime::Time(unlock_time) => Err(TransactionError::LockedUntilAfterBlockTime(unlock_time)),
+            };
+        }
+    }
+
+    // if tx.raw_lock_time() returned None it means that tx.lock_time == LockTime::unlocked(), i.e.
+    // LockTime::Height(block::Height(0)), and in this case tx also considered to be final.
+
+    Ok(())
+
 }
 
 /// Checks that the transaction has inputs and outputs.
