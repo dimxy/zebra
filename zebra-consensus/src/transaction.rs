@@ -156,9 +156,6 @@ pub enum Request {
         height: block::Height,
         /// The time that the block was mined.
         time: DateTime<Utc>,
-
-        hash: block::Hash,
-
         /// previous block hash (komodo added)
         previous_hash: block::Hash,
 

@@ -207,7 +207,6 @@ where
                         known_utxos: known_utxos.clone(),
                         height,
                         time: block.header.time,
-                        hash: block.hash(),
                         previous_hash: block.header.previous_block_hash,
                     });
                 async_checks.push(rsp);
