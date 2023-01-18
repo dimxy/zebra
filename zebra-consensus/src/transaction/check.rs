@@ -122,20 +122,8 @@ pub fn is_final_tx_komodo(
 
                 // f_exception is true, when nLockTime > (nBlockTime or nBlockHeight)
                 let f_exception = match lock_time {
-                    LockTime::Height(unlock_height) => {
-                        if unlock_height > block_height {
-                            true
-                        } else {
-                            false
-                        }
-                    },
-                    LockTime::Time(unlock_time) => {
-                        if unlock_time > block_time {
-                            true
-                        } else {
-                            false
-                        }
-                    }
+                    LockTime::Height(unlock_height) => unlock_height > block_height,
+                    LockTime::Time(unlock_time) => unlock_time > block_time
                 };
 
                 if !hf_active && sequence_number == u32::MAX - 1 && f_exception
