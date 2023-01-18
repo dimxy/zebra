@@ -370,14 +370,27 @@ mod tests {
     }
 
     #[test]
-    fn test_komodo_interest_overflow() {
+    /// test a specific overflow case  
+    fn test_komodo_interest_overflow_path_C() {
         zebra_test::init();
 
-        let tx_lock_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1665780084, 0), Utc);
-        let tip_time = tx_lock_time + Duration::minutes(49);
+        let tip_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1491350400 + 1, 0), Utc);
+        let tx_lock_time = tip_time - Duration::minutes(59 + 49);
 
         let calc_value = komodo_interest(Height(250002), Amount::<NonNegative>::try_from(233539804500u64).expect("conversion must be okay"), LockTime::Time(tx_lock_time), Some(tip_time));
-        let overflow_value = Amount::<NonNegative>::try_from(1877019881371345152u64).expect("conversion must be okay");
+        let overflow_value = Amount::<NonNegative>::try_from(1088608).expect("conversion must be okay");
+        assert_eq!(calc_value, overflow_value);
+    }
+
+    #[test]
+    /// test a specific overflow case  
+    fn test_komodo_interest_overflow_before_activation() {
+        zebra_test::init();
+        let tip_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1491350400 - 1, 0), Utc);
+        let tx_lock_time = tip_time - Duration::minutes(59 + 49);
+
+        let calc_value = komodo_interest(Height(250002), Amount::<NonNegative>::try_from(233539804500u64).expect("conversion must be okay"), LockTime::Time(tx_lock_time), Some(tip_time));
+        let overflow_value = Amount::<NonNegative>::try_from(35711).expect("conversion must be okay");
         assert_eq!(calc_value, overflow_value);
     }
 }
