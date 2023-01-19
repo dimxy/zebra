@@ -6,6 +6,7 @@ use std::{
     sync::Arc,
 };
 
+use chrono::{DateTime, Utc, NaiveDateTime};
 use halo2::pasta::{group::ff::PrimeField, pallas};
 use tower::{service_fn, ServiceExt};
 
@@ -16,7 +17,7 @@ use zebra_chain::{
     parameters::{Network, NetworkUpgrade},
     primitives::{ed25519, x25519, Groth16Proof},
     sapling,
-    serialization::{ZcashDeserialize, ZcashDeserializeInto},
+    serialization::{ZcashDeserialize, ZcashDeserializeInto, DateTime32},
     sprout,
     transaction::{
         arbitrary::{
@@ -24,7 +25,7 @@ use zebra_chain::{
         },
         Hash, HashType, JoinSplitData, LockTime, Transaction,
     },
-    transparent::{self, CoinbaseData},
+    transparent::{self, CoinbaseData, Input, OutPoint, Output}, komodo_hardfork::NN,
 };
 
 use super::{check, Request, Verifier};
@@ -2308,4 +2309,93 @@ fn shielded_outputs_are_not_decryptable_for_fake_v5_blocks() {
             Err(TransactionError::CoinbaseOutputsNotDecryptable)
         );
     }
+}
+
+#[test]
+/// These tests should be fully equal to https://github.com/DeckerSU/KomodoOcean/blob/patch-test-isfinaltx/src/test-komodo/test_isfinaltx.cpp .
+fn is_final_tx_komodo_tests() {
+
+    let network = Network::Mainnet;
+
+
+    // let sapling_activation_height = Height(1140409);
+    let sapling_activation_height = NetworkUpgrade::Sapling
+        .activation_height(network)
+        .expect("Sapling activation height is specified");
+
+    let sapling_block_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1544835390, 0), Utc);
+
+    // TODO: may be best way will be to somehow call NN::NNDataMain::new() and extract needed data from it, but for now we will use constants
+    let n_staked_december_hardfork_timestamp = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1576840000, 0), Utc); //December 2019 hardfork 12/20/2019 @ 11:06am (UTC)
+    let n_december_hardfork_height = Height(1670000); //December 2019 hardfork
+    let fake_source_fund_height = sapling_activation_height;
+
+    let tbh = n_december_hardfork_height;
+    let tbt = n_staked_december_hardfork_timestamp;
+
+
+    // closure implements BuildTransactionTemplate https://github.com/DeckerSU/KomodoOcean/blob/patch-test-isfinaltx/src/test-komodo/test_isfinaltx.cpp#L82
+    let build_transaction_template = | lock_time: LockTime, count_final: u8, count_non_final: u8, default_seq: u32 | -> Transaction {
+
+        let mut fake_inputs: Vec<Input> = vec![];
+        let mut fake_outputs: Vec<Output> = vec![];
+
+        let mut vin_number = 0;
+
+        // adding "final" vins
+        for _n in 1..=count_final {
+            vin_number = vin_number + 1;
+            let prev_txid = [vin_number; 32];
+            let new_outpoint = transparent::OutPoint {
+                hash: Hash(prev_txid),
+                index: vin_number as u32,
+            };
+            let (mut input, _, _) = mock_transparent_transfer(fake_source_fund_height, true, 0);
+            input.set_outpoint(new_outpoint);
+            input.set_sequence(u32::MAX);
+            fake_inputs.push(input);
+        }
+
+        // adding "non-final" vins
+        for _n in 1..=count_non_final {
+            vin_number = vin_number + 1;
+            let prev_txid = [vin_number; 32];
+            let new_outpoint = transparent::OutPoint {
+                hash: Hash(prev_txid),
+                index: vin_number as u32,
+            };
+            let (mut input, _, _) = mock_transparent_transfer(fake_source_fund_height, true, 0);
+            input.set_outpoint(new_outpoint);
+
+            // make sure that passed default_seq is "non-final", if "final" is passed - make it "non-final"
+            let seq = match default_seq {
+                u32::MAX => u32::MAX - 1,
+                _ => default_seq
+            };
+
+            input.set_sequence(seq);
+            fake_inputs.push(input);
+        }
+
+        let (_, output, _) = mock_transparent_transfer(fake_source_fund_height, true, 0);
+        fake_outputs.push(output);
+
+        let tx = Transaction::V4 {
+            inputs: fake_inputs,
+            outputs: fake_outputs,
+            lock_time,
+            expiry_height: (tbh + 1).expect("expiry height is too large"),
+            joinsplit_data: None,
+            sapling_shielded_data: None,
+        };
+
+        tx
+    };
+
+    // println!("{:?}", tbh);
+    // println!("{:?}", build_transaction_template(LockTime::Height(zebra_chain::block::Height(0)), 1, 2, 777));
+
+    /* common cases, when nLockTime = 0 or nLockTime < nBlockHeight | nBlockTime */
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(zebra_chain::block::Height(0)), 1, 1, 0), tbh, tbt), Ok(()));
+
 }
