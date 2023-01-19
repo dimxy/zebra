@@ -386,7 +386,7 @@ where
 
             // Do basic checks first
             if let Some(block_time) = req.block_time() {
-                check::lock_time_has_passed(network, &tx, req.height(), block_time)?;
+                check::is_final_tx_komodo(network, &tx, req.height(), block_time)?;
             }
 
             check::has_inputs_and_outputs(&tx)?;
