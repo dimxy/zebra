@@ -312,6 +312,12 @@ impl StateService {
 
         self.process_queued(parent_hash);
 
+        if !self.mem.best_chain().is_some() {
+            tracing::debug!("non finalized blocks still empty, returning early");
+            return rsp_rx;
+        }
+
+        // in case 
         while self.mem.best_chain_len() > crate::constants::MAX_BLOCK_REORG_HEIGHT {
             tracing::trace!("finalizing block past the reorg limit");
             let finalized = self.mem.finalize();
@@ -451,6 +457,9 @@ impl StateService {
                         // Update the metrics if semantic and contextual validation passes
                         metrics::counter!("state.full_verifier.committed.block.count", 1);
                         metrics::counter!("zcash.chain.verified.block.total", 1);
+                    }
+                    else {
+                        info!(?result, "validate_and_commit returned error");
                     }
                 }
 
