@@ -220,7 +220,20 @@ impl NonFinalizedState {
     ) -> Result<Arc<Chain>, ValidateContextError> {
         // Reads from disk
         //
-        let last_block_time = if let Some(tip) = new_chain.tip_block() { Some(tip.block.header.time) } else { None };
+
+        // komodo: get chain tip to calc interest
+        let last_block_time = if let Some(tip) = new_chain.tip_block() { 
+            Some(tip.block.header.time) 
+        } else { 
+            // if new_chain is empty get finalized tip:
+            if let Some(tip) = finalized_state.tip_block()  {
+                Some(tip.header.time)
+            }
+            else {
+                panic!("could not get chain tip");
+            }
+        };
+
         // TODO: if these disk reads show up in profiles, run them in parallel, using std::thread::spawn()
         let spent_utxos = check::utxo::transparent_spend(
             new_chain.network(),
