@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use chrono::{DateTime, Utc, NaiveDateTime};
+use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use halo2::pasta::{group::ff::PrimeField, pallas};
 use tower::{service_fn, ServiceExt};
 
@@ -2333,7 +2333,6 @@ fn is_final_tx_komodo_tests() {
     let tbh = n_december_hardfork_height;
     let tbt = n_staked_december_hardfork_timestamp;
 
-
     // closure implements BuildTransactionTemplate https://github.com/DeckerSU/KomodoOcean/blob/patch-test-isfinaltx/src/test-komodo/test_isfinaltx.cpp#L82
     let build_transaction_template = | lock_time: LockTime, count_final: u8, count_non_final: u8, default_seq: u32 | -> Transaction {
 
@@ -2397,5 +2396,55 @@ fn is_final_tx_komodo_tests() {
 
     /* common cases, when nLockTime = 0 or nLockTime < nBlockHeight | nBlockTime */
     assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(zebra_chain::block::Height(0)), 1, 1, 0), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh - 1).expect("height is ok")), 1, 1, 0), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt - Duration::seconds(1)), 1, 1, 0), tbh, tbt), Ok(()));
 
+    /* first we will do the test for before December 2019 hardfork values */
+
+    /* before hardfork tx with vin with nSequence == 0xfffffffe treated as final if
+        nLockTime > (nBlockTime | nBlockHeight), such vins considered same way as vins with
+        Sequence == 0xffffffff. all other sequences in vins should be considered same way as in bitcoin,
+        if vin have "non-final" sequence and nLockTime >= (nBlockTime | nBlockHeight) it should be
+        considered as non-final.
+    */
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh + 1).expect("height is ok")), 1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1)), 1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(tbh), 1, 1, u32::MAX - 1), tbh, tbt), Err(TransactionError::LockedUntilAfterBlockHeight(tbh)));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt),   1, 1, u32::MAX - 1), tbh, tbt), Err(TransactionError::LockedUntilAfterBlockTime(tbt)));
+
+    // https://stackoverflow.com/questions/51121446/how-do-i-assert-an-enum-is-a-specific-variant-if-i-dont-care-about-its-fields
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh + 1).expect("height is ok")), 1, 1, 777), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1))        , 1, 1, 777), tbh, tbt), Err(_)));
+
+    // all vins have SEQUENCE_FINAL, so it's final
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1)), 1, 0, u32::MAX - 1), tbh, tbt), Ok(()));
+
+    /* after let's "jump" into hardfork times, we will increase tbh and tbt to match HF times */
+    let tbh = (tbh + 2).expect("height is ok");
+    let tbt = tbt + Duration::seconds(1);
+    // in below tests in komodod we have chainActive.Height() = 1670001, inside komodo_hardfork_active, so HF assumed active,
+    // here to get the same effect we should increase tbh by 2.
+
+    /* after hardfork we consider nSequence == 0xfffffffe as final if nLockTime <= (nBlockTime | nBlockHeight) */
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh - 1).expect("height is ok")), 1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt - Duration::seconds(1)),         1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(tbh), 1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt),   1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh + 1).expect("height is ok")), 1, 1, u32::MAX - 1), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1))        , 1, 1, u32::MAX - 1), tbh, tbt), Err(_)));
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh - 1).expect("height is ok")), 1, 1, 777), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt - Duration::seconds(1)),         1, 1, 777), tbh, tbt), Ok(()));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(tbh), 1, 1, 777), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt)  , 1, 1, 777), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh + 1).expect("height is ok")), 1, 1, 777), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1))        , 1, 1, 777), tbh, tbt), Err(_)));
+
+    // all vins have SEQUENCE_FINAL, so it's final
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1)), 1, 0, u32::MAX - 1), tbh, tbt), Ok(()));
 }
