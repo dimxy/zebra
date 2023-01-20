@@ -280,7 +280,6 @@ pub fn komodo_block_has_notarisation_tx(network: Network, block: &Block, spent_o
         
         let mut signedmask: u64 = 0;
         signedmask |= if *height < Height(91400) { 1 } else { 0 };
-        //info!("dimxyyy inputs.len={}", tx.inputs().len());
         for input in tx.inputs() {
             if let transparent::Input::Coinbase{..} = input { continue; } // skip coinbase input
 
@@ -288,7 +287,6 @@ pub fn komodo_block_has_notarisation_tx(network: Network, block: &Block, spent_o
                 if let Some(output) = spent_outputs.get(&outpoint) {
                     if let Some(n_id) = NN::komodo_get_notary_id_for_spent_output(network, height, &output) {
                         signedmask |= 1 << n_id;
-                        //info!("dimxyyy found signed notary={}", n_id);
                     }
                 }
             }
@@ -302,7 +300,7 @@ pub fn komodo_block_has_notarisation_tx(network: Network, block: &Block, spent_o
             }
             n
         };
-        info!("dimxyyy signed notary numbits={} height={:?}", numbits, height);
+        trace!("komodo signed notary numbits={} height={:?}", numbits, height);
 
         if numbits >= komodo_minratify(network, height) {
             // several notas are possible in the same nota tx
@@ -371,6 +369,6 @@ fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotari
     }
     if nota.symbol != String::from("KMD") { return None; }
 
-    info!("dimxyyy found nota {:?}", nota);
+    trace!("komodo found nota {:?}", nota);
     Some(nota)
 }
