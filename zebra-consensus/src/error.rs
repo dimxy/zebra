@@ -189,6 +189,9 @@ pub enum TransactionError {
 
     #[error("cannot get median time past")]
     KomodoMedianTimePastError,
+    
+    #[error("banned inputs usage attempt")]
+    BannedInputs,
 }
 
 impl From<BoxError> for TransactionError {

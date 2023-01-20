@@ -449,6 +449,9 @@ where
             // Request the tip block from the state and read its time to calculate komodo interest
             let query = Verifier::<ZS>::get_last_block_time(&state, &req);
             let last_tip_blocktime = query.await?;
+            
+            // tx shouldn't have banned inputs
+            check::tx_has_banned_inputs(&tx)?;
 
             // "The consensus rules applied to valueBalance, vShieldedOutput, and bindingSig
             // in non-coinbase transactions MUST also be applied to coinbase transactions."

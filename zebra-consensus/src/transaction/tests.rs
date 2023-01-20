@@ -2279,6 +2279,8 @@ fn shielded_outputs_are_not_decryptable_for_fake_v5_blocks() {
     }
 }
 
+
+
 #[test]
 /// These tests should be fully equal to https://github.com/DeckerSU/KomodoOcean/blob/patch-test-isfinaltx/src/test-komodo/test_isfinaltx.cpp .
 fn is_final_tx_komodo_tests() {
@@ -2415,4 +2417,52 @@ fn is_final_tx_komodo_tests() {
 
     // all vins have SEQUENCE_FINAL, so it's final
     assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1)), 1, 0, u32::MAX - 1), tbh, tbt), Ok(()));
+}
+
+
+/// Check the predefined set of transactions containing (or not) banned inputs using [`check::tx_has_banned_inputs`].
+#[test]
+fn tx_has_banned_inputs_multiple_tests() {
+    let network = Network::Mainnet;
+
+    let sapling_activation_height = NetworkUpgrade::Sapling
+        .activation_height(network)
+        .expect("Sapling activation height is specified");
+
+    let transaction_block_height =
+        (sapling_activation_height + 10).expect("transaction block height is too large");
+
+    let fake_source_fund_height =
+        (transaction_block_height - 1).expect("fake source fund block height is too small");
+
+    let test_cases: [(&str, u32, Result<(), TransactionError>); 5] = [
+        ("c85dcffb16d5a45bd239021ad33443414d60224760f11d535ae2063e5709efee", 1, Err(TransactionError::BannedInputs)),
+        ("bbd3a3d9b14730991e1066bd7c626ca270acac4127131afe25f877a5a886eb25", 1, Err(TransactionError::BannedInputs)),
+        ("c4ea1462c207547cd6fb6a4155ca6d042b22170d29801a465db5c09fec55b19d", 333, Err(TransactionError::BannedInputs)),
+        ("c85dcffb16d5a45bd239021ad33443414d60224760f11d535ae2063e5709efee", 0, Ok(())),
+        ("0101010101010101010101010101010101010101010101010101010101010101", 0, Ok(())),
+    ];
+
+    for (transaction_id, n, result) in test_cases {
+        let txid: Hash = transaction_id.parse().expect("txid should be correct");
+        let new_outpoint = transparent::OutPoint {
+            hash: txid,
+            index: n,
+        };
+
+        let (mut input, output, _) = mock_transparent_transfer(fake_source_fund_height, true, 0);
+        input.set_outpoint(new_outpoint);
+
+        let tx = Transaction::V4 {
+            inputs: vec![input],
+            outputs: vec![output],
+            lock_time: LockTime::Height(block::Height(0)),
+            expiry_height: (transaction_block_height + 1).expect("expiry height is too large"),
+            joinsplit_data: None,
+            sapling_shielded_data: None,
+        };
+
+        assert_eq!(check::tx_has_banned_inputs(&tx), result);
+    };
+
 }
