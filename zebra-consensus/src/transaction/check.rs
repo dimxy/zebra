@@ -31,6 +31,7 @@ use crate::error::TransactionError;
 /// [`Transaction::lock_time`] validates the transparent input sequence numbers, returning [`None`]
 /// if they indicate that the transaction is finalized by them. Otherwise, this function validates
 /// if the lock time is in the past.
+/// (this function is not used in komodo, see is_final_tx_komodo() instead)
 pub fn lock_time_has_passed(
     network: Network,
     tx: &Transaction,
