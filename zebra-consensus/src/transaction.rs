@@ -121,12 +121,12 @@ where
     }
 
     /// create request to state to obtain median time past
-    fn get_median_time_past(state: &Timeout<ZS>) -> impl Future<Output = Result<DateTime<Utc>, TransactionError>>   {
+    fn get_median_time_past(state: &Timeout<ZS>, block_hash: Option<block::Hash>) -> impl Future<Output = Result<DateTime<Utc>, TransactionError>>   {
 
         let state = state.clone();
     
         async move {
-            let query = state.oneshot(zebra_state::Request::GetMedianTimePast);
+            let query = state.oneshot(zebra_state::Request::GetMedianTimePast(block_hash));
 
             match query.await? {
                 zebra_state::Response::MedianTimePast(Some(median_time_past)) => {
@@ -421,13 +421,18 @@ where
             // Validate that tx locktime is not too early to prevent cheating with the beginning of komodo interest calculation period 
             let _ = match req.clone() {
                 Request::Mempool { transaction, height } => {
-                    let query = Verifier::<ZS>::get_median_time_past(&state);
+                    let query = Verifier::<ZS>::get_median_time_past(&state, None);
                     let cmp_time = query.await? + Duration::seconds(777); 
                     komodo_validate_interest_locktime(network, &transaction.transaction, height, cmp_time)?;
                     
                 },
-                Request::Block { transaction, height, time, .. } => {
-                    let cmp_time = time; 
+                Request::Block { transaction, height, time, previous_hash, .. } => {
+                    let mut cmp_time = time; 
+                    if NN::komodo_is_gap_after_second_block_allowed(network, &height) {
+                        let query = Verifier::<ZS>::get_median_time_past(&state, Some(previous_hash));
+                        let mtp = query.await?;
+                        cmp_time = mtp + Duration::seconds(777); // HF22 - check interest validation against prev_block's MedianTimePast + 777 
+                    }
                     komodo_validate_interest_locktime(network, &transaction, height, cmp_time)?;
                 },
             };

@@ -1043,7 +1043,7 @@ impl Service<Request> for StateService {
                 fut.instrument(span).boxed()
             }
 
-            Request::GetMedianTimePast => {
+            Request::GetMedianTimePast(block_hash) => {
                 metrics::counter!(
                     "state.requests",
                     1,
@@ -1052,15 +1052,15 @@ impl Service<Request> for StateService {
                 );
 
                 let timer = CodeTimer::start();
-                let tip = self.best_tip();
+                let block_hash = if block_hash.is_some() { block_hash } else { self.best_tip().map(|t| t.1) };
                 let network = self.network.clone();
                  
-                let relevant_chain = if let Some(tip) = tip  { 
-                    self.any_ancestor_blocks(tip.1)
+                let relevant_chain = if let Some(block_hash) = block_hash  { 
+                    self.any_ancestor_blocks(block_hash)
                 } else  {
                     block_iter::Iter {
                         service: self,
-                        state: block_iter::IterState::Finished,
+                        state: block_iter::IterState::Finished, // empty relevant chain
                     }
                 };
 

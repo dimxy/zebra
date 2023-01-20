@@ -451,7 +451,7 @@ pub enum Request {
     /// Request the median time past calculated from the tip.
     ///
     /// This is a komodo added request, to validate komodo interest
-    GetMedianTimePast,
+    GetMedianTimePast(Option<block::Hash>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
