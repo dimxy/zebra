@@ -126,6 +126,15 @@ where
         let state = state.clone();
     
         async move {
+            if let Some(block_hash) = block_hash {
+                let state = state.clone();
+                // wait for the block to be added in the chain
+                let query = state.oneshot(
+                    zebra_state::Request::AwaitBlock(
+                        block_hash
+                    ));
+                query.await?;
+            }
             let query = state.oneshot(zebra_state::Request::GetMedianTimePast(block_hash));
 
             match query.await? {
