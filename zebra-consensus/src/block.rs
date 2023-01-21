@@ -202,9 +202,10 @@ where
 
                 // for the last transaction in the block we need to add coinbase transaction to
                 // transaction_verifier request for komodo_check_deposit checks inside verifier
-                let coinbase = match idx {
-                    last_idx => Some(coinbase_tx.clone()),
-                    _ => None
+                let coinbase = if last_idx == idx {
+                    Some(coinbase_tx.clone())
+                } else {
+                    None
                 };
 
                 let rsp = transaction_verifier

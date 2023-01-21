@@ -304,6 +304,14 @@ impl Request {
             Request::Mempool { .. } => true,
         }
     }
+
+    /// Returns the coinbase if it's block request and it's passed.
+    pub fn coinbase(&self) -> Option<Arc<Transaction>> {
+        match self {
+            Request::Block { coinbase, .. } => coinbase.clone(),
+            _ => None
+        }
+    }
 }
 
 impl Response {
