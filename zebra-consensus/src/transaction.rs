@@ -478,6 +478,12 @@ where
             let (spent_utxos, spent_outputs) =
                 Self::spent_utxos(tx.clone(), req.known_utxos(), state).await?;
 
+            // komodo_check_deposit implementation
+            if let Some(coinbase) = req.coinbase() {
+                let tx_hash = tx.hash();
+                tracing::info!(?coinbase, ?tx_hash, "komodo_check_deposit");
+            }
+
             let cached_ffi_transaction =
                 Arc::new(CachedFfiTransaction::new(tx.clone(), spent_outputs));
             let async_checks = match tx.as_ref() {
