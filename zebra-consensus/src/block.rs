@@ -197,7 +197,16 @@ where
                 &transaction_hashes,
             ));
 
-            for transaction in &block.transactions {
+            let last_idx = block.transactions.len() - 1;
+            for (idx, transaction) in block.transactions.iter().enumerate() {
+
+                // for the last transaction in the block we need to add coinbase transaction to
+                // transaction_verifier request for komodo_check_deposit checks inside verifier
+                let coinbase = match idx {
+                    last_idx => Some(coinbase_tx.clone()),
+                    _ => None
+                };
+
                 let rsp = transaction_verifier
                     .ready()
                     .await
@@ -208,9 +217,11 @@ where
                         height,
                         time: block.header.time,
                         previous_hash: block.header.previous_block_hash,
+                        coinbase
                     });
                 async_checks.push(rsp);
             }
+
             tracing::trace!(len = async_checks.len(), "built async tx checks");
 
             // Get the transaction results back from the transaction verifier.

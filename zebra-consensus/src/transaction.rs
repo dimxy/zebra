@@ -167,6 +167,9 @@ pub enum Request {
         time: DateTime<Utc>,
         /// previous block hash (komodo added)
         previous_hash: block::Hash,
+        /// coinbase transaction (for komodo_deposit_check), should be passed if we verifying
+        /// last tx in a block
+        coinbase: Option<Arc<Transaction>>,
 
     },
     /// Verify the supplied transaction as part of the mempool.
