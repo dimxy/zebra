@@ -478,10 +478,37 @@ where
             let (spent_utxos, spent_outputs) =
                 Self::spent_utxos(tx.clone(), req.known_utxos(), state).await?;
 
-            // komodo_check_deposit implementation
+            // `komodo_check_deposit` checks implementation, these checks only called for last tx in the block (!)
             if let Some(coinbase) = req.coinbase() {
-                let tx_hash = tx.hash();
-                tracing::info!(?coinbase, ?tx_hash, "komodo_check_deposit");
+
+                let activation = 235_300;
+
+                let mut not_matched: bool = false;
+
+                // as we have coinbase passed, then tx - is a last tx of a block here,
+                // first vout of last have 0.00005 KMD value and it's produced from single vin
+                if tx.outputs().first().map_or(false, |out| i64::from(out.value) == 5000)
+                    && tx.inputs().len() == 1
+                {
+                    if let Some(vin) = tx.inputs().first() {
+
+                        let prev_output = match vin {
+                            transparent::Input::PrevOut { outpoint, .. } => {
+                                spent_utxos.get(outpoint).map(|utxo| &utxo.output)
+                            },
+                            transparent::Input::Coinbase { .. } => unreachable!("komodod never spend coinbase as notaryvin"), // impossible, komodod can't spend 3 KMD coinbase utxo as 5000 sat. and burn remaining
+                        };
+
+                        if let Some(prev_out) = prev_output {
+                            if coinbase.outputs().first().map_or(false, |coinbase_vout_0| coinbase_vout_0.lock_script == prev_out.lock_script) {
+                                not_matched = true;
+                            }
+                        }
+
+                        let tx_hash = tx.hash();
+                        tracing::info!(?coinbase, ?vin, ?prev_output, ?tx_hash, ?not_matched, "komodo_check_deposit");
+                    }
+                }
             }
 
             let cached_ffi_transaction =
