@@ -14,6 +14,7 @@ use futures::{
     stream::{FuturesUnordered, StreamExt},
     FutureExt,
 };
+use tokio::time::error::Elapsed;
 use tower::{timeout::Timeout, Service, ServiceExt};
 use tracing::Instrument;
 
@@ -21,12 +22,12 @@ use zebra_chain::{
     amount::{Amount, NonNegative, NegativeAllowed, COIN},
     block, orchard,
     parameters::{Network, NetworkUpgrade},
-    primitives::Groth16Proof,
+    primitives::{Groth16Proof},
     sapling,
     transaction::{
         self, HashType, SigHash, Transaction, UnminedTx, UnminedTxId, VerifiedUnminedTx, LockTime,
     },
-    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME,
+    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME, komodo_utils::parse_p2pk,
 };
 
 use zebra_script::CachedFfiTransaction;
@@ -484,6 +485,7 @@ where
                 let activation = 235_300;
 
                 let mut not_matched: bool = false;
+                let mut notary_pk = None;
 
                 // as we have coinbase passed, then tx - is a last tx of a block here,
                 // first vout of last have 0.00005 KMD value and it's produced from single vin
@@ -502,12 +504,31 @@ where
                         if let Some(prev_out) = prev_output {
                             if coinbase.outputs().first().map_or(false, |coinbase_vout_0| coinbase_vout_0.lock_script == prev_out.lock_script) {
                                 not_matched = true;
+                                notary_pk = parse_p2pk(&prev_out.lock_script);
                             }
                         }
 
                         let tx_hash = tx.hash();
-                        tracing::info!(?coinbase, ?vin, ?prev_output, ?tx_hash, ?not_matched, "komodo_check_deposit");
+
+                        let nn_id = if let Some(nn_pk) = notary_pk {
+                            NN::komodo_get_notary_id(network, &req.height(), &nn_pk)
+                        } else {
+                            Ok(None)
+                        };
+
+                        tracing::info!(?coinbase, ?vin, ?prev_output, ?tx_hash, ?not_matched, ?nn_id, "komodo_check_deposit");
                     }
+                }
+
+                let sapling_activation_height = NetworkUpgrade::Sapling
+                    .activation_height(network)
+                    .expect("Sapling activation height is specified");
+
+                if req.height() >= sapling_activation_height {
+                    // coinbase vouts check ... yes, kind of strange to do these checks on the last tx in the block check, but as
+                    // the result depends on not_matched value, which could be calculated only on verify of last tx in a block, we
+                    // will do these checks here
+
                 }
             }
 
