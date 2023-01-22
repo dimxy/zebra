@@ -14,6 +14,7 @@ use futures::{
     stream::{FuturesUnordered, StreamExt},
     FutureExt,
 };
+
 use tokio::time::error::Elapsed;
 use tower::{timeout::Timeout, Service, ServiceExt};
 use tracing::Instrument;
@@ -510,13 +511,15 @@ where
 
                         let tx_hash = tx.hash();
 
+                        // Result<Option<NotaryId>, NotaryDataError> -> Option<NotaryId>
                         let nn_id = if let Some(nn_pk) = notary_pk {
-                            NN::komodo_get_notary_id(network, &req.height(), &nn_pk)
+                            NN::komodo_get_notary_id(network, &req.height(), &nn_pk).map_or(None, |id| id)
                         } else {
-                            Ok(None)
+                            None
                         };
 
-                        tracing::info!(?coinbase, ?vin, ?prev_output, ?tx_hash, ?not_matched, ?nn_id, "komodo_check_deposit");
+                        let pubkey_hash = notary_pk.map(|v| v.serialize().iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(""));
+                        tracing::info!(?coinbase, ?vin, ?prev_output, ?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, "komodo_check_deposit");
                     }
                 }
 
