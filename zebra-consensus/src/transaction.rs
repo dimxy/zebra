@@ -20,7 +20,7 @@ use tower::{timeout::Timeout, Service, ServiceExt};
 use tracing::Instrument;
 
 use zebra_chain::{
-    amount::{Amount, NonNegative, NegativeAllowed, COIN},
+    amount::{Amount, Error as AmountError, NonNegative, NegativeAllowed, COIN},
     block, orchard,
     parameters::{Network, NetworkUpgrade},
     primitives::{Groth16Proof},
@@ -486,6 +486,7 @@ where
                 let activation = 235_300;
 
                 let mut not_matched: bool = false;
+                let mut nn_id: Option<u32> = None;
                 let mut notary_pk = None;
 
                 // as we have coinbase passed, then tx - is a last tx of a block here,
@@ -509,17 +510,7 @@ where
                             }
                         }
 
-                        let tx_hash = tx.hash();
-
-                        // Result<Option<NotaryId>, NotaryDataError> -> Option<NotaryId>
-                        let nn_id = if let Some(nn_pk) = notary_pk {
-                            NN::komodo_get_notary_id(network, &req.height(), &nn_pk).map_or(None, |id| id)
-                        } else {
-                            None
-                        };
-
-                        let pubkey_hash = notary_pk.map(|v| v.serialize().iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(""));
-                        tracing::info!(?coinbase, ?vin, ?prev_output, ?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, "komodo_check_deposit");
+                        nn_id = notary_pk.and_then(|nn_pk| NN::komodo_get_notary_id(network, &req.height(), &nn_pk).map_or(None, |id| id));
                     }
                 }
 
@@ -528,10 +519,32 @@ where
                     .expect("Sapling activation height is specified");
 
                 if req.height() >= sapling_activation_height {
+
                     // coinbase vouts check ... yes, kind of strange to do these checks on the last tx in the block check, but as
                     // the result depends on not_matched value, which could be calculated only on verify of last tx in a block, we
                     // will do these checks here
 
+                    let strangeout = coinbase.outputs().iter().skip(2).filter(|out| {
+                        let raw_script = out.lock_script.as_raw_bytes();
+                        !raw_script.is_empty() && raw_script[0] != 0x6a && i64::from(out.value) < 5000
+                    }).count();
+
+                    // let total = coinbase.outputs().iter().skip(1).fold(Amount::zero(), |acc, out| (acc + out.value).expect("sum of coinbase outputs should be ok"));
+                    let mut overflow = false;
+                    let total: Amount<NonNegative> = coinbase
+                        .outputs()
+                        .iter()
+                        .skip(1)
+                        .map(|o| o.value())
+                        .sum::<Result<Amount<NonNegative>, AmountError>>()
+                        .unwrap_or_else(|_| {
+                            overflow = true;
+                            Amount::zero()
+                        });
+
+                    let tx_hash = tx.hash();
+                    let pubkey_hash = notary_pk.map(|v| v.serialize().iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(""));
+                    tracing::info!(?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, ?total, "komodo_check_deposit");
                 }
             }
 
