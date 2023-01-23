@@ -301,7 +301,7 @@ pub fn komodo_check_deposit(tx: &Transaction, spent_utxos: &HashMap<transparent:
 
         let tx_hash = tx.hash();
         let pubkey_hash = notary_pk.map(|v| v.serialize().iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(""));
-        tracing::info!(?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, ?total, "komodo_check_deposit");
+        tracing::debug!(?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, ?total, "komodo_check_deposit");
 
         if overflow || i64::from(total) > COIN/10 {
             if req_height > activation {
