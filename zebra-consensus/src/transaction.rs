@@ -28,7 +28,7 @@ use zebra_chain::{
     transaction::{
         self, HashType, SigHash, Transaction, UnminedTx, UnminedTxId, VerifiedUnminedTx, LockTime,
     },
-    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME, komodo_utils::parse_p2pk,
+    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME, komodo_utils::parse_p2pk, work::difficulty::{CompactDifficulty, ExpandedDifficulty},
 };
 
 use zebra_script::CachedFfiTransaction;
@@ -172,6 +172,8 @@ pub enum Request {
         /// coinbase transaction (for komodo_deposit_check), should be passed if we verifying
         /// last tx in a block
         coinbase: Option<Arc<Transaction>>,
+        // block nbits
+        nbits: CompactDifficulty
 
     },
     /// Verify the supplied transaction as part of the mempool.
@@ -281,6 +283,14 @@ impl Request {
     pub fn height(&self) -> block::Height {
         match self {
             Request::Block { height, .. } | Request::Mempool { height, .. } => *height,
+        }
+    }
+
+    /// The nbits in block being checked
+    pub fn nbits(&self) -> Option<CompactDifficulty> {
+        match self {
+            Request::Block { nbits, .. } => Some(*nbits),
+            Request::Mempool { .. } => None,
         }
     }
 
@@ -483,7 +493,7 @@ where
             // `komodo_check_deposit` checks implementation, these checks only called for last tx in the block (!)
             if let Some(coinbase) = req.coinbase() {
 
-                let activation = 235_300;
+                let activation = block::Height(235_300);
 
                 let mut not_matched: bool = false;
                 let mut nn_id: Option<u32> = None;
@@ -545,6 +555,27 @@ where
                     let tx_hash = tx.hash();
                     let pubkey_hash = notary_pk.map(|v| v.serialize().iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(""));
                     tracing::info!(?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, ?total, "komodo_check_deposit");
+
+                    if overflow || i64::from(total) > COIN/10 {
+                        if req.height() > activation {
+                            //illegal nonz output
+                            return Err(TransactionError::IllegalCoinbaseOutput {
+                                block_height: req.height(),
+                                coinbase_hash: coinbase.hash(),
+                            });
+                        }
+                    } else if let Some(nbits) = req.nbits() {
+                        let mindiff = ExpandedDifficulty::target_difficulty_limit(network).to_compact(); // 0x200f0f0f for mainnet
+                        // https://github.com/KomodoPlatform/komodo/blob/master/src/komodo_gateway.cpp#L773
+                        if nbits == mindiff && i64::from(total) > 0 && NN::komodo_notaries_height1_reached(network, &req.height()) {
+                            // "deal with fee stealing" komodod rule, actually it's incorrect, bcz block.nBits == KOMODO_MINDIFF_NBITS
+                            // rule doesn't mean notary mined block, it was a mistake, but it's in history now.
+                            return Err(TransactionError::IllegalCoinbaseOutput {
+                                block_height: req.height(),
+                                coinbase_hash: coinbase.hash(),
+                            });
+                        }
+                    }
                 }
             }
 

@@ -218,7 +218,8 @@ where
                         height,
                         time: block.header.time,
                         previous_hash: block.header.previous_block_hash,
-                        coinbase
+                        coinbase,
+                        nbits: block.header.difficulty_threshold,
                     });
                 async_checks.push(rsp);
             }

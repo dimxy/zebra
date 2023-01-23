@@ -192,6 +192,17 @@ pub enum TransactionError {
     
     #[error("banned inputs usage attempt")]
     BannedInputs,
+
+    #[error(
+        "coinbase tx {coinbase_hash:?} at block {block_height:?} \
+         failed bcz of illegal outputs"
+    )]
+    IllegalCoinbaseOutput {
+        block_height: zebra_chain::block::Height,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
+
+
 }
 
 impl From<BoxError> for TransactionError {
