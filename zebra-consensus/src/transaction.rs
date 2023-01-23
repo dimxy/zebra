@@ -500,7 +500,7 @@ where
                             transparent::Input::PrevOut { outpoint, .. } => {
                                 spent_utxos.get(outpoint).map(|utxo| &utxo.output)
                             },
-                            transparent::Input::Coinbase { .. } => unreachable!("komodod never spend coinbase as notaryvin"), // impossible, komodod can't spend 3 KMD coinbase utxo as 5000 sat. and burn remaining
+                            _ => None
                         };
 
                         if let Some(prev_out) = prev_output {
