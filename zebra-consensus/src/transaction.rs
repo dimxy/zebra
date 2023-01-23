@@ -576,6 +576,30 @@ where
                             });
                         }
                     }
+
+                    // TODO: simplify checking code below based on the following conditions (at present it's just line-by-line repeats komodod sources)
+                    //
+                    // 1. strangeouts in coinbase not allowed when ht. > 1_000_000
+                    // 2. if notaryproof tx vin lock_script matches coinbase lock_script - it's Ok anytime
+                    // 3. if notaryproof tx vin lock_script not match coinbase lock_script and is notary mined block, and height > 1_000_000 - it's illegal
+
+                    if strangeout != 0 || not_matched {
+                        if req.height() > block::Height(1_000_000) && strangeout != 0 {
+                            return Err(TransactionError::CoinbaseStrangeOutput {
+                                block_height: req.height(),
+                                coinbase_hash: coinbase.hash(),
+                            });
+                        }
+                    } else if req.height() > block::Height(814_000) {
+                        // strangeout == 0 && not_matched == false case
+                        if nn_id.is_some() && req.height() > block::Height(1_000_000) {
+                            return Err(TransactionError:: NotaryProofNotMatched {
+                                block_height: req.height(),
+                                transaction_hash: tx.hash(),
+                                coinbase_hash: coinbase.hash(),
+                            });
+                        }
+                    }
                 }
             }
 

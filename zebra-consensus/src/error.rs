@@ -202,6 +202,24 @@ pub enum TransactionError {
         coinbase_hash: zebra_chain::transaction::Hash,
     },
 
+    #[error(
+        "coinbase tx {coinbase_hash:?} at block {block_height:?} \
+         failed bcz of strange output"
+    )]
+    CoinbaseStrangeOutput {
+        block_height: zebra_chain::block::Height,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
+
+    #[error(
+        "notaryproof tx {transaction_hash:?} at block {block_height:?} \
+         not match coinbase {coinbase_hash:?}"
+    )]
+    NotaryProofNotMatched {
+        block_height: zebra_chain::block::Height,
+        transaction_hash: zebra_chain::transaction::Hash,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
 
 }
 
