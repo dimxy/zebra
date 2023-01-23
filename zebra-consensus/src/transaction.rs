@@ -172,7 +172,7 @@ pub enum Request {
         /// coinbase transaction (for komodo_deposit_check), should be passed if we verifying
         /// last tx in a block
         coinbase: Option<Arc<Transaction>>,
-        // block nbits
+        /// block nbits
         nbits: CompactDifficulty
 
     },
