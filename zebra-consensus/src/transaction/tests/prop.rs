@@ -11,7 +11,7 @@ use zebra_chain::{
     parameters::{Network, NetworkUpgrade},
     serialization::arbitrary::{datetime_full, datetime_u32},
     transaction::{LockTime, Transaction},
-    transparent,
+    transparent, work::difficulty::INVALID_COMPACT_DIFFICULTY,
 };
 
 use super::mock_transparent_transfer;
@@ -455,6 +455,8 @@ fn validate(
                 height,
                 time: block_time,
                 previous_hash: block::Hash([0xff; 32]), // unused
+                coinbase: None, // unused
+                nbits: INVALID_COMPACT_DIFFICULTY, // unused
             })
             .await
     })
