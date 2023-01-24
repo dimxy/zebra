@@ -1033,6 +1033,20 @@ impl NN {
         }
     }
 
+    pub fn komodo_s5_hardfork_active(
+        network: Network,
+        height: &Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                return *height > NNDATA_MAIN.nS5HardforkHeight;
+            },
+            (Network::Testnet, _) => {
+                false
+            },
+        }
+    }
+
     /// returns if kmd KOMODO_NOTARIES_HEIGHT1 reached
     pub fn komodo_notaries_height1_reached(
         network: Network,
