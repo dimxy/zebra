@@ -12,7 +12,7 @@ use tower::{service_fn, ServiceExt};
 
 use zebra_chain::{
     amount::{Amount, NonNegative},
-    block::{self, Block, Height},
+    block::{self, Block, Height, merkle::Root},
     orchard::AuthorizedAction,
     parameters::{Network, NetworkUpgrade},
     primitives::{ed25519, x25519, Groth16Proof},
@@ -2528,5 +2528,22 @@ fn tx_has_banned_inputs_multiple_tests() {
 
         assert_eq!(check::tx_has_banned_inputs(&tx), result);
     };
+
+}
+
+/// Block #3263485, https://kmdexplorer.io/block/0d57540a4e2562420b7e6eef7d3b52d486e58e12d6fe115f3ddbc751b30d90f4
+/// OP_RETURN calculation check
+#[test]
+fn merkle_opret_calculation() {
+
+    let hashes = [
+        "0db4c219be942611da29836724bd149f5bfd38a34ff7e54bee50b88a348bd486",
+        "baad150093bd566ac323af985215fc84dff1fcbfc52c0398a7c7f5af1943ef8b",
+    ];
+
+    let calculated_root = hashes.into_iter().map(|hash| hash.parse::<Hash>().expect("hash parse is ok")).collect::<Root>(); 
+    let expected_root = Root("08622318f80582f117b8b1421e81eca925afc2743cad610f0b16e0f0740fda82".parse::<Hash>().expect("parse is ok").0
+                                    .into_iter().rev().collect::<Vec<_>>().as_slice().try_into().unwrap());
+    assert_eq!(calculated_root, expected_root);
 
 }
