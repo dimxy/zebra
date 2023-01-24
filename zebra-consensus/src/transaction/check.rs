@@ -348,6 +348,23 @@ pub fn komodo_check_deposit(tx: &Transaction, spent_utxos: &HashMap<transparent:
             }
         }
     }
+
+    // https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L5144-L5157
+    //
+    // Consensus rule for easy-mined (notary-mined) blocks:
+    //
+    // Notaryvin spend transactions beginning at a certain block height should include an OP_RETURN
+    // with a merkleroot composed of the hash of the previous block and the hashes of all the transactions
+    // in this notary-mined (easy-mined) block, excluding the notaryvin spend transaction itself.
+
+    if NN::komodo_s1_december_hardfork_active(network, &req_height) {
+        if let Some(notaryid) = nn_id {
+            if notaryid > 0 || (notaryid == 0 && NN::komodo_s5_hardfork_active(network, &req_height)) {
+                // todo!();
+            }
+        }
+    }
+
     Ok(())
 }
 
