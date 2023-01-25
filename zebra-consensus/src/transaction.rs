@@ -481,9 +481,9 @@ where
             let (spent_utxos, spent_outputs) =
                 Self::spent_utxos(tx.clone(), req.known_utxos(), state).await?;
 
-            // `komodo_check_deposit` checks implementation, these checks only called for last tx in the block (!)
+            // combined `komodo_check_deposit` and `komodo_checkopret` implementation (banned inputs is not part of the this check)
             if let Some(last_tx_verify_data)= req.get_last_tx_verify_data() {
-                check::komodo_check_deposit(&tx, &spent_utxos, &last_tx_verify_data, network, req.height())?;
+                check::komodo_check_deposit_and_opret(&tx, &spent_utxos, &last_tx_verify_data, network, req.height())?;
             }
 
             let cached_ffi_transaction =

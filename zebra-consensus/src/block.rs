@@ -206,7 +206,7 @@ where
             for (idx, transaction) in block.transactions.iter().enumerate() {
 
                 // for the last transaction in the block we need to add coinbase transaction to
-                // transaction_verifier request for komodo_check_deposit checks inside verifier
+                // transaction_verifier request for `komodo_check_deposit_and_opret` checks inside verifier
                 let last_tx_verify_data = if last_idx == idx {
                     Some((coinbase_tx.clone(), block.header.difficulty_threshold, merkle_opret))
                 } else {

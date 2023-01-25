@@ -239,8 +239,14 @@ pub fn coinbase_tx_no_prevout_joinsplit_spend(tx: &Transaction) -> Result<(), Tr
 
     Ok(())
 }
-
-pub fn komodo_check_deposit(tx: &Transaction, spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+/// Combined `komodo_check_deposit` and `komodo_checkopret` implementation.
+///
+/// - <https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L5273>
+/// - <https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L5144-L5157>
+///
+/// Take into account that banned tx check distinquished into a separate check: `tx_has_banned_inputs` and
+/// not a part of `komodo_check_deposit_and_opret`.
+pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
                             last_tx_verify_data: &LastTxDataVerify, network: Network, req_height: Height) -> Result<(), TransactionError> {
     let activation = block::Height(235_300);
 
@@ -305,7 +311,7 @@ pub fn komodo_check_deposit(tx: &Transaction, spent_utxos: &HashMap<transparent:
 
         let tx_hash = tx.hash();
         let pubkey_hash = notary_pk.map(|v| v.serialize().iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(""));
-        tracing::debug!(?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, ?total, "komodo_check_deposit");
+        tracing::debug!(?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, ?total, "komodo_check_deposit_and_opret");
 
         if overflow || i64::from(total) > COIN/10 {
             if req_height > activation {
