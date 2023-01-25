@@ -23,13 +23,12 @@ use tracing::Instrument;
 
 use zebra_chain::{
     amount::Amount,
-    block::{self, Block},
+    block::{self, Block, merkle::Root},
     parameters::Network,
     transparent,
-    work::equihash,
+    work::equihash, transaction,
 };
 use zebra_state as zs;
-use zs::HashOrHeight;
 
 use crate::{error::*, transaction as tx, BoxError};
 
@@ -171,6 +170,12 @@ where
             // Precomputing this avoids duplicating transaction hash computations.
             let transaction_hashes: Arc<[_]> =
                 block.transactions.iter().map(|t| t.hash()).collect();
+
+            // Precompute merkle root for OP_RETURN in last transaction
+            let leaves_begin = [transaction::Hash(block.header.previous_block_hash.0)];       // (1) prev.block hash as tx hash
+            let leaves_end = transaction_hashes.iter().rev().skip(1).rev(); // (2) all tx hashes in block without last
+            let leaves_iter = leaves_begin.iter().chain(leaves_end);        // (1) + (2)
+            let merkle_opret = leaves_iter.cloned().collect::<Root>();
 
             check::merkle_root_validity(network, &block, &transaction_hashes)?;
 
