@@ -151,7 +151,7 @@ where
 }
 
 /// additional data needed for verification last transaction in block
-type LastTxDataVerify = (Arc<Transaction>, CompactDifficulty);
+type LastTxDataVerify = (Arc<Transaction>, CompactDifficulty, block::merkle::Root);
 
 /// Specifies whether a transaction should be verified as part of a block or as
 /// part of the mempool.

@@ -221,6 +221,17 @@ pub enum TransactionError {
         coinbase_hash: zebra_chain::transaction::Hash,
     },
 
+    #[error(
+        "failed or missing merkleroot expected.{expected_root:?} != merkleroot.{opret_root:?} \
+         in tx {transaction_hash:?} at block {block_height:?}
+        "
+    )]
+    FailedMerkleOpretInEasyMined {
+        block_height: zebra_chain::block::Height,
+        transaction_hash: zebra_chain::transaction::Hash,
+        expected_root: block::merkle::Root,
+        opret_root: block::merkle::Root,
+    }
 }
 
 impl From<BoxError> for TransactionError {

@@ -248,7 +248,7 @@ pub fn komodo_check_deposit(tx: &Transaction, spent_utxos: &HashMap<transparent:
     let mut nn_id: Option<u32> = None;
     let mut notary_pk = None;
 
-    let (coinbase, req_nbits) = last_tx_verify_data;
+    let (coinbase, req_nbits, merkle_opret) = last_tx_verify_data;
 
     // as we have coinbase passed, then tx - is a last tx of a block here,
     // first vout of last have 0.00005 KMD value and it's produced from single vin
@@ -364,7 +364,32 @@ pub fn komodo_check_deposit(tx: &Transaction, spent_utxos: &HashMap<transparent:
     if NN::komodo_s1_december_hardfork_active(network, &req_height) {
         if let Some(notaryid) = nn_id {
             if notaryid > 0 || (notaryid == 0 && NN::komodo_s5_hardfork_active(network, &req_height)) {
-                // todo!();
+                // komodo_checkopret - https://github.com/KomodoPlatform/komodo/blob/master/src/komodo_bitcoind.cpp#L638-L642
+
+                let mut merkle_raw_bytes = [0u8; 32];
+                let mut merkle_in_tx = block::merkle::Root(merkle_raw_bytes);
+
+                let lock_script_valid = tx.outputs().last().map_or(false, |out| {
+                    let lsr = out.lock_script.as_raw_bytes(); // lock script raw
+                    if lsr.len() == 34 && lsr[0] == 0x6A && lsr[1] == 32 {
+
+                        merkle_raw_bytes.clone_from_slice(&lsr[2..34]);
+                        merkle_in_tx = block::merkle::Root(merkle_raw_bytes);
+
+                        *merkle_opret == merkle_in_tx
+
+                    } else {
+                        false
+                    }
+                });
+
+                println!("ht.{:?} tx.{:?} - expected_root.{:?}, opret_root.{:?} -> lock_script_valid.{:?}", req_height, tx.hash(), merkle_opret, merkle_in_tx, lock_script_valid);
+                if !lock_script_valid {
+                    // failed-merkle-opret-in-easy-mined
+                    return Err(
+                        TransactionError::FailedMerkleOpretInEasyMined { block_height: req_height, transaction_hash: tx.hash(), expected_root: *merkle_opret, opret_root: merkle_in_tx }
+                    );
+                }
             }
         }
     }
