@@ -389,7 +389,7 @@ pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<tr
                     }
                 });
 
-                println!("ht.{:?} tx.{:?} - expected_root.{:?}, opret_root.{:?} -> lock_script_valid.{:?}", req_height, tx.hash(), merkle_opret, merkle_in_tx, lock_script_valid);
+                // println!("ht.{:?} tx.{:?} - expected_root.{:?}, opret_root.{:?} -> lock_script_valid.{:?}", req_height, tx.hash(), merkle_opret, merkle_in_tx, lock_script_valid);
                 if !lock_script_valid {
                     // failed-merkle-opret-in-easy-mined
                     return Err(
