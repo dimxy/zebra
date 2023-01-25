@@ -150,6 +150,9 @@ where
     }
 }
 
+/// additional data needed for verification last transaction in block
+type LastTxDataVerify = (Arc<Transaction>, CompactDifficulty);
+
 /// Specifies whether a transaction should be verified as part of a block or as
 /// part of the mempool.
 ///
@@ -169,12 +172,8 @@ pub enum Request {
         time: DateTime<Utc>,
         /// previous block hash (komodo added)
         previous_hash: block::Hash,
-        /// coinbase transaction (for komodo_deposit_check), should be passed if we verifying
-        /// last tx in a block
-        coinbase: Option<Arc<Transaction>>,
-        /// block nbits
-        nbits: CompactDifficulty
-
+        /// various data encapsulated in tuple, needed for last tx in the block verification, should be Some(...) only for last tx
+        last_tx_verify_data: Option<LastTxDataVerify>,
     },
     /// Verify the supplied transaction as part of the mempool.
     ///
@@ -286,14 +285,6 @@ impl Request {
         }
     }
 
-    /// The nbits in block being checked
-    pub fn nbits(&self) -> Option<CompactDifficulty> {
-        match self {
-            Request::Block { nbits, .. } => Some(*nbits),
-            Request::Mempool { .. } => None,
-        }
-    }
-
     /// The block time used for lock time consensus rules validation.
     pub fn block_time(&self) -> Option<DateTime<Utc>> {
         match self {
@@ -318,9 +309,9 @@ impl Request {
     }
 
     /// Returns the coinbase if it's block request and it's passed.
-    pub fn coinbase(&self) -> Option<Arc<Transaction>> {
+    pub fn get_last_tx_verify_data(&self) -> Option<LastTxDataVerify> {
         match self {
-            Request::Block { coinbase, .. } => coinbase.clone(),
+            Request::Block { last_tx_verify_data, .. } => last_tx_verify_data.clone(),
             _ => None
         }
     }
@@ -491,8 +482,8 @@ where
                 Self::spent_utxos(tx.clone(), req.known_utxos(), state).await?;
 
             // `komodo_check_deposit` checks implementation, these checks only called for last tx in the block (!)
-            if let Some(coinbase) = req.coinbase() {
-                check::komodo_check_deposit(&tx, &spent_utxos, &coinbase, network, req.height(), req.nbits())?;
+            if let Some(last_tx_verify_data)= req.get_last_tx_verify_data() {
+                check::komodo_check_deposit(&tx, &spent_utxos, &last_tx_verify_data, network, req.height())?;
             }
 
             let cached_ffi_transaction =

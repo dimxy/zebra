@@ -202,8 +202,8 @@ where
 
                 // for the last transaction in the block we need to add coinbase transaction to
                 // transaction_verifier request for komodo_check_deposit checks inside verifier
-                let coinbase = if last_idx == idx {
-                    Some(coinbase_tx.clone())
+                let last_tx_verify_data = if last_idx == idx {
+                    Some((coinbase_tx.clone(),block.header.difficulty_threshold))
                 } else {
                     None
                 };
@@ -218,8 +218,7 @@ where
                         height,
                         time: block.header.time,
                         previous_hash: block.header.previous_block_hash,
-                        coinbase,
-                        nbits: block.header.difficulty_threshold,
+                        last_tx_verify_data,
                     });
                 async_checks.push(rsp);
             }

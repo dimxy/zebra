@@ -20,6 +20,8 @@ use zebra_chain::komodo_hardfork::NN;
 
 use crate::error::TransactionError;
 
+use super::LastTxDataVerify;
+
 /// Checks if the transaction's lock time allows this transaction to be included in a block.
 ///
 /// Consensus rule:
@@ -239,12 +241,14 @@ pub fn coinbase_tx_no_prevout_joinsplit_spend(tx: &Transaction) -> Result<(), Tr
 }
 
 pub fn komodo_check_deposit(tx: &Transaction, spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
-                            coinbase: &Transaction, network: Network, req_height: Height, req_nbits: Option<CompactDifficulty>) -> Result<(), TransactionError> {
+                            last_tx_verify_data: &LastTxDataVerify, network: Network, req_height: Height) -> Result<(), TransactionError> {
     let activation = block::Height(235_300);
 
     let mut not_matched: bool = false;
     let mut nn_id: Option<u32> = None;
     let mut notary_pk = None;
+
+    let (coinbase, req_nbits) = last_tx_verify_data;
 
     // as we have coinbase passed, then tx - is a last tx of a block here,
     // first vout of last have 0.00005 KMD value and it's produced from single vin
@@ -311,10 +315,10 @@ pub fn komodo_check_deposit(tx: &Transaction, spent_utxos: &HashMap<transparent:
                     coinbase_hash: coinbase.hash(),
                 });
             }
-        } else if let Some(nbits) = req_nbits {
+        } else {
             let mindiff = ExpandedDifficulty::target_difficulty_limit(network).to_compact(); // 0x200f0f0f for mainnet
             // https://github.com/KomodoPlatform/komodo/blob/master/src/komodo_gateway.cpp#L773
-            if nbits == mindiff && i64::from(total) > 0 && NN::komodo_notaries_height1_reached(network, &req_height) {
+            if *req_nbits == mindiff && i64::from(total) > 0 && NN::komodo_notaries_height1_reached(network, &req_height) {
                 // "deal with fee stealing" komodod rule, actually it's incorrect, bcz block.nBits == KOMODO_MINDIFF_NBITS
                 // rule doesn't mean notary mined block, it was a mistake, but it's in history now.
                 return Err(TransactionError::IllegalCoinbaseOutput {

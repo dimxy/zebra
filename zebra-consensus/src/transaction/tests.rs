@@ -267,8 +267,7 @@ async fn v5_transaction_is_rejected_before_nu5_activation() {
                     .expect("Canopy activation height is specified"),
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -333,8 +332,7 @@ fn v5_transaction_is_accepted_after_nu5_activation_for_network(network: Network)
                 height: expiry_height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -386,8 +384,7 @@ async fn v4_transaction_with_transparent_transfer_is_accepted() {
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -428,8 +425,7 @@ async fn v4_transaction_with_last_valid_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -476,8 +472,7 @@ async fn v4_coinbase_transaction_with_low_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -521,8 +516,7 @@ async fn v4_transaction_with_too_low_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -569,8 +563,7 @@ async fn v4_transaction_with_exceeding_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -625,8 +618,7 @@ async fn v4_coinbase_transaction_with_exceeding_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -679,8 +671,7 @@ async fn v4_coinbase_transaction_is_accepted() {
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -732,8 +723,7 @@ async fn v4_transaction_with_transparent_transfer_is_rejected_by_the_script() {
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -785,8 +775,7 @@ async fn v4_transaction_with_conflicting_transparent_spend_is_rejected() {
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -854,8 +843,7 @@ fn v4_transaction_with_conflicting_sprout_nullifier_inside_joinsplit_is_rejected
                 height: transaction_block_height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -928,8 +916,7 @@ fn v4_transaction_with_conflicting_sprout_nullifier_across_joinsplits_is_rejecte
                 height: transaction_block_height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -985,8 +972,7 @@ async fn v5_transaction_with_transparent_transfer_is_accepted() {
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1028,8 +1014,7 @@ async fn v5_transaction_with_last_valid_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1074,8 +1059,7 @@ async fn v5_coinbase_transaction_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1098,8 +1082,7 @@ async fn v5_coinbase_transaction_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1126,8 +1109,7 @@ async fn v5_coinbase_transaction_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1156,8 +1138,7 @@ async fn v5_coinbase_transaction_expiry_height() {
             height: new_expiry_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1201,8 +1182,7 @@ async fn v5_transaction_with_too_low_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1250,8 +1230,7 @@ async fn v5_transaction_with_exceeding_expiry_height() {
             height: block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1307,8 +1286,7 @@ async fn v5_coinbase_transaction_is_accepted() {
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1362,8 +1340,7 @@ async fn v5_transaction_with_transparent_transfer_is_rejected_by_the_script() {
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1417,8 +1394,7 @@ async fn v5_transaction_with_conflicting_transparent_spend_is_rejected() {
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1465,8 +1441,7 @@ fn v4_with_signed_sprout_transfer_is_accepted() {
                 height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1541,8 +1516,7 @@ async fn v4_with_joinsplit_is_rejected_for_modification(
             height,
             time: chrono::MAX_DATETIME,
             previous_hash: block::Hash([0xff; 32]), // unused
-            coinbase: None, // unused
-            nbits: INVALID_COMPACT_DIFFICULTY, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1580,8 +1554,7 @@ fn v4_with_sapling_spends() {
                 height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                            last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1626,8 +1599,7 @@ fn v4_with_duplicate_sapling_spends() {
                 height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1674,8 +1646,7 @@ fn v4_with_sapling_outputs_and_no_spends() {
                 height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1726,8 +1697,7 @@ fn v5_with_sapling_spends() {
                 height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1773,8 +1743,7 @@ fn v5_with_duplicate_sapling_spends() {
                 height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1839,8 +1808,7 @@ fn v5_with_duplicate_orchard_action() {
                 height,
                 time: chrono::MAX_DATETIME,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -2544,6 +2512,10 @@ fn merkle_opret_calculation() {
     let calculated_root = hashes.into_iter().map(|hash| hash.parse::<Hash>().expect("hash parse is ok")).collect::<Root>(); 
     let expected_root = Root("08622318f80582f117b8b1421e81eca925afc2743cad610f0b16e0f0740fda82".parse::<Hash>().expect("parse is ok").0
                                     .into_iter().rev().collect::<Vec<_>>().as_slice().try_into().unwrap());
+
+    let hash  = block::Hash::from(expected_root.0);
+    // println!("hash = {:?}, expected_root = {:?}", hash, expected_root);
+
     assert_eq!(calculated_root, expected_root);
 
 }

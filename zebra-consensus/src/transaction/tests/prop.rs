@@ -455,8 +455,7 @@ fn validate(
                 height,
                 time: block_time,
                 previous_hash: block::Hash([0xff; 32]), // unused
-                coinbase: None, // unused
-                nbits: INVALID_COMPACT_DIFFICULTY, // unused
+                last_tx_verify_data: None, // unused
             })
             .await
     })
