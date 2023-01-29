@@ -398,9 +398,9 @@ where
             )
         });
                 
-        let block = relevant_chain[ relevant_chain.len()-1 ].borrow();
+        let tip_block = relevant_chain[ relevant_chain.len()-1 ].borrow();
         let difficulty_adjustment =
-            AdjustedDifficulty::new_from_block(block, network, relevant_data);
+            AdjustedDifficulty::new_from_block(tip_block, network, relevant_data);
 
         return Some(difficulty_adjustment.median_time_past());
     }

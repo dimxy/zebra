@@ -24,7 +24,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, Utc, NaiveDateTime};
+use chrono::{DateTime, Utc, NaiveDateTime, Timelike};
 use futures::future::FutureExt;
 use tokio::sync::{oneshot, watch};
 use tower::{util::BoxService, Service};
@@ -381,15 +381,20 @@ impl StateService {
         // let's calculate mtp (median time past) for the tip_block and broadcast it inside tip_block structure
         if let Some(tip) = tip_block.as_mut() {
             let relevant_chain = self.any_ancestor_blocks(tip.hash);
-            let mut block_times: Vec<_> = relevant_chain.map(|block| {
+            /*let mut block_times: Vec<_> = relevant_chain.map(|block| {
                 block.header.time.timestamp()
             }).take(POW_MEDIAN_BLOCK_SPAN).collect();
 
             block_times.sort();
-            let mtp_calculated = block_times[block_times.len() / 2];
+            let mtp_calculated = block_times[block_times.len() / 2];*/
+            let mtp_calculated = get_median_time_past_for_chain(self.network, relevant_chain);
 
             // advance mtp inside ChainTipBlock and then send via channel in set_best_non_finalized_tip
-            tip.mtp = mtp_calculated;
+            if let Some(mtp_calculated) = mtp_calculated    {
+                tip.mtp = mtp_calculated.timestamp();
+            } else {
+                tip.mtp = -1;
+            }
 
             let tip_block_hash = tip.hash;
             tracing::debug!(?tip_block_height, ?tip_block_hash, ?mtp_calculated, std::stringify!(update_latest_chain_channels));
