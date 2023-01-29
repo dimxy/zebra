@@ -28,6 +28,9 @@ mod util;
 #[allow(missing_docs)]
 pub mod komodo_notaries;
 
+#[allow(missing_docs)]
+pub mod komodo_test_helpers;
+
 #[cfg(test)]
 mod tests;
 

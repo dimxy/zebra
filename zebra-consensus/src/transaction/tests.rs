@@ -23,7 +23,7 @@ use zebra_chain::{
         arbitrary::{
             fake_v5_transactions_for_network, insert_fake_orchard_shielded_data, test_transactions,
         },
-        Hash, HashType, JoinSplitData, LockTime, Transaction, self,
+        Hash, HashType, JoinSplitData, LockTime, Transaction, self, UnminedTx,
     },
     transparent::{self, CoinbaseData, Input, OutPoint, Output}, komodo_hardfork::NN, work::difficulty::{CompactDifficulty, INVALID_COMPACT_DIFFICULTY},
 };
@@ -2517,5 +2517,70 @@ fn merkle_opret_calculation() {
     // println!("hash = {:?}, expected_root = {:?}", hash, expected_root);
 
     assert_eq!(calculated_root, expected_root);
+
+}
+
+
+/// Tests if a transaction has locktime too early possibly trying to collect extra interest
+#[tokio::test(flavor = "multi_thread")]
+async fn komodo_transaction_locktime_too_early() {
+
+    zebra_test::init();
+
+    // Load komodo sample net blocks
+    let blocks: Vec<Arc<Block>> = zebra_state::komodo_test_helpers::komodo_load_testnet_node_1();
+
+    // Create a populated state service
+    let (state_service, _read_state, _latest_chain_tip, _chain_tip_change) =
+        zebra_state::populated_state(blocks.clone(), Network::Testnet).await;
+    
+    let verifier = Verifier::new(Network::Testnet, state_service);
+
+    let last_block = blocks[blocks.len()-1].clone();
+    let last_block_height = last_block.coinbase_height().expect("valid last block height");
+    let lock_time = last_block.header.time - chrono::Duration::seconds(6000);
+
+    let fund_height = (last_block_height - 1).expect("fake source fund block height is too small");
+    let (input, output, _known_utxos) = mock_transparent_transfer(fund_height, true, 0);
+
+    let expiry_height = (last_block_height + 200).expect("valid last block height");
+    let next_height = (last_block_height + 1).expect("valid last block height");
+
+    // Create a non-coinbase V4 tx.
+    let transaction = Transaction::V4 {
+        inputs: vec![input],
+        outputs: vec![output],
+        lock_time: LockTime::Time(lock_time),
+        expiry_height,
+        joinsplit_data: None,
+        sapling_shielded_data: None,
+    };
+    let unmined_transaction = UnminedTx::from(transaction.clone());
+
+    let result = verifier
+        .clone()
+        .oneshot(Request::Mempool {
+            transaction: unmined_transaction,
+            height: next_height,
+            check_low_fee: false,
+            reject_absurd_fee: false,
+        })
+        .await;
+
+    assert!( if let Err(TransactionError::KomodoTxLockTimeTooEarly(_, _)) = result { true } else { false } );
+
+    let result = verifier
+        .clone()
+        .oneshot(Request::Block {
+            transaction: Arc::new(transaction),
+            known_utxos: Arc::new(HashMap::new()),
+            height: next_height,
+            time: chrono::MAX_DATETIME,
+            previous_hash: last_block.hash(),
+            last_tx_verify_data: None,
+        })
+        .await;
+
+    assert!( if let Err(TransactionError::KomodoTxLockTimeTooEarly(_, _)) = result { true } else { false } );
 
 }
