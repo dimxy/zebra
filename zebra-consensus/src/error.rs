@@ -8,9 +8,9 @@
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use zebra_chain::{amount, block, orchard, sapling, sprout, transparent};
+use zebra_chain::{amount::{self, Amount}, block, orchard, sapling, sprout, transparent};
 
-use crate::{block::MAX_BLOCK_SIGOPS, BoxError};
+use crate::{block::MAX_BLOCK_SIGOPS, BoxError, transaction};
 
 #[cfg(any(test, feature = "proptest-impl"))]
 use proptest_derive::Arbitrary;
@@ -231,7 +231,13 @@ pub enum TransactionError {
         transaction_hash: zebra_chain::transaction::Hash,
         expected_root: block::merkle::Root,
         opret_root: block::merkle::Root,
-    }
+    },
+
+    #[error("komodo low fee transaction rate limit txid {0:?} reason {1:?}")]
+    KomodoLowFeeLimit(zebra_chain::transaction::Hash, String),
+
+    #[error("komodo transaction {0:?} has absurd fee {1:?}")]
+    KomodoAbsurdFee(zebra_chain::transaction::Hash, Amount),
 }
 
 impl From<BoxError> for TransactionError {

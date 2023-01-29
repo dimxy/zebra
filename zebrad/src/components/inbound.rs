@@ -26,7 +26,7 @@ use zebra_state as zs;
 
 use zebra_chain::{
     block::{self, Block},
-    transaction::UnminedTxId,
+    transaction::{UnminedTxId, UnminedTxWithMempoolParams},
 };
 use zebra_consensus::chain::VerifyChainError;
 use zebra_network::{
@@ -450,7 +450,8 @@ impl Service<zn::Request> for Inbound {
             zn::Request::PushTransaction(transaction) => {
                 mempool
                     .clone()
-                    .oneshot(mempool::Request::Queue(vec![transaction.into()]))
+                    // In komodo: for remote txns use rate limiter and do not check absurd fees
+                    .oneshot(mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(transaction, true, false).into()]))
                     // The response just indicates if processing was queued or not; ignore it
                     .map_ok(|_resp| zn::Response::Nil)
                     .boxed()

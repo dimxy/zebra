@@ -89,6 +89,9 @@ pub enum SameEffectsChainRejectionError {
     /// [ZIP-401]: https://zips.z.cash/zip-0401#specification
     #[error("transaction evicted from the mempool due to ZIP-401 denial of service limits")]
     RandomlyEvicted,
+
+    #[error("komodo transaction stays too long in mempool")]
+    KomodoTooLongInMempool,
 }
 
 /// Storage error that combines all other specific error types.
@@ -547,7 +550,7 @@ impl Storage {
     /// Remove transactions from the mempool if they have stayed too long in mempool 
     /// because this may affect the interest time
     ///
-    /// transactions lock_time field is checked againt median_time_past so transactions with too early lock_time are removed 
+    /// transactions lock_time field is checked against median_time_past so transactions with too early lock_time are removed 
     pub fn komodo_remove_too_early_transactions(
         &mut self,
         network: Network,
@@ -568,12 +571,12 @@ impl Storage {
             }
         }
 
-        // expiry height is effecting data, so we match by non-malleable TXID
+        // tx lock time is effecting data, so we match by non-malleable TXID
         self.remove_same_effects(&txid_set);
 
         // also reject it
         for id in unmined_id_set.iter() {
-            self.reject(*id, SameEffectsChainRejectionError::Expired.into());
+            self.reject(*id, SameEffectsChainRejectionError::KomodoTooLongInMempool.into());
         }
 
         unmined_id_set

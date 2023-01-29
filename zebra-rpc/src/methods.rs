@@ -27,7 +27,7 @@ use zebra_chain::{
     parameters::{ConsensusBranchId, Network, NetworkUpgrade},
     sapling,
     serialization::{SerializationError, ZcashDeserialize},
-    transaction::{self, SerializedTransaction, Transaction, UnminedTx},
+    transaction::{self, SerializedTransaction, Transaction, UnminedTx, UnminedTxWithMempoolParams},
     transparent::{self, Address},
 };
 use zebra_network::constants::USER_AGENT;
@@ -271,7 +271,7 @@ where
     network: Network,
 
     /// A sender component of a channel used to send transactions to the queue.
-    queue_sender: Sender<Option<UnminedTx>>,
+    queue_sender: Sender<Option<UnminedTxWithMempoolParams>>,
 
     /// address book to manage peers by rpcs
     address_book: Arc<std::sync::Mutex<AddressBook>>,
@@ -490,6 +490,11 @@ where
         let queue_sender = self.queue_sender.clone();
 
         async move {
+            // komodo: for sendrawtransaction do not check low fee but check absurd fee. 
+            // TODO: add rpc param fOverrideFees
+            const CHECK_LOW_FEE: bool = false;
+            const OVERRIDE_FEES: bool = false;
+
             let raw_transaction_bytes = Vec::from_hex(raw_transaction_hex).map_err(|_| {
                 Error::invalid_params("raw transaction is not specified as a hex string")
             })?;
@@ -500,9 +505,10 @@ where
 
             // send transaction to the rpc queue, ignore any error.
             let unmined_transaction = UnminedTx::from(raw_transaction.clone());
-            let _ = queue_sender.send(Some(unmined_transaction));
+            let unmined_transaction_with_params = UnminedTxWithMempoolParams::new(unmined_transaction, CHECK_LOW_FEE, !OVERRIDE_FEES);
+            let _ = queue_sender.send(Some(unmined_transaction_with_params.clone()));
 
-            let transaction_parameter = mempool::Gossip::Tx(raw_transaction.into());
+            let transaction_parameter = mempool::Gossip::Tx(unmined_transaction_with_params.clone()); 
             let request = mempool::Request::Queue(vec![transaction_parameter]);
 
             let response = mempool.oneshot(request).await.map_err(|error| Error {

@@ -29,7 +29,7 @@ pub use memo::Memo;
 pub use sapling::FieldNotPresent;
 pub use serialize::SerializedTransaction;
 pub use sighash::{HashType, SigHash};
-pub use unmined::{UnminedTx, UnminedTxId, VerifiedUnminedTx};
+pub use unmined::{UnminedTx, UnminedTxId, VerifiedUnminedTx, UnminedTxWithMempoolParams};
 
 use crate::{
     amount::{Amount, Error as AmountError, NegativeAllowed, NonNegative, COIN, self},

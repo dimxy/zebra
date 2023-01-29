@@ -19,7 +19,7 @@ use zebra_chain::{
         NetworkUpgrade,
     },
     serialization::{ZcashDeserialize, ZcashSerialize},
-    transaction::{self, Transaction, UnminedTx, UnminedTxId},
+    transaction::{self, Transaction, UnminedTx, UnminedTxId, UnminedTxWithMempoolParams},
     transparent,
 };
 use zebra_node_services::mempool;
@@ -63,7 +63,7 @@ proptest! {
             let send_task = tokio::spawn(rpc.send_raw_transaction(transaction_hex));
 
             let unmined_transaction = UnminedTx::from(transaction);
-            let expected_request = mempool::Request::Queue(vec![unmined_transaction.into()]);
+            let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(unmined_transaction.into(), false, false).into()]);
             let response = mempool::Response::Queued(vec![Ok(())]);
 
             mempool
@@ -115,7 +115,7 @@ proptest! {
             let send_task = tokio::spawn(rpc.send_raw_transaction(transaction_hex));
 
             let unmined_transaction = UnminedTx::from(transaction);
-            let expected_request = mempool::Request::Queue(vec![unmined_transaction.into()]);
+            let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(unmined_transaction, false, false).into()]);
 
             mempool
                 .expect_request(expected_request)
@@ -173,7 +173,7 @@ proptest! {
             let send_task = tokio::spawn(rpc.send_raw_transaction(transaction_hex));
 
             let unmined_transaction = UnminedTx::from(transaction);
-            let expected_request = mempool::Request::Queue(vec![unmined_transaction.into()]);
+            let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(unmined_transaction, false, false).into()]);
             let response = mempool::Response::Queued(vec![Err(DummyError.into())]);
 
             mempool
@@ -752,7 +752,7 @@ proptest! {
             let send_task = tokio::spawn(rpc.send_raw_transaction(tx_hex));
 
             let tx_unmined = UnminedTx::from(tx);
-            let expected_request = mempool::Request::Queue(vec![tx_unmined.clone().into()]);
+            let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(tx_unmined.clone(), false, false).into()]);
 
             // fail the mempool insertion
             mempool
@@ -791,7 +791,7 @@ proptest! {
 
             // now a retry will be sent to the mempool
             let expected_request =
-                mempool::Request::Queue(vec![mempool::Gossip::Tx(tx_unmined.clone())]);
+                mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(tx_unmined.clone(), false, false).into()]);
             let response = mempool::Response::Queued(vec![Ok(())]);
 
             mempool
@@ -842,7 +842,7 @@ proptest! {
                 let send_task = tokio::spawn(rpc.send_raw_transaction(tx_hex));
 
                 let tx_unmined = UnminedTx::from(tx.clone());
-                let expected_request = mempool::Request::Queue(vec![tx_unmined.clone().into()]);
+                let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(tx_unmined.clone(), false, false).into()]);
 
                 // insert to hs we will use later
                 transactions_hash_set.insert(tx_unmined.id);
@@ -889,7 +889,7 @@ proptest! {
             // each transaction will be retried
             for tx in txs.clone() {
                 let expected_request =
-                    mempool::Request::Queue(vec![mempool::Gossip::Tx(UnminedTx::from(tx))]);
+                    mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(UnminedTx::from(tx), false, false).into()]);
                 let response = mempool::Response::Queued(vec![Ok(())]);
 
                 mempool

@@ -6,7 +6,7 @@ use color_eyre::Report;
 use tokio::time;
 use tower::{ServiceBuilder, ServiceExt};
 
-use zebra_chain::{block::Block, parameters::Network, serialization::ZcashDeserializeInto};
+use zebra_chain::{block::Block, parameters::Network, serialization::ZcashDeserializeInto, transaction::UnminedTxWithMempoolParams};
 use zebra_consensus::transaction as tx;
 use zebra_state::Config as StateConfig;
 use zebra_test::mock_service::{MockService, PanicAssertion};
@@ -564,7 +564,7 @@ async fn mempool_failed_verification_is_rejected() -> Result<(), Report> {
         .ready()
         .await
         .unwrap()
-        .call(Request::Queue(vec![rejected_tx.transaction.clone().into()]));
+        .call(Request::Queue(vec![UnminedTxWithMempoolParams::new(rejected_tx.transaction.clone(), false, false).into()]));
     // Make the mock verifier return that the transaction is invalid.
     let verification = tx_verifier.expect_request_that(|_| true).map(|responder| {
         responder.respond(Err(TransactionError::BadBalance));

@@ -9,26 +9,26 @@ use std::{
     task::{Context, Poll},
 };
 
-use chrono::{DateTime, Utc, Date, Duration};
+use chrono::{DateTime, Utc, Duration};
 use futures::{
     stream::{FuturesUnordered, StreamExt},
     FutureExt,
 };
 
-use tokio::time::error::Elapsed;
 use tower::{timeout::Timeout, Service, ServiceExt};
 use tracing::Instrument;
 
 use zebra_chain::{
-    amount::{Amount, Error as AmountError, NonNegative, NegativeAllowed, COIN},
-    block, orchard,
+    amount::{Amount, NonNegative, Error as AmountError, NegativeAllowed},
+    block::{self, Block}, orchard,
     parameters::{Network, NetworkUpgrade},
     primitives::{Groth16Proof},
     sapling,
     transaction::{
         self, HashType, SigHash, Transaction, UnminedTx, UnminedTxId, VerifiedUnminedTx, LockTime,
     },
-    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME, komodo_utils::parse_p2pk, work::difficulty::{CompactDifficulty, ExpandedDifficulty},
+    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME, work::difficulty::{CompactDifficulty},
+    serialization::ZcashSerialize,
 };
 
 use zebra_script::CachedFfiTransaction;
@@ -38,6 +38,12 @@ use zs::HashOrHeight;
 use crate::{error::TransactionError, groth16::DescriptionWrapper, primitives, script, BoxError};
 
 pub mod check;
+mod komodo_fee_check;
+
+use komodo_fee_check::{FeeRate, DEFAULT_MIN_RELAY_TX_FEE};
+
+use self::komodo_fee_check::TX_RATE_LIMITER;
+
 #[cfg(test)]
 mod tests;
 
@@ -67,6 +73,9 @@ pub struct Verifier<ZS> {
     network: Network,
     state: Timeout<ZS>,
     script_verifier: script::Verifier,
+
+    /// komodo tx min relay tx fee calc 
+    min_relay_txfee: FeeRate,
 }
 
 impl<ZS> Verifier<ZS>
@@ -80,6 +89,7 @@ where
             network,
             state: Timeout::new(state, UTXO_LOOKUP_TIMEOUT),
             script_verifier: script::Verifier::default(),
+            min_relay_txfee: FeeRate::new(Amount::try_from(DEFAULT_MIN_RELAY_TX_FEE).expect("valid min fee default")),
         }
     }
 
@@ -91,7 +101,6 @@ where
         async move {
             match req {
                 Request::Block { previous_hash, .. } => {
-    
                     let query = state.oneshot(
                         zebra_state::Request::AwaitBlock(
                             previous_hash
@@ -188,6 +197,12 @@ pub enum Request {
         /// The next block is the first block that could possibly contain a
         /// mempool transaction.
         height: block::Height,
+
+        /// komodo added: check if tx fee is below limit (true for txns sent from remote nodes)
+        check_low_fee: bool,
+
+        /// komodo added: check if tx fee is too high (true for txns created locally)
+        reject_absurd_fee: bool,
     },
 }
 
@@ -396,6 +411,7 @@ where
         let script_verifier = self.script_verifier;
         let network = self.network;
         let state = self.state.clone();
+        let min_relay_txfee = self.min_relay_txfee.clone();
 
         let tx = req.transaction();
         let tx_id = req.tx_id();
@@ -443,7 +459,7 @@ where
 
             // Validate that tx locktime is not too early to prevent cheating with the beginning of komodo interest calculation period 
             let _ = match req.clone() {
-                Request::Mempool { transaction, height } => {
+                Request::Mempool { transaction, height, .. } => {
                     let query = Verifier::<ZS>::get_median_time_past(&state, None);
                     let cmp_time = query.await? + Duration::seconds(777); 
                     komodo_validate_interest_locktime(network, &transaction.transaction, height, cmp_time)?;
@@ -539,6 +555,13 @@ where
                     },
                     Err(_) => { tracing::info!("value_balance is error");  return Err(TransactionError::IncorrectFee) },
                 };
+
+                // for mempool check miner fee (too low or absurd), if requested
+                if let Some(miner_fee) = miner_fee  { 
+                    if let Request::Mempool { check_low_fee, reject_absurd_fee, .. } = req {
+                        komodo_miner_fee_valid_for_mempool(min_relay_txfee, &tx, miner_fee.constrain().expect("miner fee conversion to NegativeAllowed must be okay"), check_low_fee, reject_absurd_fee)?;
+                    }
+                }
             }
 
             let rsp = match req {
@@ -1201,3 +1224,36 @@ pub fn komodo_validate_interest_locktime(network: Network, tx: &Transaction, tx_
     }
     Ok(())
 }
+
+/// validate transaction fee amount for too small or absurd values
+fn komodo_miner_fee_valid_for_mempool(min_relay_txfee: FeeRate, tx: &Transaction, tx_fee: Amount, check_low_fee: bool, reject_absurd_fee: bool) -> Result<(), TransactionError>   {
+    let tx_size = tx.zcash_serialized_size().expect("structurally valid transaction must have size");
+    
+    if check_low_fee && tx_fee < min_relay_txfee.get_fee(tx_size)  {
+        if let Ok(mut limiter) = TX_RATE_LIMITER.lock()  {
+            if limiter.check_rate_limit(tx, Utc::now()) {
+                return Err(TransactionError::KomodoLowFeeLimit(tx.hash(), String::from("low txfee limit reached")));
+            }
+        }
+        else {
+            return Err(TransactionError::KomodoLowFeeLimit(tx.hash(), String::from("internal error: cannot lock limiter")));
+        }
+    }
+    if reject_absurd_fee {
+        let output_value = tx
+            .outputs()
+            .iter()
+            .map(|o| o.value())
+            .sum::<Result<Amount<NonNegative>, AmountError>>()
+            .unwrap_or_else(|_| Amount::<NonNegative>::zero())
+            .constrain::<NegativeAllowed>()
+            .expect("conversion from NonNegative to NegativeAllowed is always valid");
+
+        if tx_fee > (min_relay_txfee.get_fee(tx_size) * 10000 as u64).expect("valid min txfee") && tx_fee > (output_value / 19u64).expect("valid tx output value") {
+            return Err(TransactionError::KomodoAbsurdFee(tx.hash(), tx_fee));
+        }
+    }
+    
+    Ok(())
+}
+

@@ -349,3 +349,27 @@ impl VerifiedUnminedTx {
         self.cost() + low_fee_penalty
     }
 }
+
+/// Komodo: an unmined transaction with params used when it is added to mempool, used for queueing in komodo.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct UnminedTxWithMempoolParams {
+    /// The unmined transaction itself.
+    pub transaction: UnminedTx,
+
+    /// if txns with low fee should be limited (true for txns sent by remote nodes)
+    pub check_low_fee: bool,
+
+    /// id txns with huge fee should be rejected (true for locally created txns)
+    pub reject_absurd_fee: bool, 
+}
+
+impl UnminedTxWithMempoolParams {
+    /// Create a new verified unmined transaction from a transaction and its fee.
+    pub fn new(transaction: UnminedTx, check_low_fee: bool, reject_absurd_fee: bool) -> Self {
+        Self {
+            transaction,
+            check_low_fee,
+            reject_absurd_fee,
+        }
+    }
+}
