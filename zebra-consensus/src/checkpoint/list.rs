@@ -41,20 +41,20 @@ const MAINNET_CHECKPOINTS: &str = include_str!("main-checkpoints.txt");
 ///
 /// See [`MAINNET_CHECKPOINTS`] for detailed `zebra-checkpoints` usage
 /// information.
-const TESTNET_CHECKPOINTS: &str = include_str!("test-checkpoints.txt");
+/// const TESTNET_CHECKPOINTS: &str = include_str!("test-checkpoints.txt");
 
 // KMD working testnets
-/* const TESTNET_CHECKPOINTS: &str =    //ver4 testnet dimxy genesis
-                                     //   "0 00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08\n\
-                                     //   64 01db63598dc4aae28d3ca81c0c7a661dec1c82f9e40ccb42aacb94be4e441391\n"; 
+const TESTNET_CHECKPOINTS: &str =    //ver4 testnet dimxy genesis
+                                     "0 00040fe8ec8471911baa1db1266ea15dd06b4a8a5c453883c000b031973dce08\n\
+                                     64 0480916fa2b9a1df4bf94bf406c2df7c424756d0bc28969f5465731031496946\n"; 
 
                                      // decker genesis dimxy blocks 's testnet
                                      // "0 e46e999d6de5ef95427ea51b8242ef7949de22b340b6a484ff154b9991ec9452\n\
                                      // 64 0514e0377c6186527fd3fca318dc8361b174b1105980f9cc01792ff6a7708c0d\n";
 
                                      // decker testnet for bad forks
-                                     "0 e46e999d6de5ef95427ea51b8242ef7949de22b340b6a484ff154b9991ec9452\n\
-                                     64 028d36cdd15e08d178096b9cb584edbcbf84d0ae8d1d646b7089ef743a11fc6d\n";   */
+                                     //"0 e46e999d6de5ef95427ea51b8242ef7949de22b340b6a484ff154b9991ec9452\n\
+                                     //64 028d36cdd15e08d178096b9cb584edbcbf84d0ae8d1d646b7089ef743a11fc6d\n";   
 
 /// A list of block height and hash checkpoints.
 ///
