@@ -14,19 +14,21 @@ use futures::{
     stream::{FuturesUnordered, StreamExt},
     FutureExt,
 };
+
+use tokio::time::error::Elapsed;
 use tower::{timeout::Timeout, Service, ServiceExt};
 use tracing::Instrument;
 
 use zebra_chain::{
-    amount::{Amount, NonNegative, NegativeAllowed, COIN},
+    amount::{Amount, Error as AmountError, NonNegative, NegativeAllowed, COIN},
     block, orchard,
     parameters::{Network, NetworkUpgrade},
-    primitives::Groth16Proof,
+    primitives::{Groth16Proof},
     sapling,
     transaction::{
         self, HashType, SigHash, Transaction, UnminedTx, UnminedTxId, VerifiedUnminedTx, LockTime,
     },
-    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME,
+    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME, komodo_utils::parse_p2pk, work::difficulty::{CompactDifficulty, ExpandedDifficulty},
 };
 
 use zebra_script::CachedFfiTransaction;
@@ -148,6 +150,9 @@ where
     }
 }
 
+/// additional data needed for verification last transaction in block
+type LastTxDataVerify = (Arc<Transaction>, CompactDifficulty, block::merkle::Root);
+
 /// Specifies whether a transaction should be verified as part of a block or as
 /// part of the mempool.
 ///
@@ -167,7 +172,8 @@ pub enum Request {
         time: DateTime<Utc>,
         /// previous block hash (komodo added)
         previous_hash: block::Hash,
-
+        /// various data encapsulated in tuple, needed for last tx in the block verification, should be Some(...) only for last tx
+        last_tx_verify_data: Option<LastTxDataVerify>,
     },
     /// Verify the supplied transaction as part of the mempool.
     ///
@@ -299,6 +305,14 @@ impl Request {
         match self {
             Request::Block { .. } => false,
             Request::Mempool { .. } => true,
+        }
+    }
+
+    /// Returns the coinbase if it's block request and it's passed.
+    pub fn get_last_tx_verify_data(&self) -> Option<LastTxDataVerify> {
+        match self {
+            Request::Block { last_tx_verify_data, .. } => last_tx_verify_data.clone(),
+            _ => None
         }
     }
 }
@@ -466,6 +480,11 @@ where
             // Load spent UTXOs from state.
             let (spent_utxos, spent_outputs) =
                 Self::spent_utxos(tx.clone(), req.known_utxos(), state).await?;
+
+            // combined `komodo_check_deposit` and `komodo_checkopret` implementation (banned inputs is not part of the this check)
+            if let Some(last_tx_verify_data)= req.get_last_tx_verify_data() {
+                check::komodo_check_deposit_and_opret(&tx, &spent_utxos, &last_tx_verify_data, network, req.height())?;
+            }
 
             let cached_ffi_transaction =
                 Arc::new(CachedFfiTransaction::new(tx.clone(), spent_outputs));

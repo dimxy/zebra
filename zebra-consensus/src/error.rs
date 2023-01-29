@@ -192,6 +192,46 @@ pub enum TransactionError {
     
     #[error("banned inputs usage attempt")]
     BannedInputs,
+
+    #[error(
+        "coinbase tx {coinbase_hash:?} at block {block_height:?} \
+         failed bcz of illegal outputs"
+    )]
+    IllegalCoinbaseOutput {
+        block_height: zebra_chain::block::Height,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
+
+    #[error(
+        "coinbase tx {coinbase_hash:?} at block {block_height:?} \
+         failed bcz of strange output"
+    )]
+    CoinbaseStrangeOutput {
+        block_height: zebra_chain::block::Height,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
+
+    #[error(
+        "notaryproof tx {transaction_hash:?} at block {block_height:?} \
+         not match coinbase {coinbase_hash:?}"
+    )]
+    NotaryProofNotMatched {
+        block_height: zebra_chain::block::Height,
+        transaction_hash: zebra_chain::transaction::Hash,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
+
+    #[error(
+        "failed or missing merkleroot expected.{expected_root:?} != merkleroot.{opret_root:?} \
+         in tx {transaction_hash:?} at block {block_height:?}
+        "
+    )]
+    FailedMerkleOpretInEasyMined {
+        block_height: zebra_chain::block::Height,
+        transaction_hash: zebra_chain::transaction::Hash,
+        expected_root: block::merkle::Root,
+        opret_root: block::merkle::Root,
+    }
 }
 
 impl From<BoxError> for TransactionError {
