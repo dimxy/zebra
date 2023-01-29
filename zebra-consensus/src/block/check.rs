@@ -315,8 +315,7 @@ pub fn komodo_miner_fees_are_valid(
             Amount::try_from(KOMODO_EXTRASATOSHI).expect("valid extra satoshi")
         ).map_err(|_| SubsidyError::SumOverflow)?;
 
-    tracing::info!("block={:?} block_subsidy={:?} minersfee={:?} block_interest={:?} left={:?} right={:?}", block.hash(), block_subsidy, block_miner_fees, block_interest, left, right);
-
+    tracing::debug!("block={:?} block_subsidy={:?} minersfee={:?} block_interest={:?} left={:?} right={:?}", block.hash(), block_subsidy, block_miner_fees, block_interest, left, right);
 
     if left > right {
         if NN::komodo_notaries_height1_reached(network, &height) || coinbase.outputs()[0].value() > block_subsidy   {
