@@ -390,7 +390,7 @@ where
                     .into_iter()
                     .take(POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN)
                     .collect();
-    if !relevant_chain.is_empty()    {
+    if relevant_chain.len() >= POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN  {
         let relevant_data = relevant_chain.iter().map(|block| {
             (
                 block.borrow().header.difficulty_threshold,

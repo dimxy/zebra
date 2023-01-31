@@ -382,7 +382,9 @@ impl Service<Request> for Mempool {
                     send_to_peers_ids =
                         Self::remove_expired_from_peer_list(&send_to_peers_ids, &expired_transactions);
                 } else {
-                    panic!("mtp on best chain tip should be always known in mempool");
+                    // we may not have mtp at the chain startup while blocks number < 28 
+                    // so let's not panic here as we just would not remove too-long-in-mempool txns:
+                    // panic!("mtp on best chain tip should be always known in mempool");
                 }
             }
 
