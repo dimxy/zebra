@@ -63,6 +63,15 @@ impl Script {
             Some(TransparentAddress::PublicKey(
                 *ripemd::Ripemd160::digest(Sha256::digest(&pk)).as_ref(),
             )) 
+        } else if self.0.len() == 1+0x41+1 // dimxy add support for p2pk for kmd
+            && self.0[0] == 0x41 as u8 
+            && self.0[1+0x41] == OpCode::CheckSig as u8 
+        {
+            let mut pk = [0; 0x41];
+            pk.copy_from_slice(&self.0[1..0x42]);
+            Some(TransparentAddress::PublicKey(
+                *ripemd::Ripemd160::digest(Sha256::digest(&pk)).as_ref(),
+            )) 
         } else if self.0.len() == 23
             && self.0[0..2] == [OpCode::Hash160 as u8, 0x14]
             && self.0[22] == OpCode::Equal as u8
