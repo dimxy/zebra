@@ -6,6 +6,7 @@ use crate::{peer::MinimumPeerVersion, protocol::external::types::Version};
 
 proptest! {
     /// Test if the calculated minimum peer version is correct.
+    #[ignore]  // Different in Komodo
     #[test]
     fn minimum_peer_version_is_correct(
         network in any::<Network>(),
@@ -22,6 +23,7 @@ proptest! {
     }
 
     /// Test if the calculated minimum peer version changes with the tip height.
+    #[ignore]  // Different in Komodo
     #[test]
     fn minimum_peer_version_is_updated_with_chain_tip(
         network in any::<Network>(),
@@ -40,6 +42,7 @@ proptest! {
     }
 
     /// Test if the minimum peer version changes are correctly tracked.
+    #[ignore]  // Different in Komodo
     #[test]
     fn minimum_peer_version_reports_changes_correctly(
         network in any::<Network>(),

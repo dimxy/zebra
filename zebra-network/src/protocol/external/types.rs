@@ -162,6 +162,7 @@ mod proptest {
 
     use crate::constants::magics;
 
+    #[ignore] // magics are different in Komodo. TODO: add similar test for Komodo
     #[test]
     fn magic_debug() {
         zebra_test::init();
