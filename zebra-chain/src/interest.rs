@@ -371,7 +371,7 @@ mod tests {
 
     #[test]
     /// test a specific overflow case  
-    fn test_komodo_interest_overflow_path_C() {
+    fn test_komodo_interest_overflow_path_c() {
         zebra_test::init();
 
         let tip_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1491350400 + 1, 0), Utc);

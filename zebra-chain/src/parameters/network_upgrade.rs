@@ -63,9 +63,9 @@ pub enum NetworkUpgrade {
 pub(super) const MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
     (block::Height(1), BeforeOverwinter),
-    (block::Height(1_140_408), Overwinter),
-    (block::Height(1_140_409), Sapling),
-    (block::Height(7_113_400), Blossom),
+    (block::Height(1_140_408), Overwinter), // komodod Sapling height - 1
+    (block::Height(1_140_409), Sapling),    // komodod "SET SAPLING ACTIVATION height.1140409"
+    (block::Height(7_113_400), Blossom),    // not supported in komodo, must be set to some unreachable height
     (block::Height(7_113_401), Heartwood),
     (block::Height(7_113_402), Canopy),
     (block::Height(7_113_403), Nu5),
