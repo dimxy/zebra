@@ -56,6 +56,7 @@ fn accept_shielded_mature_coinbase_utxo_spend() {
 }
 
 /// Check that non-shielded spends of coinbase transparent outputs fail.
+#[ignore] // Coinbase transparent spending is allowed in Komodo
 #[test]
 fn reject_unshielded_coinbase_utxo_spend() {
     zebra_test::init();
@@ -78,6 +79,7 @@ fn reject_unshielded_coinbase_utxo_spend() {
 }
 
 /// Check that early spends of coinbase transparent outputs fail.
+#[ignore] // Enable after PR#26 merged in Komodo Zebra repo
 #[test]
 fn reject_immature_coinbase_utxo_spend() {
     zebra_test::init();
