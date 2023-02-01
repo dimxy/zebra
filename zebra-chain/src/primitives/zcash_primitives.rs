@@ -313,7 +313,7 @@ mod tests {
     // check P2PK parsed okay with legacy script,
     // for this test the zcash_primitives dependency patched for P2PK is needed
     #[test]
-    fn p2pk_kmdmainnet() {
+    fn komodo_p2pk_kmdmainnet() {
         let _init_guard = zebra_test::init();
 
         let script = zcash_primitives::legacy::Script( hex::decode("21035d3b0f2e98cf0fba19f80880ec7c08d770c6cf04aa5639bc57130d5ac54874dbAC").expect("valid hex").to_vec() );
@@ -331,7 +331,7 @@ mod tests {
     // check P2PK with non compressed PK is parsed okay with legacy script,
     // for this test the zcash_primitives dependency patched for P2PK is needed
     #[test]
-    fn p2pk_non_compressed_kmdmainnet() {
+    fn komodo_p2pk_non_compressed_kmdmainnet() {
         let _init_guard = zebra_test::init();
 
         let script = zcash_primitives::legacy::Script( hex::decode("41045d3b0f2e98cf0fba19f80880ec7c08d770c6cf04aa5639bc57130d5ac54874db59fff2aa76106a97f7cc2ec870fbeec502f539b7713d6f72247aa86c86379a4fac").expect("valid hex").to_vec() );
