@@ -570,6 +570,7 @@ impl<'a> NNDataMain<'a> {
     #[allow(non_snake_case)]
     pub fn new() -> NNDataMain<'static>
     {    
+        // Season 3.5:
         let nStakedDecemberHardforkTimestamp = DateTime32::from(1576840000 as u32); //December 2019 hardfork 12/20/2019 @ 11:06am (UTC)
         let nDecemberHardforkHeight = Height(1670000);   //December 2019 hardfork
     
@@ -580,9 +581,11 @@ impl<'a> NNDataMain<'a> {
         let nS5HardforkHeight = Height(2437300);  //dPoW Season 5 Monday, June 14th, 2021
     
         let nS6Timestamp = DateTime32::from(1656077853);   // dPoW Season 6, Fri Jun 24 2022 13:37:33 GMT+0000
-        let nS6HardforkHeight = Height(2963330);  // dPoW Season 6, Fri Jun 24 202
+        let nS6HardforkHeight = Height(2963330);  // dPoW Season 6, Fri Jun 24 2022
         
         let KMD_SEASON_TIMESTAMPS = vec![DateTime32::from(1525132800), DateTime32::from(1563148800), nStakedDecemberHardforkTimestamp, nS4Timestamp, nS5Timestamp, nS6Timestamp, DateTime32::from(1751328000)];
+        // Note: a season height is the right end of the previous season 
+        // and season height + 1 is the left begin of the current season:
         let KMD_SEASON_HEIGHTS = vec![Height(814000), Height(1444000), nDecemberHardforkHeight, nS4HardforkHeight, nS5HardforkHeight, nS6HardforkHeight, Height(7113400)];
 
         // convert to vector for convenience
@@ -1033,6 +1036,7 @@ impl NN {
         }
     }
 
+    /// returns if kmd S5 season active for height
     pub fn komodo_s5_hardfork_active(
         network: Network,
         height: &Height,
@@ -1121,17 +1125,73 @@ mod tests {
     use super::*;
 
     #[test]
-    fn nn_spk_height_season_0() {
+    fn nn_spk_height_season_1() {
         let _init_guard = zebra_test::init();
 
         let pk = PublicKey::from_slice(hex::decode("03f54b2c24f82632e3cdebe4568ba0acf487a80f8a89779173cdb78f74514847ce").expect("valid hex").as_ref()).expect("valid pubkey hex");
 
-        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(814000-1), &pk).expect("valid season for height").unwrap() == 4, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(250_000), &pk).expect("valid season for height").unwrap() == 4, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(814000), &pk).expect("valid season for height").unwrap() == 4, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_height_season_2() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("029acf1dcd9f5ff9c455f8bb717d4ae0c703e089d16cf8424619c491dff5994c90").expect("valid hex").as_ref()).expect("valid pubkey hex");
+
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(814000+1), &pk).expect("valid season for height").unwrap() == 5, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(1444000), &pk).expect("valid season for height").unwrap() == 5, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_height_season_3() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("0237e0d3268cebfa235958808db1efc20cc43b31100813b1f3e15cc5aa647ad2c3").expect("valid hex").as_ref()).expect("valid pubkey hex");
+
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(1444000+1), &pk).expect("valid season for height").unwrap() == 0, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(1670000), &pk).expect("valid season for height").unwrap() == 0, "notary pubkey check broken");
+    }
+    
+    #[test]
+    fn nn_spk_height_season_3_5() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("0378224b4e9d8a0083ce36f2963ec0a4e231ec06b0c780de108e37f41181a89f6a").expect("valid hex").as_ref()).expect("valid pubkey hex");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(1670000+1 /*nDecemberHardforkHeight*/), &pk).expect("valid season for height").unwrap() == 3, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(1922000 /*nS4HardforkHeight*/), &pk).expect("valid season for height").unwrap() == 3, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_height_season_4() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("03bb749e337b9074465fa28e757b5aa92cb1f0fea1a39589bca91a602834d443cd").expect("valid hex").as_ref()).expect("valid pubkey hex");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(1922000+1), &pk).expect("valid season for height").unwrap() == 1, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(2437300), &pk).expect("valid season for height").unwrap() == 1, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_height_season_5() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("03bb749e337b9074465fa28e757b5aa92cb1f0fea1a39589bca91a602834d443cd").expect("valid hex").as_ref()).expect("valid pubkey hex");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(2437300+1), &pk).expect("valid season for height").unwrap() == 17, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(2963330), &pk).expect("valid season for height").unwrap() == 17, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_height_season_6() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("02909c79a198179c193fb85bbd4ba09b875a5a9bd481fec284658188b96ed43519").expect("valid hex").as_ref()).expect("valid pubkey hex");
+        assert!(<NN as GetNotaryId<Height, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &Height(2963330+1), &pk).expect("valid season for height").unwrap() == 1, "notary pubkey check broken");
     }
 
     // too early height before NNs started to use 
     #[test]
-    fn nn_spk_height_season_64105() {
+    fn nn_spk_height_too_early() {
         let _init_guard = zebra_test::init();
 
         let pk = PublicKey::from_slice(hex::decode("033fb7231bb66484081952890d9a03f91164fb27d392d9152ec41336b71b15fbd0").expect("valid hex").as_ref()).expect("valid pubkey hex");
@@ -1140,11 +1200,66 @@ mod tests {
     }
 
     #[test]
-    fn nn_spk_timestamp_season_0() {
+    fn nn_spk_timestamp_season_1() {
         let _init_guard = zebra_test::init();
 
         let pk = PublicKey::from_slice(hex::decode("03f54b2c24f82632e3cdebe4568ba0acf487a80f8a89779173cdb78f74514847ce").expect("valid hex").as_ref()).expect("valid pubkey hex");
 
-        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1525132800-1), &pk).expect("valid season for height").unwrap() == 4, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1525132800), &pk).expect("valid season for height").unwrap() == 4, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_timestamp_season_2() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("029acf1dcd9f5ff9c455f8bb717d4ae0c703e089d16cf8424619c491dff5994c90").expect("valid hex").as_ref()).expect("valid pubkey hex");
+
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1525132800+1), &pk).expect("valid season for height").unwrap() == 5, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1563148800), &pk).expect("valid season for height").unwrap() == 5, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_timestamp_season_3() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("0237e0d3268cebfa235958808db1efc20cc43b31100813b1f3e15cc5aa647ad2c3").expect("valid hex").as_ref()).expect("valid pubkey hex");
+
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1563148800+1), &pk).expect("valid season for height").unwrap() == 0, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1576840000), &pk).expect("valid season for height").unwrap() == 0, "notary pubkey check broken");
+    }
+    
+    #[test]
+    fn nn_spk_timestamp_season_3_5() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("0378224b4e9d8a0083ce36f2963ec0a4e231ec06b0c780de108e37f41181a89f6a").expect("valid hex").as_ref()).expect("valid pubkey hex");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1576840000+1), &pk).expect("valid season for height").unwrap() == 3, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1592146800), &pk).expect("valid season for height").unwrap() == 3, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_timestamp_season_4() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("03bb749e337b9074465fa28e757b5aa92cb1f0fea1a39589bca91a602834d443cd").expect("valid hex").as_ref()).expect("valid pubkey hex");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1592146800+1), &pk).expect("valid season for height").unwrap() == 1, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1623682800), &pk).expect("valid season for height").unwrap() == 1, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_timestamp_season_5() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("03bb749e337b9074465fa28e757b5aa92cb1f0fea1a39589bca91a602834d443cd").expect("valid hex").as_ref()).expect("valid pubkey hex");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1623682800+1), &pk).expect("valid season for height").unwrap() == 17, "notary pubkey check broken");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1656077853), &pk).expect("valid season for height").unwrap() == 17, "notary pubkey check broken");
+    }
+
+    #[test]
+    fn nn_spk_timestamp_season_6() {
+        let _init_guard = zebra_test::init();
+
+        let pk = PublicKey::from_slice(hex::decode("02909c79a198179c193fb85bbd4ba09b875a5a9bd481fec284658188b96ed43519").expect("valid hex").as_ref()).expect("valid pubkey hex");
+        assert!(<NN as GetNotaryId<DateTime32, PublicKey>>::komodo_get_notary_id(Network::Mainnet, &DateTime32::from(1656077853+1), &pk).expect("valid season for height").unwrap() == 1, "notary pubkey check broken");
     }
 }
