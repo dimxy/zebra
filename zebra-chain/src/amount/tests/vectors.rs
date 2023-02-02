@@ -279,9 +279,9 @@ where
     Ok(())
 }
 
-#[ignore]  // TODO fix for Komodo MAX_MONEY
+/// test_sum fixed for Komodo MAX_MONEY
 #[test]
-fn test_sum() -> Result<()> {
+fn komodo_test_sum() -> Result<()> {
     zebra_test::init();
 
     let one: Amount = 1.try_into()?;
@@ -335,11 +335,11 @@ fn test_sum() -> Result<()> {
     // above max of i64 error
     let times: usize = (i64::MAX / MAX_MONEY)
         .try_into()
-        .expect("4392 can always be converted to usize");
+        .expect("461 can always be converted to usize"); // changed for Komodo
     let amounts: Vec<Amount> = std::iter::repeat(MAX_MONEY.try_into()?)
         .take(times + 1)
         .collect();
-
+    
     let sum_ref = amounts.iter().sum::<Result<Amount, Error>>();
     let sum_value = amounts.into_iter().sum::<Result<Amount, Error>>();
 
@@ -347,28 +347,28 @@ fn test_sum() -> Result<()> {
     assert_eq!(
         sum_ref,
         Err(Error::SumOverflow {
-            partial_sum: 4200000000000000,
-            remaining_items: 4391
+            partial_sum: 400_000_000_00000000,
+            remaining_items: 460
         })
     );
 
     // below min of i64 overflow
     let times: usize = (i64::MAX / MAX_MONEY)
         .try_into()
-        .expect("4392 can always be converted to usize");
+        .expect("461 can always be converted to usize");
     let neg_max_money: Amount<NegativeAllowed> = (-MAX_MONEY).try_into()?;
     let amounts: Vec<Amount<NegativeAllowed>> =
         std::iter::repeat(neg_max_money).take(times + 1).collect();
-
+    
     let sum_ref = amounts.iter().sum::<Result<Amount, Error>>();
     let sum_value = amounts.into_iter().sum::<Result<Amount, Error>>();
-
+    
     assert_eq!(sum_ref, sum_value);
     assert_eq!(
         sum_ref,
         Err(Error::SumOverflow {
-            partial_sum: -4200000000000000,
-            remaining_items: 4391
+            partial_sum: -400_000_000_00000000,
+            remaining_items: 460
         })
     );
 
