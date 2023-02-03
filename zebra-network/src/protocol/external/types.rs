@@ -162,6 +162,14 @@ mod proptest {
 
     use crate::constants::magics;
 
+    #[test]
+    fn komodo_magic_debug() {
+        zebra_test::init();
+
+        assert_eq!(format!("{:?}", magics::MAINNET), "Magic(\"f9eee48d\")");
+        assert_eq!(format!("{:?}", magics::TESTNET), "Magic(\"5a1f7e62\")");
+    }
+
     #[ignore] // magics are different in Komodo. TODO: add similar test for Komodo
     #[test]
     fn magic_debug() {
