@@ -1006,8 +1006,8 @@ impl NN {
         }
     }
 
-    /// returns if the s1 Dec hf is active for height 
-    pub fn komodo_s1_december_hardfork_active(
+    /// returns if the season 3.5 Dec hf is active for height 
+    pub fn komodo_s3_5_december_hardfork_active(
         network: Network,
         height: &Height,
     ) -> bool {
@@ -1081,14 +1081,14 @@ impl NN {
         }
     }
 
-    /// returns if for utxo at this height interest calculation is active
-    pub fn komodo_interest_active(
+    /// returns if tx locktime validation at this height is active
+    pub fn komodo_interest_validate_locktime_active(
         network: Network,
         height: &Height,
     ) -> bool {
         match (network, height) {
             (Network::Mainnet, height) => {
-                *height >= Height(246748)                
+                *height > Height(246748)                
             },
             (Network::Testnet, _) => {
                 true                
@@ -1097,7 +1097,7 @@ impl NN {
     }
 
     /// returns if locktime max mempool time must be adjusted
-    pub fn komodo_interest_adjust_max_mempool_time(
+    pub fn komodo_interest_adjust_max_mempool_time_active(
         network: Network,
         height: &Height,
     ) -> bool {
@@ -1107,6 +1107,22 @@ impl NN {
             },
             (Network::Testnet, _) => {
                 false                
+            },
+        }
+    }
+
+    /// returns if komodo interest calc at this height is active
+    /// Note: in komodod consensus height > 60000 is used and in rpc height >= 60000 is used
+    pub fn komodo_interest_calc_active(
+        network: Network,
+        height: &Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                *height > Height(60_000)                
+            },
+            (Network::Testnet, _) => {
+                true                
             },
         }
     }

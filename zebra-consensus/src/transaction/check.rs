@@ -109,7 +109,7 @@ pub fn is_final_tx_komodo(
 
         let validation_height = block_height - 1;
         let hf_active = if let Some(ht) = validation_height {
-            NN::komodo_s1_december_hardfork_active(network, &ht)
+            NN::komodo_s3_5_december_hardfork_active(network, &ht)
         } else {
             false
         };
@@ -367,7 +367,7 @@ pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<tr
     // with a merkleroot composed of the hash of the previous block and the hashes of all the transactions
     // in this notary-mined (easy-mined) block, excluding the notaryvin spend transaction itself.
 
-    if NN::komodo_s1_december_hardfork_active(network, &req_height) {
+    if NN::komodo_s3_5_december_hardfork_active(network, &req_height) {
         if let Some(notaryid) = nn_id {
             if notaryid > 0 || (notaryid == 0 && NN::komodo_s5_hardfork_active(network, &req_height)) {
                 // komodo_checkopret - https://github.com/KomodoPlatform/komodo/blob/master/src/komodo_bitcoind.cpp#L638-L642

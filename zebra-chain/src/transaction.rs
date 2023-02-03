@@ -42,6 +42,7 @@ use crate::{
         CoinbaseSpendRestriction::{self, *},
     },
     value_balance::{ValueBalance, ValueBalanceError},
+    komodo_hardfork::NN,
     interest::komodo_interest,
 };
 
@@ -1459,9 +1460,8 @@ impl Transaction {
                     let lock_time = utxo.lock_time;
 
                     let mut interest = Amount::zero();
-                    if network != Network::Mainnet || block_height > Height(60_000) {
-                        if utxo.output.value() >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()
-                        {
+                    if NN::komodo_interest_calc_active(network, &block_height) {
+                        if utxo.output.value() >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()   {
                             interest = komodo_interest(tx_height, utxo.output.value(), lock_time, last_block_time);
                         }
                     }

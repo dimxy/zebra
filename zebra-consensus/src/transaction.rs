@@ -1209,9 +1209,9 @@ pub fn komodo_validate_interest_locktime(network: Network, tx: &Transaction, tx_
 
     if let Some(lock_time) = tx.raw_lock_time() {       // in komodo we should not use zcash's special lock_time()
         if let LockTime::Time(lock_time) = lock_time {  
-            if NN::komodo_interest_active(network, &tx_height)  {
+            if NN::komodo_interest_validate_locktime_active(network, &tx_height)  {
                 let mut cmp_time_adj = cmp_time;
-                if NN::komodo_interest_adjust_max_mempool_time(network, &tx_height)  {
+                if NN::komodo_interest_adjust_max_mempool_time_active(network, &tx_height)  {
                     cmp_time_adj -= Duration::seconds(16000);
                 }
                 if lock_time < cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME)   {
