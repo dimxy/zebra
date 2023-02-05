@@ -51,7 +51,7 @@ use crate::{
         watch_receiver::WatchReceiver, check::difficulty::{POW_MEDIAN_BLOCK_SPAN, AdjustedDifficulty},
     },
     BoxError, CloneError, CommitBlockError, Config, FinalizedBlock, PreparedBlock, ReadRequest,
-    ReadResponse, Request, Response, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx, arbitrary::Prepare,
+    ReadResponse, Request, Response, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx,
 };
 
 pub mod block_iter;
@@ -600,31 +600,30 @@ impl StateService {
         );*/ 
     }
 
-    /// look back from the finalised tip for the latest nota 
+    /// look back from the finalised tip for the latest komodo notarisation 
     pub fn komodo_init_last_nota(&mut self) {
 
-        if let Some(tip) = self.disk.tip() {
+        if let Some(tip) = self.disk.db().tip() {
             info!("komodo looking back for the last notarisation for no more than {} blocks for tip at {:?}...", MAX_LAST_NOTA_DEPTH, tip.0);
             let mut finalised_chain = self.any_ancestor_blocks(tip.1);
             let mut depth = 0;
             while depth < MAX_LAST_NOTA_DEPTH {
                 if let Some(block) = finalised_chain.next() {
-                    let prepared = block.prepare();
-                    trace!("komodo last nota checking prepared.height={:?}", prepared.height);
-                    trace!(new_outputs_len = prepared.new_outputs.len(),
-                          transaction_hashes_len = prepared.transaction_hashes.len(),
-                        "komodo prepared");
+                    if let Some(height) = block.coinbase_height() {
+                        trace!("komodo last nota checking height={:?}", height);
 
-                    let spent_outputs = komodo_transparent_spend_finalized(&prepared, self.disk.db());
-                    //info!("komodo last nota prepared.height={:?} spent_outputs.len={}", prepared.height, spent_outputs.len());
+                        let spent_outputs = komodo_transparent_spend_finalized(&block, self.disk.db());
+                        trace!("komodo last nota height={:?} spent_outputs.len={}", height, spent_outputs.len());
 
-                    if let Some(nota) = komodo_block_has_notarisation_tx(self.network, &prepared.block, &spent_outputs, &prepared.height) {
-                        self.mem.last_nota = Some(nota);
-                        info!("komodo found last nota at height {:?}", prepared.height);
+                        if let Some(nota) = komodo_block_has_notarisation_tx(self.network, &block, &spent_outputs, &height) {
+                            self.mem.last_nota = Some(nota);
+                            info!("komodo found last nota at height {:?}", height);
+                            break;
+                        }
+                    } else {
                         break;
                     }
-                }
-                else {
+                } else {
                     break;
                 }
                 depth += 1;

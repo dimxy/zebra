@@ -2,18 +2,19 @@
 
 use std::collections::HashMap;
 use zebra_chain::transparent;
+use zebra_chain::block::Block;
 
 use super::finalized_state::ZebraDb;
 
 
 /// read transactions for block spends and construct OrderedUtxos
 pub fn komodo_transparent_spend_finalized(
-    prepared: &crate::PreparedBlock,
+    block: &Block,
     finalized_state: &ZebraDb,
 ) -> HashMap<transparent::OutPoint, transparent::Output> {
     let mut block_spends = HashMap::new();
 
-    for (_, transaction) in prepared.block.transactions.iter().enumerate() {
+    for (_, transaction) in block.transactions.iter().enumerate() {
         let spends = transaction
             .inputs()
             .iter()
