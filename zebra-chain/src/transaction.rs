@@ -1438,6 +1438,37 @@ impl Transaction {
         self.value_balance_from_outputs(network, utxos, block_height, last_block_time)
     }
 
+    /// calc komodo interest for input
+    /// spent_utxos is a map of spent utxos where the uxto spent by this input must exist
+    pub fn komodo_interest_input(network: Network,
+        input: &transparent::Input,
+        spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>, 
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
+    ) -> Amount<NonNegative> {
+
+        if let Some(outpoint) = input.outpoint()    {
+            let utxo = spent_utxos
+            .get(&outpoint)
+            .expect("provided Utxos don't have spent OutPoint");
+
+            let tx_height = utxo.height;
+            let lock_time = utxo.lock_time;
+
+            let mut interest = Amount::zero();
+            if NN::komodo_interest_calc_active(network, &block_height) {
+                if utxo.output.value() >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()   {
+                    interest = komodo_interest(tx_height, utxo.output.value(), lock_time, last_block_time);
+                }
+            }
+            //debug!("komodo_interest_tx tx block_height={:?} block_time={:?} tx_height={:?} lock_time={:?} interest={:?}", block_height, if let Some(last_block_time) = last_block_time { last_block_time.timestamp() } else { 0i64 }, tx_height,  <lock_time::LockTime as TryInto<u32>>::try_into(lock_time), interest);
+            interest
+        } else {
+            Amount::zero()  // Coinbase. input (i) is Input::Coinbase (i.e. not Input::PrevOut),
+                            // i.e. no previous output transaction reference (coins created from mining)
+        }
+    }
+
     /// calc komodo interest for transaction
     pub fn komodo_interest_tx(&self, 
         network: Network,
@@ -1450,29 +1481,7 @@ impl Transaction {
             .inputs()
             .iter()
             .map(|i| -> Amount<NonNegative> {
-                if let Some(outpoint) = i.outpoint()
-                {
-                    let utxo = spent_utxos
-                        .get(&outpoint)
-                        .expect("provided Utxos don't have spent OutPoint");
-
-                    let tx_height = utxo.height;
-                    let lock_time = utxo.lock_time;
-
-                    let mut interest = Amount::zero();
-                    if NN::komodo_interest_calc_active(network, &block_height) {
-                        if utxo.output.value() >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()   {
-                            interest = komodo_interest(tx_height, utxo.output.value(), lock_time, last_block_time);
-                        }
-                    }
-                    //debug!("komodo_interest_tx tx block_height={:?} block_time={:?} tx_height={:?} lock_time={:?} interest={:?}", block_height, if let Some(last_block_time) = last_block_time { last_block_time.timestamp() } else { 0i64 }, tx_height,  <lock_time::LockTime as TryInto<u32>>::try_into(lock_time), interest);
-
-                    interest
-
-                } else {
-                    Amount::zero() // Coinbase. input (i) is Input::Coinbase (i.e. not Input::PrevOut),
-                                    // i.e. no previous output transaction reference (coins created from mining)
-                }
+                Self::komodo_interest_input(network, i, spent_utxos, block_height, last_block_time)
             })
             .sum::<Result<Amount<NonNegative>, amount::Error>>()
             .unwrap_or(Amount::zero());
