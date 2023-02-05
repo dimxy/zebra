@@ -553,12 +553,12 @@ impl NonFinalizedState {
         match (komodo_block_has_notarisation_tx(self.network, block, spent_outputs, height), self.last_nota.as_ref()) {
             (Some(found_nota), Some(last_nota)) => {
                 if last_nota.notarised_height < found_nota.notarised_height {
-                    info!("found update nota last notarised height={:?}", found_nota.notarised_height);
+                    debug!("komodo found update nota last notarised height={:?}", found_nota.notarised_height);
                     self.last_nota = Some(found_nota);
                 }
             },
             (Some(found_nota), None) =>  {
-                info!("found new nota last notarised height={:?}", found_nota.notarised_height);
+                debug!("komodo found new nota last notarised height={:?}", found_nota.notarised_height);
                 self.last_nota = Some(found_nota);
             },
             (None, _) => (),
@@ -570,13 +570,10 @@ impl NonFinalizedState {
     pub fn komodo_check_fork_is_valid(&self, chain_with_new_block: &Chain) -> Result<(), ValidateContextError> {
 
         if let Some(last_nota) = &self.last_nota {
-            info!("komodo_check_fork_is_valid chain_new height={:?} hash={:?} last_nota.height={:?}", chain_with_new_block.non_finalized_tip_height(), chain_with_new_block.non_finalized_tip_hash(), last_nota.notarised_height);
+            trace!("komodo_check_fork_is_valid chain_new height={:?} hash={:?} last_nota.height={:?}", chain_with_new_block.non_finalized_tip_height(), chain_with_new_block.non_finalized_tip_hash(), last_nota.notarised_height);
             if let Some(best_chain) = self.best_chain() {
 
-                info!("komodo_check_fork_is_valid best_chain.tip={:?} hash={:?}", best_chain.non_finalized_tip_height(), best_chain.non_finalized_tip_hash());
-                //info!("dimxyyy chain_with_new_block={:?}", chain_with_new_block.blocks.iter().map(|p| (p.0, p.1.hash)).collect::<Vec<_>>());
-                //info!("dimxyyy best_chain={:?}", best_chain.blocks.iter().map(|p| (p.0, p.1.hash)).collect::<Vec<_>>());
-
+                trace!("komodo_check_fork_is_valid best_chain.tip={:?} hash={:?}", best_chain.non_finalized_tip_height(), best_chain.non_finalized_tip_hash());
                 // find the fork point
                 // I think it is important to start search from the tip (in rev order) 
                 // as the bottom part of the chain has many common blocks with the best_chain because both grow from the finalized tip
@@ -587,7 +584,7 @@ impl NonFinalizedState {
                         .skip_while(|e| e.1 != fork.1)
                         .map(|p| (p.0, p.1.hash))
                         .collect::<Vec<_>>();
-                    info!("block_hashes_truncated={:?}", block_hashes_truncated);
+                    trace!("block_hashes_truncated={:?}", block_hashes_truncated);
 
                     let new_has_nota = block_hashes_truncated.iter().find(|pair| pair.1 == last_nota.block_hash).is_some();
                     
@@ -616,7 +613,7 @@ impl NonFinalizedState {
                     */
 
 
-                    info!(
+                    debug!(
                         chain_with_new_block_non_fin_height = chain_with_new_block.non_finalized_tip_height().0,
                         best_chain_non_fin_height = best_chain.non_finalized_tip_height().0,
                         new_chain_has_last_nota = chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash),

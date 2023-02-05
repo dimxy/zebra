@@ -108,7 +108,7 @@ where
     // check komodo contextual rules for special notary blocks:
     if komodo_is_special_notary_block(&prepared.block, &prepared.height, network, relevant_chain.into_iter())? {  // returns error if special block invalid
         use zebra_chain::work::difficulty::ExpandedDifficulty;
-        tracing::info!("block ht={:?} is a komodo special block", prepared.height);
+        tracing::debug!("block ht={:?} is a komodo special block", prepared.height);
 
         // check min difficulty for a special block:
         let difficulty_threshold_exp = prepared.block.header.difficulty_threshold.to_expanded().ok_or(ValidateContextError::SpecialBlockInvalidDifficulty(prepared.height, prepared.hash))?;
@@ -124,7 +124,7 @@ where
     }
     else {
         // ordinary block, nothing to check, all checks must have completed 
-        tracing::info!("block ht={:?} is an ordinary komodo block", prepared.height);
+        tracing::debug!("block ht={:?} is an ordinary komodo block", prepared.height);
     }
 
     Ok(())
