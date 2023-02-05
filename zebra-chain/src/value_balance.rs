@@ -14,6 +14,7 @@ use std::{borrow::Borrow, collections::HashMap, convert::TryInto};
 
 #[cfg(any(test, feature = "proptest-impl"))]
 use crate::{amount::MAX_MONEY, transaction::Transaction};
+use crate::transparent::outputs_from_utxos;
 
 #[cfg(any(test, feature = "proptest-impl"))]
 mod arbitrary;
@@ -284,18 +285,27 @@ impl ValueBalance<NonNegative> {
     #[cfg(any(test, feature = "proptest-impl"))]
     pub fn add_transparent_input(
         self,
+        network: Network,
         input: impl Borrow<transparent::Input>,
-        utxos: &HashMap<transparent::OutPoint, transparent::Output>,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NonNegative>, ValueBalanceError> {
         use std::ops::Neg;
 
+        let outputs = &outputs_from_utxos(utxos.clone());
+
+        // for komodo we need to add interest to the chain value
+        let interest = Amount::constrain::<NegativeAllowed>(Transaction::komodo_interest_input(network, &input.borrow(), utxos, block_height, last_block_time))
+            .expect("interest conversion from NonNegative to NegativeAllowed is always valid");
+
         // the chain pool (unspent outputs) has the opposite sign to
         // transaction value balances (inputs - outputs)
-        let transparent_value_pool_change = input.borrow().value_from_outputs(utxos).neg();
-        let transparent_value_pool_change =
-            ValueBalance::from_transparent_amount(transparent_value_pool_change);
-        // TODO: for komodo we probably need to add interest here 
+        let transparent_value_pool_change = input.borrow().value_from_outputs(outputs).neg();
 
+        let transparent_value_pool_change =
+            ValueBalance::from_transparent_amount( (interest + transparent_value_pool_change).expect("valid amount for value_pool_change with interest") );
+ 
         self.add_chain_value_pool_change(transparent_value_pool_change)
     }
 

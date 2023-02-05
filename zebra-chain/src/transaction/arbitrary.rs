@@ -296,11 +296,10 @@ impl Transaction {
         // a temporary value used to check that inputs don't break the chain value balance
         // consensus rules
         let mut input_chain_value_pools = chain_value_pools;
-        let outputs = &outputs_from_utxos(utxos.clone());
 
         for input in self.inputs() {
             input_chain_value_pools = input_chain_value_pools
-                .add_transparent_input(input, outputs)
+                .add_transparent_input(network, input, utxos, height, last_block_time)
                 .expect("find_valid_utxo_for_spend only spends unspent transparent outputs");
         }
 
@@ -345,6 +344,28 @@ impl Transaction {
             .value_balance_from_outputs(network, utxos, height, last_block_time)
             .expect("chain value pool and remaining transaction value fixes produce valid transaction value balances")
             .neg();
+
+        // add tx interest to chain value pool 
+        let interest = self.komodo_interest_tx(network, utxos, height, last_block_time).constrain::<NegativeAllowed>()
+            .expect("conversion from NonNegative to NegativeAllowed is always valid");
+        
+        let interest_chain_value_pool_change = ValueBalance::from_transparent_amount(interest);
+        let chain_value_pools = chain_value_pools.add_chain_value_pool_change(interest_chain_value_pool_change)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "unexpected chain value pool error: {:?}, \n\
+                    original chain value pools: {:?}, \n\
+                    interest chain value change: {:?}, \n\
+                    input-only transaction chain value pools: {:?}, \n\
+                    calculated remaining transaction value: {:?}",
+                    err,
+                    chain_value_pools, // old value
+                    interest_chain_value_pool_change,
+                    input_chain_value_pools,
+                    remaining_transaction_value,
+                )
+            });
+
 
         let chain_value_pools = chain_value_pools
             .add_transaction(network, self, utxos, height, last_block_time)
@@ -451,7 +472,9 @@ impl Transaction {
         }
 
         let outputs = &outputs_from_utxos(utxos.clone());
-        let mut remaining_input_value = self.input_value_pool(outputs)?;
+        let mut remaining_input_value = //self.input_value_pool(outputs)?;
+            (self.input_value_pool(outputs)? + self.komodo_interest_tx(network, utxos, block_height, last_block_time))
+                .expect("valid input amount with interest");
 
         // assign remaining input value to outputs,
         // zeroing any outputs that would exceed the input value
@@ -508,6 +531,7 @@ impl Transaction {
                     err, remaining_input_value
                 )
             });
+
         assert_eq!(
             remaining_input_value,
             remaining_transaction_value,

@@ -175,7 +175,7 @@ fn block_genesis_strategy() -> Result<()> {
 /// - correct coinbase heights
 /// - correct previous block hashes
 /// - no transparent spends in the genesis block, because genesis transparent outputs are ignored
-#[ignore]  // TODO fix for Komodo interest(?)
+/// fixed for Komodo, interest added to the chain pool value and tx value balance
 #[test]
 fn genesis_partial_chain_strategy() -> Result<()> {
     zebra_test::init();
@@ -224,7 +224,7 @@ fn genesis_partial_chain_strategy() -> Result<()> {
 /// Make sure our block height strategy generates a chain with:
 /// - correct coinbase heights
 /// - correct previous block hashes
-#[ignore]  // fix for Komodo interest (?)
+/// fixed for Komodo interest
 #[test]
 fn arbitrary_height_partial_chain_strategy() -> Result<()> {
     zebra_test::init();

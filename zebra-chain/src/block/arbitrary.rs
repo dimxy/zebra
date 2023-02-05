@@ -6,7 +6,7 @@ use proptest::{
     prelude::*,
 };
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use crate::{
     amount::NonNegative,
@@ -434,6 +434,9 @@ impl Block {
                 // fixup the previous block hash
                 if let Some(previous_block_hash) = previous_block_hash {
                     Arc::make_mut(&mut block.header).previous_block_hash = previous_block_hash;
+                }
+                if let Some(previous_block_time) = previous_block_time {
+                    Arc::make_mut(&mut block.header).time = previous_block_time + chrono::Duration::seconds(60); // Komodo update block time (cant be random). TODO: make range 0..MAX_FUTURE_BLOCK_TIME
                 }
 
                 let mut new_transactions = Vec::new();

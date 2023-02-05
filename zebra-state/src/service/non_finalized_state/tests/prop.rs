@@ -81,7 +81,6 @@ fn push_genesis_chain() -> Result<()> {
 }
 
 /// Check that chain block pushes work with history tree blocks
-#[ignore]  // TODO fix for Komodo net
 #[test]
 fn push_history_tree_chain() -> Result<()> {
     zebra_test::init();
@@ -237,7 +236,6 @@ fn forked_equals_pushed_genesis() -> Result<()> {
 }
 
 /// Check that a forked history tree chain is the same as a chain that had the same blocks appended.
-#[ignore]  // TODO fix for Komodo net
 #[test]
 fn forked_equals_pushed_history_tree() -> Result<()> {
     zebra_test::init();
@@ -372,7 +370,6 @@ fn finalized_equals_pushed_genesis() -> Result<()> {
 
 /// Check that a history tree chain with some blocks finalized is the same as
 /// a chain that never had those blocks added.
-#[ignore]  // Blocks are different in Komodo. TODO fix for KMD net
 #[test]
 fn finalized_equals_pushed_history_tree() -> Result<()> {
     zebra_test::init();
@@ -444,7 +441,7 @@ fn finalized_equals_pushed_history_tree() -> Result<()> {
 
 /// Check that rejected blocks do not change the internal state of a genesis chain
 /// in a non-finalized state.
-#[ignore]  // TODO fix or make new test for Komodo net
+/// fixed for Komodo (bug of trying to get to last_block_time for genesis)
 #[test]
 fn rejection_restores_internal_state_genesis() -> Result<()> {
     zebra_test::init();
