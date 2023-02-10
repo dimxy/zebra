@@ -476,9 +476,13 @@ where
                 },
             };
                         
-            // Request the tip block from the state and read its time to calculate komodo interest
-            let query = Verifier::<ZS>::get_last_block_time(&state, &req);
-            let last_tip_blocktime = query.await?;
+            let last_tip_blocktime = if !tx.is_coinbase() {
+                // Request the tip block from the state and read its time to calculate komodo interest
+                let query = Verifier::<ZS>::get_last_block_time(&state, &req);
+                Some(query.await?)
+            } else {
+                None
+            };
             
             // tx shouldn't have banned inputs
             check::tx_has_banned_inputs(&tx)?;
@@ -540,9 +544,9 @@ where
             async_checks.check().await?;
 
             // Get the `value_balance` to calculate the transaction fee.
-            let value_balance = tx.value_balance(network, &spent_utxos, req.height(), Some(last_tip_blocktime));
+            let value_balance = tx.value_balance(network, &spent_utxos, req.height(), last_tip_blocktime);
             // also get dedicated interest value for checking it
-            let value_interest = tx.komodo_interest_tx(network, &spent_utxos, req.height(), Some(last_tip_blocktime));
+            let value_interest = tx.komodo_interest_tx(network, &spent_utxos, req.height(), last_tip_blocktime);
 
             // Calculate the fee only for non-coinbase transactions.
             let mut miner_fee = None;
