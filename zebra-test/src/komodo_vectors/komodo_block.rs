@@ -61,7 +61,6 @@ lazy_static! {
             (9, BLOCK_KMDMAINNET_9_BYTES.as_ref()),
             (10, BLOCK_KMDMAINNET_10_BYTES.as_ref()),
 
-            (415_000, BLOCK_KMDMAINNET_415000_BYTES.as_ref()),
             (899_012, BLOCK_KMDMAINNET_899012_BYTES.as_ref()),  // pow block
 
         ].iter().cloned().collect();
@@ -107,10 +106,6 @@ lazy_static! {
         <Vec<u8>>::from_hex(include_str!("block-kmdmain-0-000-010.txt").trim())
         .expect("Block bytes are in valid hex representation");
    
-    pub static ref BLOCK_KMDMAINNET_415000_BYTES: Vec<u8> =
-        <Vec<u8>>::from_hex(include_str!("block-kmdmain-0-415-000.txt").trim())
-        .expect("Block bytes are in valid hex representation");
-
     pub static ref BLOCK_KMDMAINNET_899012_BYTES: Vec<u8> =
         <Vec<u8>>::from_hex(include_str!("block-kmdmain-0-899-012.txt").trim())
         .expect("Block bytes are in valid hex representation");
