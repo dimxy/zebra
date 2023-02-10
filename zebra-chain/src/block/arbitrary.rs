@@ -269,7 +269,9 @@ impl Default for LedgerState {
         let default_network = Network::default();
         let default_override = LedgerStateOverride::default();
 
-        let most_recent_nu = NetworkUpgrade::current(default_network, Height::MAX);
+        //let most_recent_nu = NetworkUpgrade::current(default_network, Height::MAX);
+        let most_recent_nu = NetworkUpgrade::Sapling;   // fixed for Komodo as its upgrades >= Blossom are set to Height::MAX and some tests fail
+                                                                        // Also, does this mean that generated heights are possible in 0..most_recent_activation_height, what about over?
         let most_recent_activation_height =
             most_recent_nu.activation_height(default_network).unwrap();
 
@@ -734,7 +736,7 @@ impl Arbitrary for Header {
             any::<Hash>(),
             any::<merkle::Root>(),
             any::<[u8; 32]>(),
-            serialization::arbitrary::datetime_u32(),
+            serialization::arbitrary::datetime_u27(),   // Komodo fixed because datetime_u32 produces too big time differences for generated block heights for komodo network upgrades
             any::<CompactDifficulty>(),
             any::<[u8; 32]>(),
             any::<equihash::Solution>(),

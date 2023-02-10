@@ -790,7 +790,7 @@ impl Arbitrary for Transaction {
                 Self::v1_strategy(ledger_state)
             }
             NetworkUpgrade::Overwinter => Self::v2_strategy(ledger_state),
-            NetworkUpgrade::Sapling => Self::v3_strategy(ledger_state),
+            NetworkUpgrade::Sapling => Self::v3_strategy(ledger_state),     // TODO: komodo why v3 for Sapling (v4 is supposed)
             NetworkUpgrade::Blossom | NetworkUpgrade::Heartwood | NetworkUpgrade::Canopy => {
                 Self::v4_strategy(ledger_state)
             }
