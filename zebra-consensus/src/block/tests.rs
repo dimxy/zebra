@@ -192,14 +192,14 @@ fn difficulty_is_valid_for_network(network: Network) -> Result<(), Report> {
     Ok(())
 }
 
-#[ignore] // TODO fix for Komodo
+// fixed for Komodo blocks and difficulty
 #[test]
-fn difficulty_validation_failure() -> Result<(), Report> {
+fn komodo_difficulty_validation_failure() -> Result<(), Report> {
     zebra_test::init();
-
+ 
     // Get a block in the mainnet, and mangle its difficulty field
     let block =
-        Arc::<Block>::zcash_deserialize(&zebra_test::vectors::BLOCK_MAINNET_415000_BYTES[..])
+        Arc::<Block>::zcash_deserialize(&zebra_test::komodo_vectors::BLOCK_KMDMAINNET_899012_BYTES[..])
             .expect("block should deserialize");
     let mut block = Arc::try_unwrap(block).expect("block should unwrap");
     let height = block.coinbase_height().unwrap();
@@ -214,12 +214,25 @@ fn difficulty_validation_failure() -> Result<(), Report> {
     let expected = BlockError::InvalidDifficulty(height, hash);
     assert_eq!(expected, result);
 
-    // Get a block in the testnet, but tell the validator it's from the mainnet
-    let block =
-        Arc::<Block>::zcash_deserialize(&zebra_test::vectors::BLOCK_TESTNET_925483_BYTES[..])
-            .expect("block should deserialize");
-    let block = Arc::try_unwrap(block).expect("block should unwrap");
-    let height = block.coinbase_height().unwrap();
+    // make a fake block with diff over min difficulty
+    let fake_header = block::Header { 
+        version: 4,
+        time: Utc::now(),  
+        previous_block_hash: block::Hash([0x1f; 32]), 
+        merkle_root: Root([0x3f; 32]),
+        commitment_bytes: [0x4f; 32],
+        difficulty_threshold: zebra_chain::work::difficulty::ExpandedDifficulty::from(zebra_chain::work::difficulty::U256([
+            0x0f0f0f0f0f0f0f0fu64,
+            0x0f0f0f0f0f0f0f0fu64,
+            0x0f0f0f0f0f0f0f0fu64,
+            0x0f0f100f0f0f0f0fu64
+           ])).into(),
+        nonce: [0x6f; 32],
+        solution: zebra_chain::work::equihash::Solution([0x11u8; 1344])
+    };
+    let fake_block = Arc::new( Block { header: fake_header.into(), transactions: vec![] } );
+    let block = Arc::try_unwrap(fake_block).expect("block should unwrap");
+    let height = Height(899012);
     let hash = block.hash();
     let difficulty_threshold = block.header.difficulty_threshold.to_expanded().unwrap();
 
@@ -235,9 +248,29 @@ fn difficulty_validation_failure() -> Result<(), Report> {
     );
     assert_eq!(expected, result);
 
+    // Get a block in the RICK, but tell the validator it's from the mainnet
+    let block =
+        Arc::<Block>::zcash_deserialize(&zebra_test::komodo_vectors::BLOCK_RICK_899012_BYTES[..])
+            .expect("block should deserialize");
+    let block = Arc::try_unwrap(block).expect("block should unwrap");
+    let height = block.coinbase_height().unwrap();
+    let hash = block.hash();
+    let difficulty_threshold = block.header.difficulty_threshold.to_expanded().unwrap();
+
+    // Validate the block as if it is a mainnet block
+    let result =
+        check::difficulty_is_valid(&block.header, Network::Mainnet, &height, &hash, &block).unwrap_err();
+    let expected = BlockError::DifficultyFilter(
+        height,
+        hash,
+        difficulty_threshold,
+        Network::Mainnet,
+    );
+    assert_eq!(expected, result); 
+ 
     // Get a block in the mainnet, but pass an easy hash to the validator
     let block =
-        Arc::<Block>::zcash_deserialize(&zebra_test::vectors::BLOCK_MAINNET_415000_BYTES[..])
+        Arc::<Block>::zcash_deserialize(&zebra_test::komodo_vectors::BLOCK_KMDMAINNET_899012_BYTES[..])
             .expect("block should deserialize");
     let block = Arc::try_unwrap(block).expect("block should unwrap");
     let height = block.coinbase_height().unwrap();
