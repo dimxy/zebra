@@ -392,7 +392,7 @@ fn genesis_block_difficulty_for_network(network: Network) -> Result<(), Report> 
 }
 
 /// Test that testnet minimum-difficulty blocks are valid
-#[ignore]  // fix for Komodo difficulty
+#[ignore]  // fix for Komodo testnet difficulty
 #[test]
 #[spandoc::spandoc]
 fn testnet_minimum_difficulty() -> Result<(), Report> {
