@@ -15,6 +15,8 @@ use hex::{FromHex, ToHex};
 #[cfg(any(test, feature = "proptest-impl"))]
 use proptest_derive::Arbitrary;
 
+const KOMODO_MAINNET_SAPLING_HEIGHT: u32 = 1_140_409;
+
 /// A Zcash network upgrade.
 ///
 /// Network upgrades can change the Zcash network protocol or consensus rules in
@@ -63,12 +65,13 @@ pub enum NetworkUpgrade {
 pub(super) const MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
     (block::Height(1), BeforeOverwinter),
-    (block::Height(1_140_408), Overwinter), // komodod Sapling height - 1
-    (block::Height(1_140_409), Sapling),    // komodod "SET SAPLING ACTIVATION height.1140409"
-    (block::Height(7_113_400), Blossom),    // not supported in komodo, must be set to some unreachable height
-    (block::Height(7_113_401), Heartwood),
-    (block::Height(7_113_402), Canopy),
-    (block::Height(7_113_403), Nu5),
+    (block::Height(KOMODO_MAINNET_SAPLING_HEIGHT), Overwinter), // equals to the Sapling height in komodo
+    (block::Height(KOMODO_MAINNET_SAPLING_HEIGHT), Sapling),    // komodod "SET SAPLING ACTIVATION height.1140409"
+    // not supported in komodo, must be set to some unreachable height:
+    (block::Height::MAX, Blossom),     // same as Nu5  
+    (block::Height::MAX, Heartwood),
+    (block::Height::MAX, Canopy),
+    (block::Height::MAX, Nu5),          // unreachable height  
 ];
 
 /// Fake mainnet network upgrade activation heights, used in tests.
@@ -76,11 +79,11 @@ pub(super) const MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] 
 const FAKE_MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
     (block::Height(5), BeforeOverwinter),
-    (block::Height(10), Overwinter),
-    (block::Height(15), Sapling),
-    (block::Height(20), Blossom),
-    (block::Height(25), Heartwood),
-    (block::Height(30), Canopy),
+    (block::Height(15), Overwinter), // same as Sapling
+    (block::Height(15), Sapling),  
+    (block::Height(35), Blossom),  // same as Nu5
+    (block::Height(35), Heartwood),
+    (block::Height(35), Canopy),
     (block::Height(35), Nu5),
 ];
 
@@ -97,12 +100,13 @@ const FAKE_MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
 pub(super) const TESTNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] = &[
     (block::Height(0), Genesis),
     (block::Height(1), BeforeOverwinter),
-    (block::Height(1), Overwinter),
-    (block::Height(1), Sapling),
-    (block::Height(584_000), Blossom),
-    (block::Height(903_800), Heartwood),
-    (block::Height(1_028_500), Canopy),
-    (block::Height(1_842_420), Nu5),
+    (block::Height(61), Overwinter),    // equals to the Sapling height in komodo
+    (block::Height(61), Sapling),       // same as komodo sets the activation height for new assets chains
+    // not supported in komodo, must be set to some unreachable height:
+    (block::Height::MAX, Blossom),
+    (block::Height::MAX, Heartwood),
+    (block::Height::MAX, Canopy),
+    (block::Height::MAX, Nu5),
 ];
 
 /// Fake testnet network upgrade activation heights, used in tests.
@@ -296,7 +300,20 @@ impl NetworkUpgrade {
     ///
     /// Returns None if this network upgrade is a future upgrade, and its
     /// activation height has not been set yet.
+    /// fixed for Komodo upgrades
     pub fn activation_height(&self, network: Network) -> Option<block::Height> {
+
+        // TODO: in komodo we set Overwinter to the same height as Sapling,
+        // as well as we set Blossom Heartwood Canopy Nu5 to the same MAX height
+        // as each key is unique actually for Overwinter (and others) activation height would be None
+        // so we add this because in some places activation height is checked directly like: .expect("Heartwood height is known");
+        match self { 
+            &NetworkUpgrade::Overwinter => return NetworkUpgrade::Sapling.activation_height(network),
+            // unusable upgrades in komodo
+            &NetworkUpgrade::Blossom | &NetworkUpgrade::Heartwood | &NetworkUpgrade::Canopy => return NetworkUpgrade::Nu5.activation_height(network),
+            _ => {},
+        }
+
         NetworkUpgrade::activation_list(network)
             .iter()
             .filter(|(_, nu)| nu == &self)
