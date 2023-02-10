@@ -122,7 +122,6 @@ proptest! {
     }
 
     /// Test if a transaction locked at a certain block time is rejected.
-    #[ignore]  // Not supported in Komodo due to state_service not returning the previous block time. TODO: return a fake previous blokck and MTP to fix
     #[test]
     fn transaction_is_rejected_based_on_lock_time(
         (network, block_height) in sapling_onwards_strategy(),
