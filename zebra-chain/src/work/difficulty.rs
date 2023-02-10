@@ -312,10 +312,9 @@ impl ExpandedDifficulty {
                                       0x0f0f0f0f0f0f0f0fu64
                                      ]),
             /* 2^251 - 1 */
-            //Network::Testnet => (U256::one() << 251) - 1,
+            // Network::Testnet => (U256::one() << 251) - 1,
             // for kmd testnet:
             Network::Testnet => U256::from_str_radix("0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", 16).unwrap(),
-            /* 2^251 - 1 */
         };
 
         // `zcashd` converts the PoWLimit into a compact representation before
