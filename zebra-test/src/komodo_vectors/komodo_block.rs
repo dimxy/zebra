@@ -63,7 +63,8 @@ lazy_static! {
 
             (899_012, BLOCK_KMDMAINNET_899012_BYTES.as_ref()),  // pow block tx v1
 
-            (1_140_500, BLOCK_KMDMAINNET_1140500_BYTES.as_ref()),  // pow block tx v4
+            // do not add easy mined blocks here as difficulty tests would fail
+            // (1_140_500, BLOCK_KMDMAINNET_1140500_BYTES.as_ref()),  // easy-mining block tx v4
 
             (1_140_507, BLOCK_KMDMAINNET_1140507_BYTES.as_ref()),  // pow block tx v4, coibase only
 
@@ -118,6 +119,7 @@ lazy_static! {
 
     // Overwinter, Sapling
 
+    // easy-mined block
     pub static ref BLOCK_KMDMAINNET_1140500_BYTES: Vec<u8> =
         <Vec<u8>>::from_hex(include_str!("block-kmdmain-1-140-500.txt").trim())
         .expect("Block bytes are in valid hex representation");
