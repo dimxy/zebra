@@ -2603,7 +2603,7 @@ async fn komodo_transaction_locktime_too_early() {
     zebra_test::init();
 
     // Load komodo sample net blocks
-    let blocks: Vec<Arc<Block>> = zebra_state::komodo_test_helpers::komodo_load_testnet_node_1();
+    let blocks: Vec<Arc<Block>> = zebra_state::komodo_test_helpers::komodo_load_testnet_a_node_1();
 
     // Create a populated state service
     let (state_service, _read_state, _latest_chain_tip, _chain_tip_change) =
