@@ -8,6 +8,12 @@ use std::{
 
 use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use halo2::pasta::{group::ff::PrimeField, pallas};
+use proptest::{
+    arbitrary::any,
+    prelude::*, strategy::ValueTree,
+};
+use proptest::test_runner::TestRunner;
+
 use tower::{service_fn, ServiceExt};
 
 use zebra_chain::{
@@ -17,7 +23,7 @@ use zebra_chain::{
     parameters::{Network, NetworkUpgrade},
     primitives::{ed25519, x25519, Groth16Proof},
     sapling,
-    serialization::{ZcashDeserialize, ZcashDeserializeInto, DateTime32},
+    serialization::{ZcashDeserialize, ZcashDeserializeInto, arbitrary::datetime_full},
     sprout,
     transaction::{
         arbitrary::{
@@ -25,7 +31,7 @@ use zebra_chain::{
         },
         Hash, HashType, JoinSplitData, LockTime, Transaction, self, UnminedTx,
     },
-    transparent::{self, CoinbaseData, Input, OutPoint, Output}, komodo_hardfork::NN, work::difficulty::{CompactDifficulty, INVALID_COMPACT_DIFFICULTY},
+    transparent::{self, CoinbaseData, Input, Output},
 };
 
 use super::{check, Request, Verifier};
@@ -41,12 +47,13 @@ const FAKE_PREV_BLOCK_HASH: block::Hash = block::Hash([0x1f; 32]);
 /// fake state service to return prev block time and mtp 
 async fn fake_state_handler(request: zebra_state::Request) -> Result<zebra_state::Response, zebra_state::BoxError>     {
     
+    let mut runner = TestRunner::default();
     match request {
         zebra_state::Request::GetMedianTimePast(block_hash) => {
             let rsp = {
                 if let Some(block_hash) = block_hash {
                     if block_hash == FAKE_PREV_BLOCK_HASH    {
-                        let fake_mtp = Utc::now();
+                        let fake_mtp = datetime_full().new_tree(&mut runner).unwrap().current(); //Utc::now();
                         return Ok(zebra_state::Response::MedianTimePast(Some(fake_mtp)));
                     }
                 } 
@@ -59,13 +66,13 @@ async fn fake_state_handler(request: zebra_state::Request) -> Result<zebra_state
                 if block_hash == FAKE_PREV_BLOCK_HASH    {
                     let fake_header = block::Header { 
                         version: 4,
-                        time: Utc::now(),  
+                        time: datetime_full().new_tree(&mut runner).unwrap().current(), // Utc::now(),  
                         previous_block_hash: FAKE_PREV_BLOCK_HASH, 
-                        merkle_root: Root([0x3f; 32]),
-                        commitment_bytes: [0x4f; 32],
+                        merkle_root: any::<block::merkle::Root>().new_tree(&mut runner).unwrap().current(), //Root([0x3f; 32]),
+                        commitment_bytes: any::<[u8; 32]>().new_tree(&mut runner).unwrap().current(), //[0x4f; 32],
                         difficulty_threshold: zebra_chain::work::difficulty::ExpandedDifficulty::from(zebra_chain::work::difficulty::U256::MAX).into(),
-                        nonce: [0x6f; 32],
-                        solution: zebra_chain::work::equihash::Solution([0x11u8; 1344])
+                        nonce: any::<[u8; 32]>().new_tree(&mut runner).unwrap().current(), // [0x6f; 32],
+                        solution: any::<zebra_chain::work::equihash::Solution>().new_tree(&mut runner).unwrap().current() // ([0x11u8; 1344])
                     };
                     let fake_block = Arc::new( Block { header: fake_header.into(), transactions: vec![] } );
                     return Ok(zebra_state::Response::Block(Some(fake_block)));
@@ -310,7 +317,7 @@ async fn v5_transaction_is_rejected_before_nu5_activation() {
                     .activation_height(network)
                     .expect("Canopy activation height is specified"),
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await;
@@ -377,7 +384,7 @@ fn v5_transaction_is_accepted_after_nu5_activation_for_network(network: Network)
                 known_utxos: Arc::new(HashMap::new()),
                 height: expiry_height,
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await;
@@ -563,7 +570,7 @@ async fn komodo_v4_transaction_with_too_low_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -610,7 +617,7 @@ async fn v4_transaction_with_exceeding_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -665,7 +672,7 @@ async fn v4_coinbase_transaction_with_exceeding_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: block_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -893,7 +900,7 @@ fn komodo_v4_transaction_with_conflicting_sprout_nullifier_inside_joinsplit_is_r
                 known_utxos: Arc::new(HashMap::new()),
                 height: transaction_block_height,
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await;
@@ -966,7 +973,7 @@ fn komodo_v4_transaction_with_conflicting_sprout_nullifier_across_joinsplits_is_
                 known_utxos: Arc::new(HashMap::new()),
                 height: transaction_block_height,
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await;
@@ -1135,7 +1142,7 @@ async fn v5_coinbase_transaction_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: block_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -1162,7 +1169,7 @@ async fn v5_coinbase_transaction_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: block_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -1191,7 +1198,7 @@ async fn v5_coinbase_transaction_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: new_expiry_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -1236,7 +1243,7 @@ async fn v5_transaction_with_too_low_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -1285,7 +1292,7 @@ async fn v5_transaction_with_exceeding_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -1454,7 +1461,7 @@ async fn komodo_v5_transaction_with_conflicting_transparent_spend_is_rejected() 
             known_utxos: Arc::new(known_utxos),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
-            previous_hash: block::Hash([0xff; 32]), // unused
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
             last_tx_verify_data: None, // unused
         })
         .await;
@@ -1617,8 +1624,8 @@ fn v4_with_sapling_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
-                            last_tx_verify_data: None, // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1662,7 +1669,7 @@ fn v4_with_duplicate_sapling_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await;
@@ -1761,7 +1768,7 @@ fn v5_with_sapling_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await;
@@ -1808,7 +1815,7 @@ fn v5_with_duplicate_sapling_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await;
@@ -1874,7 +1881,7 @@ fn v5_with_duplicate_orchard_action() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await;
