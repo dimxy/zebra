@@ -122,27 +122,24 @@ fn ord_matches_work() -> Result<()> {
     Ok(())
 }
 
-#[ignore]  // TODO fix or make new test for Komodo net
+// fixed for Komodo mainnet
 #[test]
-fn best_chain_wins() -> Result<()> {
+fn komodo_best_chain_wins() -> Result<()> {
     zebra_test::init();
 
-    best_chain_wins_for_network(Network::Mainnet)?;
-    best_chain_wins_for_network(Network::Testnet)?;
+    komodo_best_chain_wins_for_network(Network::Mainnet)?;
 
     Ok(())
 }
 
-fn best_chain_wins_for_network(network: Network) -> Result<()> {
+fn komodo_best_chain_wins_for_network(network: Network) -> Result<()> {
     let block1: Arc<Block> = match network {
-        // Since the brand new FinalizedState below will pass a None history tree
-        // to the NonFinalizedState, we must use pre-Heartwood blocks since
-        // they won't trigger the history tree update in the NonFinalizedState.
+        // For Komodo we must use after-Sapling blocks
         Network::Mainnet => {
-            zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
+            zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1140500_BYTES.zcash_deserialize_into()?
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
+            panic!("testnet not supported in komodo");
         }
     };
 
@@ -163,27 +160,25 @@ fn best_chain_wins_for_network(network: Network) -> Result<()> {
     Ok(())
 }
 
-#[ignore]  // TODO fix or make new test for Komodo net
+// TODO fixed for Komodo block
 #[test]
-fn finalize_pops_from_best_chain() -> Result<()> {
+fn komodo_finalize_pops_from_best_chain() -> Result<()> {
     zebra_test::init();
 
-    finalize_pops_from_best_chain_for_network(Network::Mainnet)?;
-    finalize_pops_from_best_chain_for_network(Network::Testnet)?;
+    komodo_finalize_pops_from_best_chain_for_network(Network::Mainnet)?;
+    //finalize_pops_from_best_chain_for_network(Network::Testnet)?;
 
     Ok(())
 }
 
-fn finalize_pops_from_best_chain_for_network(network: Network) -> Result<()> {
+fn komodo_finalize_pops_from_best_chain_for_network(network: Network) -> Result<()> {
     let block1: Arc<Block> = match network {
-        // Since the brand new FinalizedState below will pass a None history tree
-        // to the NonFinalizedState, we must use pre-Heartwood blocks since
-        // they won't trigger the history tree update in the NonFinalizedState.
+        // For Komodo we must use after-Sapling blocks
         Network::Mainnet => {
-            zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
+            zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1140507_BYTES.zcash_deserialize_into()? // block should be with coinbase only
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
+            panic!("testnet not supported in komodo");
         }
     };
 
@@ -193,8 +188,8 @@ fn finalize_pops_from_best_chain_for_network(network: Network) -> Result<()> {
     let mut state = NonFinalizedState::new(network);
     let finalized_state = FinalizedState::new(&Config::ephemeral(), network);
 
-    let fake_value_pool = ValueBalance::<NonNegative>::fake_populated_pool();
-    finalized_state.set_finalized_value_pool(fake_value_pool);
+    //let fake_value_pool = ValueBalance::<NonNegative>::fake_populated_pool();
+    //finalized_state.set_finalized_value_pool(fake_value_pool);
 
     state.commit_new_chain(block1.clone().prepare(), &finalized_state)?;
     state.commit_block(block2.clone().prepare(), &finalized_state)?;
@@ -211,30 +206,28 @@ fn finalize_pops_from_best_chain_for_network(network: Network) -> Result<()> {
     Ok(())
 }
 
-#[ignore]  // TODO fix or make new test for Komodo net
+// fixed for Komodo net
 #[test]
 // This test gives full coverage for `take_chain_if`
-fn commit_block_extending_best_chain_doesnt_drop_worst_chains() -> Result<()> {
+fn komodo_commit_block_extending_best_chain_doesnt_drop_worst_chains() -> Result<()> {
     zebra_test::init();
 
-    commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network(Network::Mainnet)?;
-    commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network(Network::Testnet)?;
+    komodo_commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network(Network::Mainnet)?;
+    // commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network(Network::Testnet)?;
 
     Ok(())
 }
 
-fn commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network(
+fn komodo_commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network(
     network: Network,
 ) -> Result<()> {
     let block1: Arc<Block> = match network {
-        // Since the brand new FinalizedState below will pass a None history tree
-        // to the NonFinalizedState, we must use pre-Heartwood blocks since
-        // they won't trigger the history tree update in the NonFinalizedState.
+        // For Komodo we must use after-Sapling blocks
         Network::Mainnet => {
-            zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
+            zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1140507_BYTES.zcash_deserialize_into()? // block with coinbase only
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
+            panic!("testnet not supported in komodo");
         }
     };
 
@@ -261,27 +254,25 @@ fn commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network(
     Ok(())
 }
 
-#[ignore]  // TODO fix or make new test for Komodo net
+// fixed for Komodo net
 #[test]
-fn shorter_chain_can_be_best_chain() -> Result<()> {
+fn komodo_shorter_chain_can_be_best_chain() -> Result<()> {
     zebra_test::init();
 
-    shorter_chain_can_be_best_chain_for_network(Network::Mainnet)?;
-    shorter_chain_can_be_best_chain_for_network(Network::Testnet)?;
+    komodo_shorter_chain_can_be_best_chain_for_network(Network::Mainnet)?;
+    // shorter_chain_can_be_best_chain_for_network(Network::Testnet)?;
 
     Ok(())
 }
 
-fn shorter_chain_can_be_best_chain_for_network(network: Network) -> Result<()> {
+fn komodo_shorter_chain_can_be_best_chain_for_network(network: Network) -> Result<()> {
     let block1: Arc<Block> = match network {
-        // Since the brand new FinalizedState below will pass a None history tree
-        // to the NonFinalizedState, we must use pre-Heartwood blocks since
-        // they won't trigger the history tree update in the NonFinalizedState.
+        // For Komodo we must use after-Sapling blocks
         Network::Mainnet => {
-            zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
+            zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1140507_BYTES.zcash_deserialize_into()? // block with coinbase only
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
+            panic!("testnet not supported in komodo");
         }
     };
 
@@ -307,27 +298,25 @@ fn shorter_chain_can_be_best_chain_for_network(network: Network) -> Result<()> {
     Ok(())
 }
 
-#[ignore]  // TODO fix or make new test for Komodo net
+// fixed for Komodo net
 #[test]
-fn longer_chain_with_more_work_wins() -> Result<()> {
+fn komodo_longer_chain_with_more_work_wins() -> Result<()> {
     zebra_test::init();
 
-    longer_chain_with_more_work_wins_for_network(Network::Mainnet)?;
-    longer_chain_with_more_work_wins_for_network(Network::Testnet)?;
+    komodo_longer_chain_with_more_work_wins_for_network(Network::Mainnet)?;
+    // longer_chain_with_more_work_wins_for_network(Network::Testnet)?;
 
     Ok(())
 }
 
-fn longer_chain_with_more_work_wins_for_network(network: Network) -> Result<()> {
+fn komodo_longer_chain_with_more_work_wins_for_network(network: Network) -> Result<()> {
     let block1: Arc<Block> = match network {
-        // Since the brand new FinalizedState below will pass a None history tree
-        // to the NonFinalizedState, we must use pre-Heartwood blocks since
-        // they won't trigger the history tree update in the NonFinalizedState.
+        // For Komodo we must use after-Sapling blocks
         Network::Mainnet => {
-            zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
+            zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1140507_BYTES.zcash_deserialize_into()? // block with coinbase only
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
+            panic!("testnet not supported in komodo");
         }
     };
 
@@ -363,20 +352,18 @@ fn equal_length_goes_to_more_work() -> Result<()> {
     zebra_test::init();
 
     equal_length_goes_to_more_work_for_network(Network::Mainnet)?;
-    equal_length_goes_to_more_work_for_network(Network::Testnet)?;
+    // equal_length_goes_to_more_work_for_network(Network::Testnet)?;
 
     Ok(())
 }
 fn equal_length_goes_to_more_work_for_network(network: Network) -> Result<()> {
     let block1: Arc<Block> = match network {
-        // Since the brand new FinalizedState below will pass a None history tree
-        // to the NonFinalizedState, we must use pre-Heartwood blocks since
-        // they won't trigger the history tree update in the NonFinalizedState.
+        // For Komodo we must use after-Sapling blocks
         Network::Mainnet => {
-            zebra_test::vectors::BLOCK_MAINNET_653599_BYTES.zcash_deserialize_into()?
+            zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1140507_BYTES.zcash_deserialize_into()? // block with coinbase only
         }
         Network::Testnet => {
-            zebra_test::vectors::BLOCK_TESTNET_583999_BYTES.zcash_deserialize_into()?
+            panic!("testnet not supported in komodo");
         }
     };
 
