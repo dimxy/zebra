@@ -635,9 +635,14 @@ impl NonFinalizedState {
                     // then do not allow this block and this fork:
 
                     if chain_with_new_block > best_chain &&  // new chain has more work
-                        // ensure the new chain does not have nota and it is the best chain which has it
-                        // !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash)  && // this is dimxy addition to fork checking, komodod does not have this
-                        best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not exist without notas
+
+                        // There is no such check in ActivateBestChainStep() because there notas are processed only when the chain is activated,
+                        // so it is guaranteed that the known 'latest' nota is in the active chain.
+                        // In zebra we cannot do this and notas are processed in any added block 
+                        // and if the latest nota turns out to be in the new chain it should be considered as valid  
+                        !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash)  && // no error if the new chain contains the last nota 
+
+                        best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not be built without notas in it
                         fork.0 < &last_nota.notarised_height {  
                         return Err(ValidateContextError::InvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), chain_with_new_block.non_finalized_root().1, last_nota.notarised_height));
                     }
