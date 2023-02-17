@@ -127,15 +127,16 @@ fn komodo_reject_fork_from_below_last_notarised_height() {
 
     // test invalid fork from ht < ntz_ht 
     komodo_load_testnet_both_branches(
+        SAMPLE_CHAIN_A,
         |_| {}, 
         |prepared, commit_result| {
             // forked chain must become invalid at height 137 (where it becomes the best chain)
-            let bad_block_hash = block::Hash::from_hex(BLOCK_HASH_TO_FAIL).expect("valid hex");
+            let bad_block_hash = block::Hash::from_hex(CHAIN_A_BLOCK_HASH_TO_FAIL).expect("valid hex");
             if prepared.hash == bad_block_hash {
                 assert_eq!( 
                     *commit_result, 
                     Err(
-                        ValidateContextError::InvalidNotarisedChain(
+                        ValidateContextError::KomodoInvalidNotarisedChain(
                             bad_block_hash, Height(127), Height(128)
                         )
                         .into()
@@ -205,7 +206,7 @@ fn komodo_min_notary_inputs() {
                 assert_eq!( 
                     *commit_result, 
                     Err(
-                        ValidateContextError::InvalidNotarisedChain(
+                        ValidateContextError::KomodoInvalidNotarisedChain(
                             bad_block_hash, Height(127), Height(128)
                         )
                         .into()

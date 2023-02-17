@@ -264,11 +264,11 @@ pub enum ValidateContextError {
     },
 
     // komodo notary errors:
-    #[error("invalid difficulty threshold in special block header {0:?} {1:?}")]
-    SpecialBlockInvalidDifficulty(zebra_chain::block::Height, zebra_chain::block::Hash),
+    #[error("invalid difficulty threshold in komodo special block header {0:?} {1:?}")]
+    KomodoSpecialBlockInvalidDifficulty(zebra_chain::block::Height, zebra_chain::block::Hash),
 
-    #[error("special notary block {0:?} has a difficulty threshold {2:?} that is easier than the {3:?} difficulty limit {4:?}, hash: {1:?}")]
-    SpecialBlockTargetDifficultyLimit(
+    #[error("komodo special notary block {0:?} has a difficulty threshold {2:?} that is easier than the {3:?} difficulty limit {4:?}, hash: {1:?}")]
+    KomodoSpecialBlockTargetDifficultyLimit(
         zebra_chain::block::Height,
         zebra_chain::block::Hash,
         zebra_chain::work::difficulty::ExpandedDifficulty,
@@ -276,11 +276,11 @@ pub enum ValidateContextError {
         zebra_chain::work::difficulty::ExpandedDifficulty,
     ),
 
-    #[error("special notary block invalid")]
-    SpecialBlockInvalid(#[from] NotaryValidateContextError),
+    #[error("komodo special notary block invalid")]
+    KomodoSpecialBlockInvalid(#[from] NotaryValidateContextError),
 
     #[error("komodo notarised chain with block {0:?} forked at height {1:?} below last notarised height {2:?}")]
-    InvalidNotarisedChain(zebra_chain::block::Hash, zebra_chain::block::Height, zebra_chain::block::Height),
+    KomodoInvalidNotarisedChain(zebra_chain::block::Hash, zebra_chain::block::Height, zebra_chain::block::Height),
 }
 
 /// Trait for creating the corresponding duplicate nullifier error from a nullifier.

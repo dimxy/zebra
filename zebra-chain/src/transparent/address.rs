@@ -346,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn debug() {
+    fn komodo_debug() {
         zebra_test::init();
 
         let t_addr: Address = "RXPbZC5uPgiG7rk5d4rYkJV8kLPF7Su2Jb".parse().unwrap();

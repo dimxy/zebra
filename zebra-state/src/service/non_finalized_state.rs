@@ -161,6 +161,8 @@ impl NonFinalizedState {
         // and drop the cloned parent Arc, or newly created chain fork.
         let modified_chain = self.validate_and_commit(parent_chain, prepared, finalized_state)?;
 
+        // Check if the new chain has more power and is not forked below the last notarized height.
+        // Note that at this stage if a nota exists in the current block it is stored as the 'latest nota'
         self.komodo_check_fork_is_valid(&modified_chain)?;
 
         // If the block is valid:
@@ -197,6 +199,8 @@ impl NonFinalizedState {
         // If the block is invalid, return the error, and drop the newly created chain fork
         let chain = self.validate_and_commit(Arc::new(chain), prepared, finalized_state)?;
 
+        // Check if the new chain has more power and is not forked below the last notarized height.
+        // Note that at this stage if a nota exists in the current block it is stored as the 'latest nota'
         self.komodo_check_fork_is_valid(&chain)?;
 
         // If the block is valid, add the new chain fork to the set of recent chains.
@@ -227,12 +231,14 @@ impl NonFinalizedState {
                 if let Some(tip) = new_chain.tip_block() { 
                     Some(tip.block.header.time) 
                 } else { 
-                    // if new_chain is empty get finalized tip:
+                    // if new_chain is empty then get the finalized tip (in zebra any forks could exist only in the non-finalized part):
                     if let Some(tip) = finalized_state.tip_block()  {
                         Some(tip.header.time)
                     }
                     else {
-                        panic!("could not get chain tip for block={:?}", prepared.height);
+                        // let's not panic here because several unit tests create a state started from arbitrary height
+                        info!("komodo could not get chain tip for block={:?}", prepared.height); 
+                        None
                     }
                 }
             } else {
@@ -566,7 +572,7 @@ impl NonFinalizedState {
     }
 
     /// check if new chain is notarised and allowed to fork
-    /// it should not fork below last notarised block
+    /// it should not fork below the last notarised block
     pub fn komodo_check_fork_is_valid(&self, chain_with_new_block: &Chain) -> Result<(), ValidateContextError> {
 
         if let Some(last_nota) = &self.last_nota {
@@ -584,7 +590,7 @@ impl NonFinalizedState {
                         .skip_while(|e| e.1 != fork.1)
                         .map(|p| (p.0, p.1.hash))
                         .collect::<Vec<_>>();
-                    trace!("block_hashes_truncated={:?}", block_hashes_truncated);
+                    trace!("komodo_check_fork_is_valid block_hashes_truncated={:?}", block_hashes_truncated);
 
                     let new_has_nota = block_hashes_truncated.iter().find(|pair| pair.1 == last_nota.block_hash).is_some();
                     
@@ -644,7 +650,7 @@ impl NonFinalizedState {
 
                         best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not be built without notas in it
                         fork.0 < &last_nota.notarised_height {  
-                        return Err(ValidateContextError::InvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), chain_with_new_block.non_finalized_root().1, last_nota.notarised_height));
+                        return Err(ValidateContextError::KomodoInvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), chain_with_new_block.non_finalized_root().1, last_nota.notarised_height));
                     }
                 }
                 else {
