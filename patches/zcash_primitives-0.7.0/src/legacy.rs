@@ -9,6 +9,9 @@ use sha2::{Digest as Sha2Digest, Sha256};
 
 use zcash_encoding::Vector;
 
+use ripemd::Digest as RipemdDigest;
+use sha2::{Digest as Sha2Digest, Sha256};
+
 #[cfg(feature = "transparent-inputs")]
 pub mod keys;
 
