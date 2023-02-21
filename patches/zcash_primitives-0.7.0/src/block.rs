@@ -9,6 +9,7 @@ use zcash_encoding::Vector;
 
 pub use equihash;
 
+#[allow(missing_docs)]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BlockHash(pub [u8; 32]);
 
