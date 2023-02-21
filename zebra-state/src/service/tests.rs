@@ -101,6 +101,8 @@ async fn test_populated_state_responds_correctly(
                 let transaction_hash = transaction.hash();
 
                 let from_coinbase = transaction.is_coinbase();
+                let lock_time = transaction.raw_lock_time().unwrap_or_else(LockTime::unlocked);
+
                 for (index, output) in transaction.outputs().iter().cloned().enumerate() {
                     let outpoint = transparent::OutPoint::from_usize(transaction_hash, index);
 

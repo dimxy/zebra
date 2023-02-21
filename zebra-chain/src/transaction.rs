@@ -284,7 +284,7 @@ impl Transaction {
             // because of other consensus rules
             OnlyShieldedOutputs { spend_height }
         } else {
-            SomeTransparentOutputs
+            SomeTransparentOutputs { spend_height }
         }
     }
 
