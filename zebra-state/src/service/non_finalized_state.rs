@@ -13,13 +13,15 @@ use zebra_chain::{
     history_tree::HistoryTree,
     orchard,
     parameters::Network,
-    sapling, sprout, transparent,
+    sapling, sprout, transparent::{self, outputs_from_utxos, utxos_from_ordered_utxos},
 };
+
+use crate::komodo_notaries::{BackNotarisationData, komodo_block_has_notarisation_tx};
 
 use crate::{
     request::ContextuallyValidBlock,
     service::{check, finalized_state::ZebraDb},
-    FinalizedBlock, PreparedBlock, ValidateContextError,
+    FinalizedBlock, PreparedBlock, ValidateContextError
 };
 
 mod chain;
@@ -44,6 +46,8 @@ pub struct NonFinalizedState {
     //
     // Note: this field is currently unused, but it's useful for debugging.
     pub network: Network,
+
+    pub last_nota: Option<BackNotarisationData>,
 }
 
 impl NonFinalizedState {
@@ -52,6 +56,7 @@ impl NonFinalizedState {
         NonFinalizedState {
             chain_set: Default::default(),
             network,
+            last_nota: None,
         }
     }
 
@@ -156,6 +161,10 @@ impl NonFinalizedState {
         // and drop the cloned parent Arc, or newly created chain fork.
         let modified_chain = self.validate_and_commit(parent_chain, prepared, finalized_state)?;
 
+        // Check if the new chain has more power and is not forked below the last notarized height.
+        // Note that at this stage if a nota exists in the current block it is stored as the 'latest nota'
+        self.komodo_check_fork_is_valid(&modified_chain)?;
+
         // If the block is valid:
         // - add the new chain fork or updated chain to the set of recent chains
         // - remove the parent chain, if it was in the chain set
@@ -190,6 +199,10 @@ impl NonFinalizedState {
         // If the block is invalid, return the error, and drop the newly created chain fork
         let chain = self.validate_and_commit(Arc::new(chain), prepared, finalized_state)?;
 
+        // Check if the new chain has more power and is not forked below the last notarized height.
+        // Note that at this stage if a nota exists in the current block it is stored as the 'latest nota'
+        self.komodo_check_fork_is_valid(&chain)?;
+
         // If the block is valid, add the new chain fork to the set of recent chains.
         self.chain_set.insert(chain);
         self.update_metrics_for_committed_block(height, hash);
@@ -204,16 +217,40 @@ impl NonFinalizedState {
     /// or the finalized tip.
     #[tracing::instrument(level = "debug", skip(self, finalized_state, new_chain))]
     fn validate_and_commit(
-        &self,
+        &mut self,  // TODO remove mut when last_nota moved to channel
         new_chain: Arc<Chain>,
         prepared: PreparedBlock,
         finalized_state: &ZebraDb,
     ) -> Result<Arc<Chain>, ValidateContextError> {
         // Reads from disk
         //
+
+        // komodo: get chain tip last block time to calc interest
+        let last_block_time = {
+            if prepared.height > block::Height(0)  {
+                if let Some(tip) = new_chain.tip_block() { 
+                    Some(tip.block.header.time) 
+                } else { 
+                    // if new_chain is empty then get the finalized tip (in zebra any forks could exist only in the non-finalized part):
+                    if let Some(tip) = finalized_state.tip_block()  {
+                        Some(tip.header.time)
+                    }
+                    else {
+                        // let's not panic here because several unit tests create a state started from arbitrary height
+                        info!("komodo could not get chain tip for block={:?}", prepared.height); 
+                        None
+                    }
+                }
+            } else {
+                None
+            }
+        };
+
         // TODO: if these disk reads show up in profiles, run them in parallel, using std::thread::spawn()
         let spent_utxos = check::utxo::transparent_spend(
+            new_chain.network(),
             &prepared,
+            last_block_time,
             &new_chain.unspent_utxos(),
             &new_chain.spent_utxos,
             finalized_state,
@@ -232,7 +269,9 @@ impl NonFinalizedState {
 
         // Quick check that doesn't read from disk
         let contextual = ContextuallyValidBlock::with_block_and_spent_utxos(
+            new_chain.network(),
             prepared.clone(),
+            last_block_time,
             spent_utxos.clone(),
         )
         .map_err(|value_balance_error| {
@@ -244,6 +283,9 @@ impl NonFinalizedState {
                 spent_utxo_count: spent_utxos.len(),
             }
         })?;
+
+        let spent_outputs = outputs_from_utxos(utxos_from_ordered_utxos(spent_utxos));
+        self.komodo_find_block_nota_and_update_last(&prepared.block, &spent_outputs, &prepared.height);
 
         Self::validate_and_update_parallel(new_chain, contextual, sprout_final_treestates)
     }
@@ -510,5 +552,113 @@ impl NonFinalizedState {
             "state.memory.best.chain.length",
             self.best_chain_len() as f64,
         );
+    }
+
+    /// check if block has a back KMD nota and update latest nota in the mem state
+    fn komodo_find_block_nota_and_update_last(&mut self, block: &Block, spent_outputs: &HashMap<transparent::OutPoint, transparent::Output>, height: &block::Height) {
+        match (komodo_block_has_notarisation_tx(self.network, block, spent_outputs, height), self.last_nota.as_ref()) {
+            (Some(found_nota), Some(last_nota)) => {
+                if last_nota.notarised_height < found_nota.notarised_height {
+                    debug!("komodo found update nota last notarised height={:?}", found_nota.notarised_height);
+                    self.last_nota = Some(found_nota);
+                }
+            },
+            (Some(found_nota), None) =>  {
+                debug!("komodo found new nota last notarised height={:?}", found_nota.notarised_height);
+                self.last_nota = Some(found_nota);
+            },
+            (None, _) => (),
+        }
+    }
+
+    /// check if new chain is notarised and allowed to fork
+    /// it should not fork below the last notarised block
+    pub fn komodo_check_fork_is_valid(&self, chain_with_new_block: &Chain) -> Result<(), ValidateContextError> {
+
+        if let Some(last_nota) = &self.last_nota {
+            trace!("komodo_check_fork_is_valid chain_new height={:?} hash={:?} last_nota.height={:?}", chain_with_new_block.non_finalized_tip_height(), chain_with_new_block.non_finalized_tip_hash(), last_nota.notarised_height);
+            if let Some(best_chain) = self.best_chain() {
+
+                trace!("komodo_check_fork_is_valid best_chain.tip={:?} hash={:?}", best_chain.non_finalized_tip_height(), best_chain.non_finalized_tip_hash());
+                // find the fork point
+                // I think it is important to start search from the tip (in rev order) 
+                // as the bottom part of the chain has many common blocks with the best_chain because both grow from the finalized tip
+                if let Some(fork) = chain_with_new_block.blocks.iter().rev().find(|pair| best_chain.height_by_hash.contains_key(&pair.1.hash) ) {
+
+                    // truncate the new chain's bottom blocks below the fork point (and leave only block hashes in the top part):
+                    let block_hashes_truncated = chain_with_new_block.blocks.iter()
+                        .skip_while(|e| e.1 != fork.1)
+                        .map(|p| (p.0, p.1.hash))
+                        .collect::<Vec<_>>();
+                    trace!("komodo_check_fork_is_valid block_hashes_truncated={:?}", block_hashes_truncated);
+
+                    let new_has_nota = block_hashes_truncated.iter().find(|pair| pair.1 == last_nota.block_hash).is_some();
+                    
+                    /*
+                    // suggested new algo change:
+                    // if the new chain has the last nota but the best chain does not 
+                    // then mark the best chain as bad and allow the new block to add
+                    if new_has_nota {
+
+                        if best_chain.blocks.iter()
+                            .skip_while(|e| e.1 != fork.1)
+                            .skip(1)
+                            .find(|pair| pair.1.hash == last_nota.block_hash).is_some()    {
+                            info!("best chain does not contain nota, marking it as bad");
+
+                            let modified_chain = Arc::try_unwrap(new_chain)
+                                .unwrap_or_else(|shared_chain| (*shared_chain).clone());
+                            modified_chain.set_as_bad();  
+                            self.chain_set
+                                .retain(|chain| chain.non_finalized_tip_hash() != parent_hash);
+                            self.chain_set.insert(modified_chain);
+                            ...
+                            return Ok(());
+                        }
+                    }
+                    */
+
+
+                    debug!(
+                        chain_with_new_block_non_fin_height = chain_with_new_block.non_finalized_tip_height().0,
+                        best_chain_non_fin_height = best_chain.non_finalized_tip_height().0,
+                        new_chain_has_last_nota = chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash),
+                        blocks_truncated_has_last_nota = new_has_nota,
+                        best_chain_tip_height_over_notarised_height = best_chain.non_finalized_tip_height() > last_nota.notarised_height,
+                        is_fork_below_notarised_height = fork.0 < &last_nota.notarised_height,
+                        best_chain_root_height = best_chain.non_finalized_tip_height().0,
+                        fork_height = fork.0.0,
+                        last_notarised_height = last_nota.notarised_height.0,
+                        new_chain_has_more_power = chain_with_new_block > best_chain,
+                        "komodo checking notarised height for new chain:"
+                    );
+
+                    // The condition for forks below the last notarised height:
+                    // if chain_with_new_block has more work than best_chain (that is, a new best chain candidate)
+                    // and chain_with_new_block does not contain the last nota
+                    // and fork.height < last_nota.height
+                    // and best_chain.height > last_nota.height 
+                    // then do not allow this block and this fork:
+
+                    if chain_with_new_block > best_chain &&  // new chain has more work
+
+                        // There is no such check in ActivateBestChainStep() because there notas are processed only when the chain is activated,
+                        // so it is guaranteed that the known 'latest' nota is in the active chain.
+                        // In zebra we cannot do this and notas are processed in any added block 
+                        // and if the latest nota turns out to be in the new chain it should be considered as valid  
+                        !chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash)  && // no error if the new chain contains the last nota 
+
+                        best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not be built without notas in it
+                        fork.0 < &last_nota.notarised_height {  
+                        return Err(ValidateContextError::KomodoInvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), chain_with_new_block.non_finalized_root().1, last_nota.notarised_height));
+                    }
+                }
+                else {
+                    // this should not happen actually
+                    error!("komodo internal error: could not find fork point for chain {:?}", chain_with_new_block);
+                }
+            }
+        }
+        Ok(())
     }
 }

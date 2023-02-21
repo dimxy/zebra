@@ -263,6 +263,7 @@ impl Input {
     /// # Panics
     ///
     /// If the provided [`Utxo`]s don't have this input's [`OutPoint`].
+    /// Note: a pure input value is returned here, no komodo interest.
     pub fn value(&self, utxos: &HashMap<OutPoint, utxo::Utxo>) -> Amount<NonNegative> {
         if let Some(outpoint) = self.outpoint() {
             // look up the specific Output and convert it to the expected format

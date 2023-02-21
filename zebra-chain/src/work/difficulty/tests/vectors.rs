@@ -261,21 +261,21 @@ fn compact_bitcoin_test_vectors() {
 }
 
 /// Test blocks using CompactDifficulty.
+/// fixed for komodo blocks
 #[test]
-fn block_difficulty() -> Result<(), Report> {
-    block_difficulty_for_network(Network::Mainnet)?;
-    block_difficulty_for_network(Network::Testnet)?;
+fn komodo_block_difficulty() -> Result<(), Report> {
+    komodo_block_difficulty_for_network(Network::Mainnet)?;
 
     Ok(())
 }
 
 #[spandoc::spandoc]
-fn block_difficulty_for_network(network: Network) -> Result<(), Report> {
+fn komodo_block_difficulty_for_network(network: Network) -> Result<(), Report> {
     zebra_test::init();
 
     let block_iter = match network {
-        Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.iter(),
-        Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.iter(),
+        Network::Mainnet => zebra_test::komodo_vectors::KMDMAINNET_BLOCKS.iter(),
+        Network::Testnet => panic!("testnet not supported for komodo"),
     };
 
     let diff_zero = ExpandedDifficulty(U256::zero());
@@ -350,21 +350,21 @@ fn block_difficulty_for_network(network: Network) -> Result<(), Report> {
 }
 
 /// Test that the genesis block threshold is PowLimit
+/// fixed for Komodo blocks
 #[test]
-fn genesis_block_difficulty() -> Result<(), Report> {
-    genesis_block_difficulty_for_network(Network::Mainnet)?;
-    genesis_block_difficulty_for_network(Network::Testnet)?;
+fn komodo_genesis_block_difficulty() -> Result<(), Report> {
+    komodo_genesis_block_difficulty_for_network(Network::Mainnet)?;
 
     Ok(())
 }
 
 #[spandoc::spandoc]
-fn genesis_block_difficulty_for_network(network: Network) -> Result<(), Report> {
+fn komodo_genesis_block_difficulty_for_network(network: Network) -> Result<(), Report> {
     zebra_test::init();
 
     let block = match network {
-        Network::Mainnet => zebra_test::vectors::MAINNET_BLOCKS.get(&0),
-        Network::Testnet => zebra_test::vectors::TESTNET_BLOCKS.get(&0),
+        Network::Mainnet => zebra_test::komodo_vectors::KMDMAINNET_BLOCKS.get(&0),
+        Network::Testnet => panic!("testnet not supported for komodo"),
     };
 
     let block = block.expect("test vectors contain the genesis block");
@@ -391,6 +391,7 @@ fn genesis_block_difficulty_for_network(network: Network) -> Result<(), Report> 
 }
 
 /// Test that testnet minimum-difficulty blocks are valid
+#[ignore]  // no active Komodo testnet yet 
 #[test]
 #[spandoc::spandoc]
 fn testnet_minimum_difficulty() -> Result<(), Report> {

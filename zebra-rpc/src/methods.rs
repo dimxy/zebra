@@ -17,6 +17,8 @@ use jsonrpc_derive::rpc;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
 use tower::{buffer::Buffer, Service, ServiceExt};
 use tracing::Instrument;
+use std::net::{SocketAddr, ToSocketAddrs};
+use zebra_network::AddressBook;
 
 use zebra_chain::{
     block::{self, Height, SerializedBlock},
@@ -25,7 +27,7 @@ use zebra_chain::{
     parameters::{ConsensusBranchId, Network, NetworkUpgrade},
     sapling,
     serialization::{SerializationError, ZcashDeserialize},
-    transaction::{self, SerializedTransaction, Transaction, UnminedTx},
+    transaction::{self, SerializedTransaction, Transaction, UnminedTx, UnminedTxWithMempoolParams},
     transparent::{self, Address},
 };
 use zebra_network::constants::USER_AGENT;
@@ -230,6 +232,15 @@ pub trait Rpc {
         &self,
         address_strings: AddressStrings,
     ) -> BoxFuture<Result<Vec<GetAddressUtxos>>>;
+
+    /// Manually add new peer
+    /// TODO add param 'onetry'
+    #[rpc(name = "addnode")]
+    fn add_node(
+        &self,
+        address_string: String,
+    ) -> Result<String>;
+
 }
 
 /// RPC method implementations.
@@ -260,7 +271,10 @@ where
     network: Network,
 
     /// A sender component of a channel used to send transactions to the queue.
-    queue_sender: Sender<Option<UnminedTx>>,
+    queue_sender: Sender<Option<UnminedTxWithMempoolParams>>,
+
+    /// address book to manage peers by rpcs
+    address_book: Arc<std::sync::Mutex<AddressBook>>,
 }
 
 impl<Mempool, State, Tip> RpcImpl<Mempool, State, Tip>
@@ -283,6 +297,7 @@ where
         state: State,
         latest_chain_tip: Tip,
         network: Network,
+        address_book: Arc<std::sync::Mutex<AddressBook>>,
     ) -> (Self, JoinHandle<()>)
     where
         Version: ToString,
@@ -305,6 +320,7 @@ where
             latest_chain_tip: latest_chain_tip.clone(),
             network,
             queue_sender: runner.sender(),
+            address_book,
         };
 
         // run the process queue
@@ -474,6 +490,11 @@ where
         let queue_sender = self.queue_sender.clone();
 
         async move {
+            // komodo: for sendrawtransaction do not check low fee but check absurd fee. 
+            // TODO: add rpc param fOverrideFees
+            const CHECK_LOW_FEE: bool = false;
+            const OVERRIDE_FEES: bool = false;
+
             let raw_transaction_bytes = Vec::from_hex(raw_transaction_hex).map_err(|_| {
                 Error::invalid_params("raw transaction is not specified as a hex string")
             })?;
@@ -484,9 +505,10 @@ where
 
             // send transaction to the rpc queue, ignore any error.
             let unmined_transaction = UnminedTx::from(raw_transaction.clone());
-            let _ = queue_sender.send(Some(unmined_transaction));
+            let unmined_transaction_with_params = UnminedTxWithMempoolParams::new(unmined_transaction, CHECK_LOW_FEE, !OVERRIDE_FEES);
+            let _ = queue_sender.send(Some(unmined_transaction_with_params.clone()));
 
-            let transaction_parameter = mempool::Gossip::Tx(raw_transaction.into());
+            let transaction_parameter = mempool::Gossip::Tx(unmined_transaction_with_params.clone()); 
             let request = mempool::Request::Queue(vec![transaction_parameter]);
 
             let response = mempool.oneshot(request).await.map_err(|error| Error {
@@ -938,6 +960,27 @@ where
         }
         .boxed()
     }
+
+    fn add_node(
+        &self,
+        address_string: String,
+    ) -> Result<String> {
+
+        let v_addrs = address_string.to_socket_addrs().
+            map_err(|error| {
+                Error::invalid_params(&format!("invalid address {address_string:?}: {error}"))
+            })?;
+
+        let mut addr_book = self.address_book.lock().unwrap();
+        let mut added = 0;
+        for addr in v_addrs {
+            if addr_book.add_address(addr).is_some() {
+                added += 1;
+            }
+        }
+        Ok(String::from(format!("added {}", added)))
+    }
+
 }
 
 /// Response to a `getinfo` RPC request.

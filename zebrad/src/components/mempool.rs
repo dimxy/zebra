@@ -30,7 +30,7 @@ use futures::{future::FutureExt, stream::Stream};
 use tokio::sync::watch;
 use tower::{buffer::Buffer, timeout::Timeout, util::BoxService, Service};
 
-use zebra_chain::{block::Height, chain_tip::ChainTip, transaction::UnminedTxId};
+use zebra_chain::{block::Height, chain_tip::ChainTip, transaction::UnminedTxId, parameters::Network};
 use zebra_consensus::{error::TransactionError, transaction};
 use zebra_network as zn;
 use zebra_node_services::mempool::{Request, Response};
@@ -157,6 +157,9 @@ pub struct Mempool {
     /// Sender part of a gossip transactions channel.
     /// Used to broadcast transaction ids to peers.
     transaction_sender: watch::Sender<HashSet<UnminedTxId>>,
+
+    /// network params
+    network: Network,
 }
 
 impl Mempool {
@@ -168,6 +171,7 @@ impl Mempool {
         sync_status: SyncStatus,
         latest_chain_tip: zs::LatestChainTip,
         chain_tip_change: ChainTipChange,
+        network: Network,
     ) -> (Self, watch::Receiver<HashSet<UnminedTxId>>) {
         let (transaction_sender, transaction_receiver) =
             tokio::sync::watch::channel(HashSet::new());
@@ -183,6 +187,7 @@ impl Mempool {
             state,
             tx_verifier,
             transaction_sender,
+            network,
         };
 
         // Make sure `is_enabled` is accurate.
@@ -367,6 +372,20 @@ impl Service<Request> for Mempool {
                 // Remove transactions that are expired from the peers list
                 send_to_peers_ids =
                     Self::remove_expired_from_peer_list(&send_to_peers_ids, &expired_transactions);
+        
+                // Remove transactions too long by lock time from the mempool.
+                if let Some(mtp) = self.latest_chain_tip.get_mtp_on_best_tip()  {
+                    let mtp_i64 = mtp.timestamp();
+                    tracing::debug!(?mtp_i64, std::stringify!(poll_ready));
+                    let expired_transactions = storage.komodo_remove_too_early_transactions(self.network, (tip_height+1).expect("valid tip height"), mtp);
+                    // Remove transactions that are expired from the peers list
+                    send_to_peers_ids =
+                        Self::remove_expired_from_peer_list(&send_to_peers_ids, &expired_transactions);
+                } else {
+                    // we may not have mtp at the chain startup while blocks number < 28 
+                    // so let's not panic here as we just would not remove too-long-in-mempool txns:
+                    // panic!("mtp on best chain tip should be always known in mempool");
+                }
             }
 
             // Send transactions that were not rejected nor expired to peers

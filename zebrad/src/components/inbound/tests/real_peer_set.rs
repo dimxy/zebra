@@ -708,6 +708,7 @@ async fn setup(
         sync_status.clone(),
         latest_chain_tip.clone(),
         chain_tip_change.clone(),
+        network,
     );
 
     // Enable the mempool

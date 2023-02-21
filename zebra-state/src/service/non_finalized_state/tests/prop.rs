@@ -56,7 +56,9 @@ fn push_genesis_chain() -> Result<()> {
             for block in chain.iter().take(count).cloned() {
                 let block =
                     ContextuallyValidBlock::with_block_and_spent_utxos(
+                        Network::Mainnet,
                         block,
+                        None,
                         only_chain.unspent_utxos(),
                     )
                     .map_err(|e| (e, chain_values.clone()))
@@ -79,6 +81,7 @@ fn push_genesis_chain() -> Result<()> {
 }
 
 /// Check that chain block pushes work with history tree blocks
+#[ignore] // Heartwood not supported in komodo
 #[test]
 fn push_history_tree_chain() -> Result<()> {
     zebra_test::init();
@@ -151,7 +154,9 @@ fn forked_equals_pushed_genesis() -> Result<()> {
         );
         for block in chain.iter().take(fork_at_count).cloned() {
             let block = ContextuallyValidBlock::with_block_and_spent_utxos(
+                Network::Mainnet,
                 block,
+                None,
                 partial_chain.unspent_utxos(),
             )?;
             partial_chain = partial_chain
@@ -170,7 +175,7 @@ fn forked_equals_pushed_genesis() -> Result<()> {
         );
         for block in chain.iter().cloned() {
             let block =
-                ContextuallyValidBlock::with_block_and_spent_utxos(block, full_chain.unspent_utxos())?;
+                ContextuallyValidBlock::with_block_and_spent_utxos(Network::Mainnet, block, None, full_chain.unspent_utxos())?;
             full_chain = full_chain
                 .push(block.clone())
                 .expect("full chain push is valid");
@@ -220,7 +225,7 @@ fn forked_equals_pushed_genesis() -> Result<()> {
         // same original full chain.
         for block in chain.iter().skip(fork_at_count).cloned() {
             let block =
-                ContextuallyValidBlock::with_block_and_spent_utxos(block, forked.unspent_utxos())?;
+                ContextuallyValidBlock::with_block_and_spent_utxos(Network::Mainnet, block, None, forked.unspent_utxos())?;
             forked = forked.push(block).expect("forked chain push is valid");
         }
 
@@ -232,6 +237,7 @@ fn forked_equals_pushed_genesis() -> Result<()> {
 }
 
 /// Check that a forked history tree chain is the same as a chain that had the same blocks appended.
+#[ignore] // Heartwood not supported in komodo
 #[test]
 fn forked_equals_pushed_history_tree() -> Result<()> {
     zebra_test::init();
@@ -366,6 +372,7 @@ fn finalized_equals_pushed_genesis() -> Result<()> {
 
 /// Check that a history tree chain with some blocks finalized is the same as
 /// a chain that never had those blocks added.
+#[ignore] // Heartwood not supported in komodo
 #[test]
 fn finalized_equals_pushed_history_tree() -> Result<()> {
     zebra_test::init();
@@ -437,6 +444,7 @@ fn finalized_equals_pushed_history_tree() -> Result<()> {
 
 /// Check that rejected blocks do not change the internal state of a genesis chain
 /// in a non-finalized state.
+/// fixed for Komodo (bug of trying to get to last_block_time for genesis)
 #[test]
 fn rejection_restores_internal_state_genesis() -> Result<()> {
     zebra_test::init();

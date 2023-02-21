@@ -10,7 +10,7 @@ use zebra_chain::{
     fmt::TypeNameToDebug,
     serialization::ZcashDeserializeInto,
     transaction::{self, LockTime, Transaction},
-    transparent,
+    transparent::{self, utxos_from_ordered_utxos}, parameters::Network,
 };
 
 use crate::{
@@ -43,7 +43,7 @@ fn accept_shielded_mature_coinbase_utxo_spend() {
         value: Amount::zero(),
         lock_script: transparent::Script::new(&[]),
     };
-    let ordered_utxo = transparent::OrderedUtxo::new(output, created_height, 0);
+    let ordered_utxo = transparent::OrderedUtxo::new(output, created_height, 0, LockTime::unlocked());
 
     let min_spend_height = Height(created_height.0 + MIN_TRANSPARENT_COINBASE_MATURITY);
     let spend_restriction = transparent::CoinbaseSpendRestriction::OnlyShieldedOutputs {
@@ -56,6 +56,7 @@ fn accept_shielded_mature_coinbase_utxo_spend() {
 }
 
 /// Check that non-shielded spends of coinbase transparent outputs fail.
+#[ignore] // Coinbase transparent spending is allowed in Komodo
 #[test]
 fn reject_unshielded_coinbase_utxo_spend() {
     zebra_test::init();
@@ -69,7 +70,7 @@ fn reject_unshielded_coinbase_utxo_spend() {
         value: Amount::zero(),
         lock_script: transparent::Script::new(&[]),
     };
-    let ordered_utxo = transparent::OrderedUtxo::new(output, created_height, 0);
+    let ordered_utxo = transparent::OrderedUtxo::new(output, created_height, 0, LockTime::unlocked());
 
     let spend_restriction = transparent::CoinbaseSpendRestriction::SomeTransparentOutputs;
 
@@ -78,6 +79,7 @@ fn reject_unshielded_coinbase_utxo_spend() {
 }
 
 /// Check that early spends of coinbase transparent outputs fail.
+#[ignore] // Enable after PR#26 merged in Komodo Zebra repo
 #[test]
 fn reject_immature_coinbase_utxo_spend() {
     zebra_test::init();
@@ -91,7 +93,7 @@ fn reject_immature_coinbase_utxo_spend() {
         value: Amount::zero(),
         lock_script: transparent::Script::new(&[]),
     };
-    let ordered_utxo = transparent::OrderedUtxo::new(output, created_height, 0);
+    let ordered_utxo = transparent::OrderedUtxo::new(output, created_height, 0, LockTime::unlocked());
 
     let min_spend_height = Height(created_height.0 + MIN_TRANSPARENT_COINBASE_MATURITY);
     let spend_height = Height(min_spend_height.0 - 1);
@@ -138,7 +140,7 @@ proptest! {
     /// of previous transactions in a block, but earlier transactions can not spend later outputs.
     #[test]
     fn accept_later_transparent_spend_from_this_block(
-        output in TypeNameToDebug::<transparent::Output>::arbitrary(),
+        utxo in TypeNameToDebug::<transparent::Utxo>::arbitrary(),
         mut prevout_input in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         use_finalized_state in any::<bool>(),
     ) {
@@ -149,7 +151,7 @@ proptest! {
             .expect("block should deserialize");
 
         // create an output
-        let output_transaction = transaction_v4_with_transparent_data([], [], [output.0.clone()]);
+        let output_transaction = transaction_v4_with_transparent_data([], [], [utxo.0.output.clone()]);
 
         // create a spend
         let expected_outpoint = transparent::OutPoint {
@@ -159,7 +161,7 @@ proptest! {
         prevout_input.set_outpoint(expected_outpoint);
         let spend_transaction = transaction_v4_with_transparent_data(
             [prevout_input.0],
-            [(expected_outpoint, output.0)],
+            [(expected_outpoint, utxo.0)],
             []
         );
 
@@ -221,7 +223,7 @@ proptest! {
     /// is accepted by state contextual validation.
     #[test]
     fn accept_arbitrary_transparent_spend_from_previous_block(
-        output in TypeNameToDebug::<transparent::Output>::arbitrary(),
+        utxo in TypeNameToDebug::<transparent::Utxo>::arbitrary(),
         mut prevout_input in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         use_finalized_state_output in any::<bool>(),
         mut use_finalized_state_spend in any::<bool>(),
@@ -240,7 +242,7 @@ proptest! {
 
         let TestState {
             mut state, block1, ..
-        } = new_state_with_mainnet_transparent_data([], [], [output.0.clone()], use_finalized_state_output);
+        } = new_state_with_mainnet_transparent_data([], [], [utxo.0.output.clone()], use_finalized_state_output);
         let previous_mem = state.mem.clone();
 
         let expected_outpoint = transparent::OutPoint {
@@ -251,7 +253,7 @@ proptest! {
 
         let spend_transaction = transaction_v4_with_transparent_data(
             [prevout_input.0],
-            [(expected_outpoint, output.0)],
+            [(expected_outpoint, utxo.0)],
             []
         );
 
@@ -316,7 +318,7 @@ proptest! {
     /// is rejected by state contextual validation.
     #[test]
     fn reject_duplicate_transparent_spend_in_same_transaction_from_same_block(
-        output in TypeNameToDebug::<transparent::Output>::arbitrary(),
+        utxo in TypeNameToDebug::<transparent::Utxo>::arbitrary(),
         mut prevout_input1 in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         mut prevout_input2 in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
     ) {
@@ -326,7 +328,7 @@ proptest! {
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
-        let output_transaction = transaction_v4_with_transparent_data([], [], [output.0.clone()]);
+        let output_transaction = transaction_v4_with_transparent_data([], [], [utxo.0.output.clone()]);
 
         let expected_outpoint = transparent::OutPoint {
             hash: output_transaction.hash(),
@@ -337,7 +339,7 @@ proptest! {
 
         let spend_transaction = transaction_v4_with_transparent_data(
             [prevout_input1.0, prevout_input2.0],
-            [(expected_outpoint, output.0)],
+            [(expected_outpoint, utxo.0)],
             []
         );
 
@@ -377,7 +379,7 @@ proptest! {
     /// is rejected by state contextual validation.
     #[test]
     fn reject_duplicate_transparent_spend_in_same_transaction_from_previous_block(
-        output in TypeNameToDebug::<transparent::Output>::arbitrary(),
+        utxo in TypeNameToDebug::<transparent::Utxo>::arbitrary(),
         mut prevout_input1 in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         mut prevout_input2 in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         use_finalized_state_output in any::<bool>(),
@@ -390,7 +392,7 @@ proptest! {
 
         let TestState {
             mut state, block1, ..
-        } = new_state_with_mainnet_transparent_data([], [], [output.0.clone()], use_finalized_state_output);
+        } = new_state_with_mainnet_transparent_data([], [], [utxo.0.output.clone()], use_finalized_state_output);
         let previous_mem = state.mem.clone();
 
         let expected_outpoint = transparent::OutPoint {
@@ -402,7 +404,7 @@ proptest! {
 
         let spend_transaction = transaction_v4_with_transparent_data(
             [prevout_input1.0, prevout_input2.0],
-            [(expected_outpoint, output.0)],
+            [(expected_outpoint, utxo.0)],
             []
         );
 
@@ -453,7 +455,7 @@ proptest! {
     /// is rejected by state contextual validation.
     #[test]
     fn reject_duplicate_transparent_spend_in_same_block_from_previous_block(
-        output in TypeNameToDebug::<transparent::Output>::arbitrary(),
+        utxo in TypeNameToDebug::<transparent::Utxo>::arbitrary(),
         mut prevout_input1 in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         mut prevout_input2 in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         use_finalized_state_output in any::<bool>(),
@@ -466,7 +468,7 @@ proptest! {
 
         let TestState {
             mut state, block1, ..
-        } = new_state_with_mainnet_transparent_data([], [], [output.0.clone()], use_finalized_state_output);
+        } = new_state_with_mainnet_transparent_data([], [], [utxo.0.output.clone()], use_finalized_state_output);
         let previous_mem = state.mem.clone();
 
         let expected_outpoint = transparent::OutPoint {
@@ -478,12 +480,12 @@ proptest! {
 
         let spend_transaction1 = transaction_v4_with_transparent_data(
             [prevout_input1.0],
-            [(expected_outpoint, output.0.clone())],
+            [(expected_outpoint, utxo.0.clone())],
             []
         );
         let spend_transaction2 = transaction_v4_with_transparent_data(
             [prevout_input2.0],
-            [(expected_outpoint, output.0)],
+            [(expected_outpoint, utxo.0)],
             []
         );
 
@@ -536,7 +538,7 @@ proptest! {
     /// is rejected by state contextual validation.
     #[test]
     fn reject_duplicate_transparent_spend_in_same_chain_from_previous_block(
-        output in TypeNameToDebug::<transparent::Output>::arbitrary(),
+        utxo in TypeNameToDebug::<transparent::Utxo>::arbitrary(),
         mut prevout_input1 in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         mut prevout_input2 in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
         use_finalized_state_output in any::<bool>(),
@@ -559,7 +561,7 @@ proptest! {
 
         let TestState {
             mut state, block1, ..
-        } = new_state_with_mainnet_transparent_data([], [], [output.0.clone()], use_finalized_state_output);
+        } = new_state_with_mainnet_transparent_data([], [], [utxo.0.output.clone()], use_finalized_state_output);
         let mut previous_mem = state.mem.clone();
 
         let expected_outpoint = transparent::OutPoint {
@@ -571,12 +573,12 @@ proptest! {
 
         let spend_transaction1 = transaction_v4_with_transparent_data(
             [prevout_input1.0],
-            [(expected_outpoint, output.0.clone())],
+            [(expected_outpoint, utxo.0.clone())],
             []
         );
         let spend_transaction2 = transaction_v4_with_transparent_data(
             [prevout_input2.0],
-            [(expected_outpoint, output.0)],
+            [(expected_outpoint, utxo.0)],
             []
         );
 
@@ -687,7 +689,7 @@ proptest! {
     /// is rejected by state contextual validation.
     #[test]
     fn reject_missing_transparent_spend(
-        unused_output in TypeNameToDebug::<transparent::Output>::arbitrary(),
+        unused_utxo in TypeNameToDebug::<transparent::Utxo>::arbitrary(),
         prevout_input in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
     ) {
         zebra_test::init();
@@ -700,7 +702,7 @@ proptest! {
         let spend_transaction = transaction_v4_with_transparent_data(
             [prevout_input.0],
             // provide an fake spent output for value fixups
-            [(expected_outpoint, unused_output.0)],
+            [(expected_outpoint, unused_utxo.0)],
             []
         );
 
@@ -740,7 +742,7 @@ proptest! {
     /// of previous transactions in a block, but earlier transactions can not spend later outputs.
     #[test]
     fn reject_earlier_transparent_spend_from_this_block(
-        output in TypeNameToDebug::<transparent::Output>::arbitrary(),
+        utxo in TypeNameToDebug::<transparent::Utxo>::arbitrary(),
         mut prevout_input in TypeNameToDebug::<transparent::Input>::arbitrary_with(None),
     ) {
         zebra_test::init();
@@ -750,7 +752,7 @@ proptest! {
             .expect("block should deserialize");
 
         // create an output
-        let output_transaction = transaction_v4_with_transparent_data([], [], [output.0.clone()]);
+        let output_transaction = transaction_v4_with_transparent_data([], [], [utxo.0.output.clone()]);
 
         // create a spend
         let expected_outpoint = transparent::OutPoint {
@@ -760,7 +762,7 @@ proptest! {
         prevout_input.set_outpoint(expected_outpoint);
         let spend_transaction = transaction_v4_with_transparent_data(
             [prevout_input.0],
-            [(expected_outpoint, output.0)],
+            [(expected_outpoint, utxo.0)],
             []
         );
 
@@ -814,7 +816,7 @@ struct TestState {
 /// Also returns the finalized genesis block itself.
 fn new_state_with_mainnet_transparent_data(
     inputs: impl IntoIterator<Item = transparent::Input>,
-    spent_outputs: impl IntoIterator<Item = (transparent::OutPoint, transparent::Output)>,
+    spent_utxos: impl IntoIterator<Item = (transparent::OutPoint, transparent::Utxo)>,
     outputs: impl IntoIterator<Item = transparent::Output>,
     use_finalized_state: bool,
 ) -> TestState {
@@ -831,7 +833,7 @@ fn new_state_with_mainnet_transparent_data(
         .try_into()
         .expect("unexpectedly large output iterator");
 
-    let transaction = transaction_v4_with_transparent_data(inputs, spent_outputs, outputs);
+    let transaction = transaction_v4_with_transparent_data(inputs, spent_utxos, outputs);
     let transaction_hash = transaction.hash();
 
     let expected_outpoints = (0..outputs_len).map(|index| transparent::OutPoint {
@@ -910,7 +912,7 @@ fn new_state_with_mainnet_transparent_data(
 /// Other fields have empty or default values.
 fn transaction_v4_with_transparent_data(
     inputs: impl IntoIterator<Item = transparent::Input>,
-    spent_outputs: impl IntoIterator<Item = (transparent::OutPoint, transparent::Output)>,
+    spent_utxos: impl IntoIterator<Item = (transparent::OutPoint, transparent::Utxo)>,
     outputs: impl IntoIterator<Item = transparent::Output>,
 ) -> Transaction {
     let inputs: Vec<_> = inputs.into_iter().collect();
@@ -927,7 +929,7 @@ fn transaction_v4_with_transparent_data(
 
     // do required fixups, but ignore any errors,
     // because we're not checking all the consensus rules here
-    let _ = transaction.fix_remaining_value(&spent_outputs.into_iter().collect());
+    let _ = transaction.fix_remaining_value(Network::Mainnet, &spent_utxos.into_iter().collect(), Height(0), None);
 
     transaction
 }

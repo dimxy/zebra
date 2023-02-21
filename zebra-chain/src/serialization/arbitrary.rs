@@ -60,6 +60,12 @@ pub fn datetime_u32() -> impl Strategy<Value = chrono::DateTime<Utc>> {
     any::<DateTime32>().prop_map(Into::into)
 }
 
+/// Komodo added datetime strategy to reduce generated interval to u27
+/// as datetime_u32 produces too big time differences for Komodo fixed Strategy for blocks
+pub fn datetime_u27() -> impl Strategy<Value = chrono::DateTime<Utc>> {
+    any::<u32>().prop_map(|dt| { Into::<DateTime32>::into(dt >> 5).into() }).boxed()
+}
+
 impl Arbitrary for CompactSizeMessage {
     type Parameters = ();
 

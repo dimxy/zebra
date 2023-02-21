@@ -6,13 +6,14 @@ use std::{
     sync::Arc,
 };
 
+use chrono::{DateTime, Utc};
 use zebra_chain::{
     amount::NegativeAllowed,
     block::{self, Block},
     serialization::SerializationError,
     transaction,
     transparent::{self, utxos_from_ordered_utxos},
-    value_balance::{ValueBalance, ValueBalanceError},
+    value_balance::{ValueBalance, ValueBalanceError}, parameters::Network,
 };
 
 /// Allow *only* this unused import, so that rustdoc link resolution
@@ -198,7 +199,9 @@ impl ContextuallyValidBlock {
     /// Note: a [`ContextuallyValidBlock`] isn't actually contextually valid until
     /// `Chain::update_chain_state_with` returns success.
     pub fn with_block_and_spent_utxos(
+        network: Network,
         prepared: PreparedBlock,
+        last_block_time: Option<DateTime<Utc>>,
         mut spent_outputs: HashMap<transparent::OutPoint, transparent::OrderedUtxo>,
     ) -> Result<Self, ValueBalanceError> {
         let PreparedBlock {
@@ -223,7 +226,7 @@ impl ContextuallyValidBlock {
             spent_outputs: spent_outputs.clone(),
             transaction_hashes,
             chain_value_pool_change: block
-                .chain_value_pool_change(&utxos_from_ordered_utxos(spent_outputs))?,
+                .chain_value_pool_change(network, &utxos_from_ordered_utxos(spent_outputs), height, last_block_time)?,
         })
     }
 }
@@ -431,6 +434,24 @@ pub enum Request {
         /// Optionally, the hash of the last header to request.
         stop: Option<block::Hash>,
     },
+
+    /// Request a BLOCK identified by the given
+    /// [`block_hash`](block::Hash), waiting until it becomes available
+    /// if it is unknown.
+    ///
+    /// This is a komodo added request as we need it to get the previous block while validating the current block, to calculate komodo interest
+    ///
+    /// # Correctness
+    ///
+    /// BLOCK requests should be wrapped in a timeout, so that
+    /// out-of-order and invalid requests do not hang indefinitely. See the [`crate`]
+    /// documentation for details.
+    AwaitBlock(block::Hash),
+
+    /// Request the median time past calculated from the tip.
+    ///
+    /// This is a komodo added request, to validate komodo interest
+    GetMedianTimePast(Option<block::Hash>),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

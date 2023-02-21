@@ -1,11 +1,13 @@
 use core::num;
 
 use chrono::{DateTime, Utc, Duration, NaiveDateTime};
-use zebra_chain::{block::Height, amount::{Amount, NonNegative, COIN}, transaction::LockTime};
+use crate::{block::Height, amount::{Amount, NonNegative, COIN}, transaction::LockTime};
 
-const KOMODO_ENDOFERA: u32 = 7_777_777;
+pub const KOMODO_ENDOFERA: u32 = 7_777_777;
 const ACTIVATION: i64 = 1491350400; // Wed Apr 05 2017 00:00:00 GMT+0000
-const KOMODO_MAXMEMPOOLTIME: i64 = 3600;
+
+/// max duration in secs tx can stay in mempool, counted for tx.locktime till tip's MTP
+pub const KOMODO_MAXMEMPOOLTIME: i64 = 3600; 
 const KOMODO_INTEREST: u64 = 5000000;
 
 /// komodo_interest - calc interest for passed params
@@ -69,7 +71,7 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                                 // interest = (interest / (365 * 24 * 60)).expect("div to non-zero should be ok");
 
                                 // (a) we should avoid multiplication overflow due to max_money, so we will calc in u64 and only then transform to amount
-                                let a = u64::from(numerator) * elapsed.num_minutes() as u64 / (365 * 24 * 60);
+                                let a = u64::from(numerator).overflowing_mul(elapsed.num_minutes() as u64).0 / (365 * 24 * 60);
                                 interest = Amount::<NonNegative>::try_from(a).expect("conversion should be ok");
 
                                 let interestnew = _komodo_interestnew(tx_height, value, LockTime::Time(lock_time), Some(tip_time));
@@ -99,24 +101,23 @@ pub fn komodo_interest(tx_height: Height, value: Amount<NonNegative>,
                         }
                     } else {
                         // value <= 25_000 * COIN
-                        let numerator: u64 = u64::from(value) * KOMODO_INTEREST;
+                        let numerator: u64 = u64::from(value).overflowing_mul(KOMODO_INTEREST).0;
                         if tx_height < Height(250_000) ||
                             tip_time < DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(ACTIVATION, 0), Utc) {
                             if tx_height < Height(250_000) ||
-                                (numerator * elapsed.num_minutes() as u64) < 365 * 24 * 60 {
-                                    interest = Amount::<NonNegative>::try_from(numerator / denominator as u64).expect("div should be ok");
-                                    interest = (interest / COIN as u64).expect("div should be ok");
+                                (numerator.overflowing_mul(elapsed.num_minutes() as u64).0) < 365 * 24 * 60 {
+                                    interest = Amount::<NonNegative>::try_from(numerator / denominator as u64 / COIN as u64).expect("div should be ok");
                             } else
                             {
-                                    let mut interest_value = numerator * elapsed.num_minutes() as u64;
+                                    let mut interest_value = numerator.overflowing_mul(elapsed.num_minutes() as u64).0;
                                     interest_value = interest_value / (365 * 24 * 60);
                                     interest_value = interest_value / COIN as u64;
                                     interest = Amount::<NonNegative>::try_from(interest_value).expect("conversion expect ok");
                             }
                         } else if tx_height < Height(1_000_000) {
-                            let numerator = (value / 20).expect("div to non-zero should be ok"); // assumes 5%
-                            interest = (numerator * elapsed.num_minutes() as u64).expect("mul should be ok");
-                            interest = (interest / (365 * 24 * 60)).expect("div to non-zero should be ok");
+                            let numerator = u64::from(value) / 20; // assumes 5%
+                            let product = numerator.overflowing_mul(elapsed.num_minutes() as u64).0;
+                            interest = Amount::<NonNegative>::try_from(product / (365 * 24 * 60)).expect("conversion should be ok");
                             let interestnew = _komodo_interestnew(tx_height, value, LockTime::Time(lock_time), Some(tip_time));
                             if interest < interestnew {
                                 tracing::info!(?interest, ?interestnew, ?tx_height, ?value, ?lock_time, ?tip_time, "pathC");
@@ -146,7 +147,7 @@ pub fn _komodo_interestnew(tx_height: Height, value: Amount<NonNegative>,
                 {
                     if tip_time > lock_time {
                         let mut elapsed = tip_time - lock_time;
-                        if elapsed > Duration::minutes(KOMODO_MAXMEMPOOLTIME / 60) {
+                        if elapsed >= Duration::minutes(KOMODO_MAXMEMPOOLTIME / 60) {
                             if elapsed > Duration::days(365) {
                                 elapsed = Duration::days(365);
                             }
@@ -366,6 +367,43 @@ mod tests {
             }
         }
 
+    }
+
+    #[test]
+    /// test a specific overflow case  
+    fn test_komodo_interest_overflow_path_c() {
+        zebra_test::init();
+
+        let tip_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1491350400 + 1, 0), Utc);
+        let tx_lock_time = tip_time - Duration::minutes(59 + 49);
+
+        let calc_value = komodo_interest(Height(250002), Amount::<NonNegative>::try_from(233539804500u64).expect("conversion must be okay"), LockTime::Time(tx_lock_time), Some(tip_time));
+        let overflow_value = Amount::<NonNegative>::try_from(1088608).expect("conversion must be okay");
+        assert_eq!(calc_value, overflow_value);
+    }
+
+    #[test]
+    /// test a specific overflow case  
+    fn test_komodo_interest_overflow_before_activation() {
+        zebra_test::init();
+        let tip_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1491350400 - 1, 0), Utc);
+        let tx_lock_time = tip_time - Duration::minutes(59 + 49);
+
+        let calc_value = komodo_interest(Height(250002), Amount::<NonNegative>::try_from(233539804500u64).expect("conversion must be okay"), LockTime::Time(tx_lock_time), Some(tip_time));
+        let overflow_value = Amount::<NonNegative>::try_from(35711).expect("conversion must be okay");
+        assert_eq!(calc_value, overflow_value);
+    }
+
+    #[test]
+    /// test bug zero _komodo_interestnew comparison to max mempool time (kmd tx b973476fe0df4214ebd1d21d6aee6e2454a85c24be3a83a14d56771dcdfd4349) 
+    fn test_komodo_tx_b973_interest_bug() {
+        zebra_test::init();
+        let tip_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1660056383, 0), Utc);
+        let tx_lock_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1660052783, 0), Utc);
+
+        let calc_value = komodo_interest(Height(3025991), Amount::<NonNegative>::try_from(25840270178u64).expect("conversion must be okay"), LockTime::Time(tx_lock_time), Some(tip_time));
+        let check_value = Amount::<NonNegative>::try_from(2458).expect("conversion must be okay");
+        assert_eq!(calc_value, check_value);
     }
 }
 
