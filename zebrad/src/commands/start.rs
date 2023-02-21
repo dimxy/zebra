@@ -90,8 +90,6 @@ use crate::{
     prelude::*,
 };
 
-use std::sync::Arc;
-
 /// `start` subcommand
 #[derive(Command, Debug, Options)]
 pub struct StartCmd {

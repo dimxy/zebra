@@ -26,9 +26,7 @@ use crate::{
     server::{compatibility::FixHttpRequestMiddleware, tracing_middleware::TracingMiddleware},
 };
 
-pub use zebra_network::AddressBook;
 pub use zebra_network::address_book::InboundConns;
-use std::sync::Arc;
 
 pub mod compatibility;
 mod tracing_middleware;

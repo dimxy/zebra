@@ -6,7 +6,7 @@
 //! Some parts of the `zcashd` RPC documentation are outdated.
 //! So this implementation follows the `zcashd` server and `lightwalletd` client implementations.
 
-use std::net::SocketAddr;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::str::FromStr;
 use std::{collections::HashSet, io, sync::Arc};
 
@@ -19,7 +19,6 @@ use jsonrpc_derive::rpc;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
 use tower::{buffer::Buffer, Service, ServiceExt};
 use tracing::Instrument;
-use std::net::{SocketAddr, ToSocketAddrs};
 use zebra_network::AddressBook;
 
 use zebra_chain::{
@@ -32,7 +31,6 @@ use zebra_chain::{
     transaction::{self, SerializedTransaction, Transaction, UnminedTx, UnminedTxWithMempoolParams},
     transparent::{self, Address},
 };
-use zebra_network::AddressBook;
 use zebra_network::address_book::InboundConns;
 use zebra_network::constants::USER_AGENT;
 use zebra_node_services::{mempool, BoxError};
