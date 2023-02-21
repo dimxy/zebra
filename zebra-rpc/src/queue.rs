@@ -8,7 +8,7 @@
 //! We use this data type because we want the transactions in the queue to be in order.
 //! The [`Runner`] component will do the processing in it's [`Runner::run()`] method.
 
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet};
 
 use chrono::Duration;
 use indexmap::IndexMap;
@@ -23,7 +23,7 @@ use zebra_chain::{
     block::Height,
     chain_tip::ChainTip,
     parameters::{Network, NetworkUpgrade},
-    transaction::{Transaction, UnminedTx, UnminedTxId},
+    transaction::{UnminedTxId, UnminedTxWithMempoolParams},
 };
 use zebra_node_services::{
     mempool::{Gossip, Request, Response},
@@ -48,14 +48,14 @@ const NO_CHAIN_TIP_HEIGHT: Height = Height(1);
 /// The queue is a container of transactions that are going to be
 /// sent to the mempool again.
 pub struct Queue {
-    transactions: IndexMap<UnminedTxId, (Arc<Transaction>, Instant)>,
+    transactions: IndexMap<UnminedTxId, (UnminedTxWithMempoolParams, Instant)>,
 }
 
 #[derive(Debug)]
 /// The runner will make the processing of the transactions in the queue.
 pub struct Runner {
     queue: Queue,
-    sender: Sender<Option<UnminedTx>>,
+    sender: Sender<Option<UnminedTxWithMempoolParams>>,
     tip_height: Height,
 }
 
@@ -76,14 +76,14 @@ impl Queue {
     }
 
     /// Get the transactions in the queue.
-    pub fn transactions(&self) -> IndexMap<UnminedTxId, (Arc<Transaction>, Instant)> {
+    pub fn transactions(&self) -> IndexMap<UnminedTxId, (UnminedTxWithMempoolParams, Instant)> {
         self.transactions.clone()
     }
 
     /// Insert a transaction to the queue.
-    pub fn insert(&mut self, unmined_tx: UnminedTx) {
+    pub fn insert(&mut self, unmined_tx_with_params: UnminedTxWithMempoolParams) {
         self.transactions
-            .insert(unmined_tx.id, (unmined_tx.transaction, Instant::now()));
+            .insert(unmined_tx_with_params.transaction.id, (unmined_tx_with_params, Instant::now()));
 
         // remove if queue is over capacity
         if self.transactions.len() > CHANNEL_AND_QUEUE_CAPACITY {
@@ -104,12 +104,12 @@ impl Queue {
 
 impl Runner {
     /// Create a new sender for this runner.
-    pub fn sender(&self) -> Sender<Option<UnminedTx>> {
+    pub fn sender(&self) -> Sender<Option<UnminedTxWithMempoolParams>> {
         self.sender.clone()
     }
 
     /// Create a new receiver.
-    pub fn receiver(&self) -> Receiver<Option<UnminedTx>> {
+    pub fn receiver(&self) -> Receiver<Option<UnminedTxWithMempoolParams>> {
         self.sender.subscribe()
     }
 
@@ -120,7 +120,7 @@ impl Runner {
     }
 
     /// Get the queue transactions as a `Vec` of transactions.
-    fn transactions_as_vec(&self) -> Vec<Arc<Transaction>> {
+    fn transactions_as_vec(&self) -> Vec<UnminedTxWithMempoolParams> {
         let transactions = self.queue.transactions();
         transactions.iter().map(|t| t.1 .0.clone()).collect()
     }
@@ -299,15 +299,14 @@ impl Runner {
     /// Returns the transaction ids that were retried.
     async fn retry<Mempool>(
         mempool: Mempool,
-        transactions: Vec<Arc<Transaction>>,
+        transactions: Vec<UnminedTxWithMempoolParams>,
     ) -> HashSet<UnminedTxId>
     where
         Mempool: Service<Request, Response = Response, Error = BoxError> + Clone + 'static,
     {
         let mut retried = HashSet::new();
 
-        for tx in transactions {
-            let unmined = UnminedTx::from(tx);
+        for unmined in transactions {
             let gossip = Gossip::Tx(unmined.clone());
             let request = Request::Queue(vec![gossip]);
 
@@ -316,7 +315,7 @@ impl Runner {
 
             // return what we retried but don't delete from the queue,
             // we might retry again in a next call.
-            retried.insert(unmined.id);
+            retried.insert(unmined.transaction.id);
         }
         retried
     }

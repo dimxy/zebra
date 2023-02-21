@@ -6,25 +6,32 @@ use std::{
     sync::Arc,
 };
 
+use chrono::{DateTime, Utc, NaiveDateTime, Duration};
 use halo2::pasta::{group::ff::PrimeField, pallas};
+use proptest::{
+    arbitrary::any,
+    prelude::*, strategy::ValueTree,
+};
+use proptest::test_runner::TestRunner;
+
 use tower::{service_fn, ServiceExt};
 
 use zebra_chain::{
     amount::{Amount, NonNegative},
-    block::{self, Block, Height},
+    block::{self, Block, Height, merkle::Root},
     orchard::AuthorizedAction,
     parameters::{Network, NetworkUpgrade},
     primitives::{ed25519, x25519, Groth16Proof},
     sapling,
-    serialization::{ZcashDeserialize, ZcashDeserializeInto},
+    serialization::{ZcashDeserialize, ZcashDeserializeInto, arbitrary::datetime_full},
     sprout,
     transaction::{
         arbitrary::{
             fake_v5_transactions_for_network, insert_fake_orchard_shielded_data, test_transactions,
         },
-        Hash, HashType, JoinSplitData, LockTime, Transaction,
+        Hash, HashType, JoinSplitData, LockTime, Transaction, self, UnminedTx,
     },
-    transparent::{self, CoinbaseData},
+    transparent::{self, CoinbaseData, Input, Output},
 };
 
 use super::{check, Request, Verifier};
@@ -34,6 +41,50 @@ use color_eyre::eyre::Report;
 
 #[cfg(test)]
 mod prop;
+
+const FAKE_PREV_BLOCK_HASH: block::Hash = block::Hash([0x1f; 32]);
+
+/// fake state service to return prev block time and mtp 
+async fn fake_state_handler(request: zebra_state::Request) -> Result<zebra_state::Response, zebra_state::BoxError>     {
+    
+    let mut runner = TestRunner::default();
+    match request {
+        zebra_state::Request::GetMedianTimePast(block_hash) => {
+            let rsp = {
+                if let Some(block_hash) = block_hash {
+                    if block_hash == FAKE_PREV_BLOCK_HASH    {
+                        let fake_mtp = datetime_full().new_tree(&mut runner).unwrap().current(); //Utc::now();
+                        return Ok(zebra_state::Response::MedianTimePast(Some(fake_mtp)));
+                    }
+                } 
+                Ok(zebra_state::Response::MedianTimePast(None))
+            };
+            return async move { rsp }.await;
+        },
+        zebra_state::Request::AwaitBlock(block_hash) => {
+            let rsp = {
+                if block_hash == FAKE_PREV_BLOCK_HASH    {
+                    let fake_header = block::Header { 
+                        version: 4,
+                        time: datetime_full().new_tree(&mut runner).unwrap().current(), // Utc::now(),  
+                        previous_block_hash: FAKE_PREV_BLOCK_HASH, 
+                        merkle_root: any::<block::merkle::Root>().new_tree(&mut runner).unwrap().current(), //Root([0x3f; 32]),
+                        commitment_bytes: any::<[u8; 32]>().new_tree(&mut runner).unwrap().current(), //[0x4f; 32],
+                        difficulty_threshold: zebra_chain::work::difficulty::ExpandedDifficulty::from(zebra_chain::work::difficulty::U256::MAX).into(),
+                        nonce: any::<[u8; 32]>().new_tree(&mut runner).unwrap().current(), // [0x6f; 32],
+                        solution: any::<zebra_chain::work::equihash::Solution>().new_tree(&mut runner).unwrap().current() // ([0x11u8; 1344])
+                    };
+                    let fake_block = Arc::new( Block { header: fake_header.into(), transactions: vec![] } );
+                    return Ok(zebra_state::Response::Block(Some(fake_block)));
+                }
+                Ok(zebra_state::Response::Block(None))
+            };
+            return async move { rsp }.await;
+        },
+        _ => unreachable!("no other request is allowed"),
+    }
+}
+
 
 #[test]
 fn v5_fake_transactions() -> Result<(), Report> {
@@ -238,6 +289,7 @@ fn v5_coinbase_transaction_with_enable_spends_flag_fails_validation() {
     );
 }
 
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks
 #[tokio::test]
 async fn v5_transaction_is_rejected_before_nu5_activation() {
     const V5_TRANSACTION_VERSION: u32 = 5;
@@ -265,6 +317,8 @@ async fn v5_transaction_is_rejected_before_nu5_activation() {
                     .activation_height(network)
                     .expect("Canopy activation height is specified"),
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -278,11 +332,13 @@ async fn v5_transaction_is_rejected_before_nu5_activation() {
     }
 }
 
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks
 #[test]
 fn v5_transaction_is_accepted_after_nu5_activation_mainnet() {
     v5_transaction_is_accepted_after_nu5_activation_for_network(Network::Mainnet)
 }
 
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks
 #[test]
 fn v5_transaction_is_accepted_after_nu5_activation_testnet() {
     v5_transaction_is_accepted_after_nu5_activation_for_network(Network::Testnet)
@@ -328,6 +384,8 @@ fn v5_transaction_is_accepted_after_nu5_activation_for_network(network: Network)
                 known_utxos: Arc::new(HashMap::new()),
                 height: expiry_height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -340,15 +398,15 @@ fn v5_transaction_is_accepted_after_nu5_activation_for_network(network: Network)
 
 /// Test if V4 transaction with transparent funds is accepted.
 #[tokio::test]
-async fn v4_transaction_with_transparent_transfer_is_accepted() {
+async fn komodo_v4_transaction_with_transparent_transfer_is_accepted() {
     let network = Network::Mainnet;
 
-    let canopy_activation_height = NetworkUpgrade::Canopy
+    let sapling_activation_height = NetworkUpgrade::Sapling
         .activation_height(network)
-        .expect("Canopy activation height is specified");
+        .expect("Sapling activation height is specified");
 
     let transaction_block_height =
-        (canopy_activation_height + 10).expect("transaction block height is too large");
+        (sapling_activation_height + 10).expect("transaction block height is too large");
 
     let fake_source_fund_height =
         (transaction_block_height - 1).expect("fake source fund block height is too small");
@@ -369,7 +427,7 @@ async fn v4_transaction_with_transparent_transfer_is_accepted() {
     let transaction_hash = transaction.unmined_id();
 
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(/*|_| async { unreachable!("State service should not be called") }*/ fake_state_handler);
     let verifier = Verifier::new(network, state_service);
 
     let result = verifier
@@ -378,6 +436,8 @@ async fn v4_transaction_with_transparent_transfer_is_accepted() {
             known_utxos: Arc::new(known_utxos),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -389,15 +449,16 @@ async fn v4_transaction_with_transparent_transfer_is_accepted() {
 
 /// Tests if a non-coinbase V4 transaction with the last valid expiry height is
 /// accepted.
+/// fixed for Komodo with fake_state_handler()
 #[tokio::test]
-async fn v4_transaction_with_last_valid_expiry_height() {
+async fn komodo_v4_transaction_with_last_valid_expiry_height() {
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(/*|_| async { unreachable!("State service should not be called") }*/ fake_state_handler);
     let verifier = Verifier::new(Network::Mainnet, state_service);
 
-    let block_height = NetworkUpgrade::Canopy
+    let block_height = NetworkUpgrade::Sapling
         .activation_height(Network::Mainnet)
-        .expect("Canopy activation height is specified");
+        .expect("Sapling activation height is specified");
     let fund_height = (block_height - 1).expect("fake source fund block height is too small");
     let (input, output, known_utxos) = mock_transparent_transfer(fund_height, true, 0);
 
@@ -417,6 +478,8 @@ async fn v4_transaction_with_last_valid_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -431,15 +494,16 @@ async fn v4_transaction_with_last_valid_expiry_height() {
 ///
 /// Note that an expiry height lower than the block height is considered
 /// *expired* for *non-coinbase* transactions.
+/// fixed for Komodo with fake_state_handler()
 #[tokio::test]
-async fn v4_coinbase_transaction_with_low_expiry_height() {
+async fn komodo_v4_coinbase_transaction_with_low_expiry_height() {
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(/*|_| async { unreachable!("State service should not be called") }*/ fake_state_handler);
     let verifier = Verifier::new(Network::Mainnet, state_service);
 
-    let block_height = NetworkUpgrade::Canopy
+    let block_height = NetworkUpgrade::Sapling
         .activation_height(Network::Mainnet)
-        .expect("Canopy activation height is specified");
+        .expect("Sapling activation height is specified");
 
     let (input, output) = mock_coinbase_transparent_output(block_height);
 
@@ -462,6 +526,8 @@ async fn v4_coinbase_transaction_with_low_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -473,14 +539,14 @@ async fn v4_coinbase_transaction_with_low_expiry_height() {
 
 /// Tests if an expired non-coinbase V4 transaction is rejected.
 #[tokio::test]
-async fn v4_transaction_with_too_low_expiry_height() {
+async fn komodo_v4_transaction_with_too_low_expiry_height() {
     let state_service =
         service_fn(|_| async { unreachable!("State service should not be called") });
     let verifier = Verifier::new(Network::Mainnet, state_service);
 
-    let block_height = NetworkUpgrade::Canopy
+    let block_height = NetworkUpgrade::Sapling
         .activation_height(Network::Mainnet)
-        .expect("Canopy activation height is specified");
+        .expect("Sapling activation height is specified");
 
     let fund_height = (block_height - 1).expect("fake source fund block height is too small");
     let (input, output, known_utxos) = mock_transparent_transfer(fund_height, true, 0);
@@ -504,6 +570,8 @@ async fn v4_transaction_with_too_low_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -549,6 +617,8 @@ async fn v4_transaction_with_exceeding_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -602,6 +672,8 @@ async fn v4_coinbase_transaction_with_exceeding_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -617,16 +689,17 @@ async fn v4_coinbase_transaction_with_exceeding_expiry_height() {
 }
 
 /// Test if V4 coinbase transaction is accepted.
+/// Fixed for Komodo with fake_state_handler
 #[tokio::test]
-async fn v4_coinbase_transaction_is_accepted() {
+async fn komodo_v4_coinbase_transaction_is_accepted() {
     let network = Network::Mainnet;
 
-    let canopy_activation_height = NetworkUpgrade::Canopy
+    let sapling_activation_height = NetworkUpgrade::Sapling
         .activation_height(network)
-        .expect("Canopy activation height is specified");
+        .expect("Sapling activation height is specified");
 
     let transaction_block_height =
-        (canopy_activation_height + 10).expect("transaction block height is too large");
+        (sapling_activation_height + 10).expect("transaction block height is too large");
 
     // Create a fake transparent coinbase that should succeed
     let (input, output) = mock_coinbase_transparent_output(transaction_block_height);
@@ -644,7 +717,8 @@ async fn v4_coinbase_transaction_is_accepted() {
     let transaction_hash = transaction.unmined_id();
 
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(fake_state_handler);
+
     let verifier = Verifier::new(network, state_service);
 
     let result = verifier
@@ -653,6 +727,8 @@ async fn v4_coinbase_transaction_is_accepted() {
             known_utxos: Arc::new(HashMap::new()),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, 
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -666,16 +742,17 @@ async fn v4_coinbase_transaction_is_accepted() {
 ///
 /// This test simulates the case where the script verifier rejects the transaction because the
 /// script prevents spending the source UTXO.
+/// Fixed for Komodo with fake_state_handler
 #[tokio::test]
-async fn v4_transaction_with_transparent_transfer_is_rejected_by_the_script() {
+async fn komodo_v4_transaction_with_transparent_transfer_is_rejected_by_the_script() {
     let network = Network::Mainnet;
 
-    let canopy_activation_height = NetworkUpgrade::Canopy
+    let sapling_activation_height = NetworkUpgrade::Sapling
         .activation_height(network)
-        .expect("Canopy activation height is specified");
+        .expect("Sapling activation height is specified");
 
     let transaction_block_height =
-        (canopy_activation_height + 10).expect("transaction block height is too large");
+        (sapling_activation_height + 10).expect("transaction block height is too large");
 
     let fake_source_fund_height =
         (transaction_block_height - 1).expect("fake source fund block height is too small");
@@ -694,7 +771,7 @@ async fn v4_transaction_with_transparent_transfer_is_rejected_by_the_script() {
     };
 
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(/*|_| async { unreachable!("State service should not be called") }*/ fake_state_handler);
     let verifier = Verifier::new(network, state_service);
 
     let result = verifier
@@ -703,6 +780,8 @@ async fn v4_transaction_with_transparent_transfer_is_rejected_by_the_script() {
             known_utxos: Arc::new(known_utxos),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -717,15 +796,15 @@ async fn v4_transaction_with_transparent_transfer_is_rejected_by_the_script() {
 
 /// Test if V4 transaction with an internal double spend of transparent funds is rejected.
 #[tokio::test]
-async fn v4_transaction_with_conflicting_transparent_spend_is_rejected() {
+async fn komodo_v4_transaction_with_conflicting_transparent_spend_is_rejected() {
     let network = Network::Mainnet;
 
-    let canopy_activation_height = NetworkUpgrade::Canopy
+    let sapling_activation_height = NetworkUpgrade::Sapling
         .activation_height(network)
-        .expect("Canopy activation height is specified");
+        .expect("Sapling activation height is specified");
 
     let transaction_block_height =
-        (canopy_activation_height + 10).expect("transaction block height is too large");
+        (sapling_activation_height + 10).expect("transaction block height is too large");
 
     let fake_source_fund_height =
         (transaction_block_height - 1).expect("fake source fund block height is too small");
@@ -753,6 +832,8 @@ async fn v4_transaction_with_conflicting_transparent_spend_is_rejected() {
             known_utxos: Arc::new(known_utxos),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -768,18 +849,18 @@ async fn v4_transaction_with_conflicting_transparent_spend_is_rejected() {
 
 /// Test if V4 transaction with a joinsplit that has duplicate nullifiers is rejected.
 #[test]
-fn v4_transaction_with_conflicting_sprout_nullifier_inside_joinsplit_is_rejected() {
+fn komodo_v4_transaction_with_conflicting_sprout_nullifier_inside_joinsplit_is_rejected() {
     zebra_test::init();
     zebra_test::MULTI_THREADED_RUNTIME.block_on(async {
         let network = Network::Mainnet;
-        let network_upgrade = NetworkUpgrade::Canopy;
+        let network_upgrade = NetworkUpgrade::Sapling;
 
-        let canopy_activation_height = NetworkUpgrade::Canopy
+        let sapling_activation_height = NetworkUpgrade::Sapling
             .activation_height(network)
-            .expect("Canopy activation height is specified");
+            .expect("Sapling activation height is specified");
 
         let transaction_block_height =
-            (canopy_activation_height + 10).expect("transaction block height is too large");
+            (sapling_activation_height + 10).expect("transaction block height is too large");
 
         // Create a fake Sprout join split
         let (mut joinsplit_data, signing_key) = mock_sprout_join_split_data();
@@ -819,6 +900,8 @@ fn v4_transaction_with_conflicting_sprout_nullifier_inside_joinsplit_is_rejected
                 known_utxos: Arc::new(HashMap::new()),
                 height: transaction_block_height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -833,18 +916,18 @@ fn v4_transaction_with_conflicting_sprout_nullifier_inside_joinsplit_is_rejected
 
 /// Test if V4 transaction with duplicate nullifiers across joinsplits is rejected.
 #[test]
-fn v4_transaction_with_conflicting_sprout_nullifier_across_joinsplits_is_rejected() {
+fn komodo_v4_transaction_with_conflicting_sprout_nullifier_across_joinsplits_is_rejected() {
     zebra_test::init();
     zebra_test::MULTI_THREADED_RUNTIME.block_on(async {
         let network = Network::Mainnet;
-        let network_upgrade = NetworkUpgrade::Canopy;
+        let network_upgrade = NetworkUpgrade::Sapling;
 
-        let canopy_activation_height = NetworkUpgrade::Canopy
+        let sapling_activation_height = NetworkUpgrade::Sapling
             .activation_height(network)
-            .expect("Canopy activation height is specified");
+            .expect("Sapling activation height is specified");
 
         let transaction_block_height =
-            (canopy_activation_height + 10).expect("transaction block height is too large");
+            (sapling_activation_height + 10).expect("transaction block height is too large");
 
         // Create a fake Sprout join split
         let (mut joinsplit_data, signing_key) = mock_sprout_join_split_data();
@@ -890,6 +973,8 @@ fn v4_transaction_with_conflicting_sprout_nullifier_across_joinsplits_is_rejecte
                 known_utxos: Arc::new(HashMap::new()),
                 height: transaction_block_height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -903,6 +988,7 @@ fn v4_transaction_with_conflicting_sprout_nullifier_across_joinsplits_is_rejecte
 }
 
 /// Test if V5 transaction with transparent funds is accepted.
+#[ignore] // Nu5 not supported in Komodo
 #[tokio::test]
 async fn v5_transaction_with_transparent_transfer_is_accepted() {
     let network = Network::Testnet;
@@ -935,7 +1021,7 @@ async fn v5_transaction_with_transparent_transfer_is_accepted() {
     let transaction_hash = transaction.unmined_id();
 
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(/*|_| async { unreachable!("State service should not be called") }*/ fake_state_handler);
     let verifier = Verifier::new(network, state_service);
 
     let result = verifier
@@ -944,6 +1030,8 @@ async fn v5_transaction_with_transparent_transfer_is_accepted() {
             known_utxos: Arc::new(known_utxos),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -955,10 +1043,11 @@ async fn v5_transaction_with_transparent_transfer_is_accepted() {
 
 /// Tests if a non-coinbase V5 transaction with the last valid expiry height is
 /// accepted.
+#[ignore] // Nu5 not supported in Komodo
 #[tokio::test]
 async fn v5_transaction_with_last_valid_expiry_height() {
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(fake_state_handler);
     let verifier = Verifier::new(Network::Testnet, state_service);
 
     let block_height = NetworkUpgrade::Nu5
@@ -984,6 +1073,8 @@ async fn v5_transaction_with_last_valid_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -995,10 +1086,11 @@ async fn v5_transaction_with_last_valid_expiry_height() {
 
 /// Tests that a coinbase V5 transaction is accepted only if its expiry height
 /// is equal to the height of the block the transaction belongs to.
+#[ignore]   // Nu5 not supported in komodo
 #[tokio::test]
 async fn v5_coinbase_transaction_expiry_height() {
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(fake_state_handler);
     let verifier = Verifier::new(Network::Testnet, state_service);
 
     let block_height = NetworkUpgrade::Nu5
@@ -1027,6 +1119,8 @@ async fn v5_coinbase_transaction_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1048,6 +1142,8 @@ async fn v5_coinbase_transaction_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1073,6 +1169,8 @@ async fn v5_coinbase_transaction_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1100,6 +1198,8 @@ async fn v5_coinbase_transaction_expiry_height() {
             known_utxos: Arc::new(HashMap::new()),
             height: new_expiry_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1110,6 +1210,7 @@ async fn v5_coinbase_transaction_expiry_height() {
 }
 
 /// Tests if an expired non-coinbase V5 transaction is rejected.
+#[ignore]   // Nu5 not supported in komodo
 #[tokio::test]
 async fn v5_transaction_with_too_low_expiry_height() {
     let state_service =
@@ -1142,6 +1243,8 @@ async fn v5_transaction_with_too_low_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1157,6 +1260,7 @@ async fn v5_transaction_with_too_low_expiry_height() {
 
 /// Tests if a non-coinbase V5 transaction with an expiry height exceeding the
 /// maximum is rejected.
+#[ignore]   // Nu5 not supported in komodo
 #[tokio::test]
 async fn v5_transaction_with_exceeding_expiry_height() {
     let state_service =
@@ -1188,6 +1292,8 @@ async fn v5_transaction_with_exceeding_expiry_height() {
             known_utxos: Arc::new(known_utxos),
             height: block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1203,6 +1309,8 @@ async fn v5_transaction_with_exceeding_expiry_height() {
 }
 
 /// Test if V5 coinbase transaction is accepted.
+/// Fixed for Komodo with fake_state_handler()
+#[ignore]   // Nu5 not supported in komodo
 #[tokio::test]
 async fn v5_coinbase_transaction_is_accepted() {
     let network = Network::Testnet;
@@ -1233,7 +1341,7 @@ async fn v5_coinbase_transaction_is_accepted() {
     let transaction_hash = transaction.unmined_id();
 
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(fake_state_handler);
     let verifier = Verifier::new(network, state_service);
 
     let result = verifier
@@ -1242,6 +1350,8 @@ async fn v5_coinbase_transaction_is_accepted() {
             known_utxos: Arc::new(known_utxos),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1255,6 +1365,8 @@ async fn v5_coinbase_transaction_is_accepted() {
 ///
 /// This test simulates the case where the script verifier rejects the transaction because the
 /// script prevents spending the source UTXO.
+/// Fixed for Komodo with fake_state_handler()
+#[ignore]   // Nu5 not supported in komodo
 #[tokio::test]
 async fn v5_transaction_with_transparent_transfer_is_rejected_by_the_script() {
     let network = Network::Testnet;
@@ -1285,7 +1397,7 @@ async fn v5_transaction_with_transparent_transfer_is_rejected_by_the_script() {
     };
 
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(fake_state_handler);
     let verifier = Verifier::new(network, state_service);
 
     let result = verifier
@@ -1294,6 +1406,8 @@ async fn v5_transaction_with_transparent_transfer_is_rejected_by_the_script() {
             known_utxos: Arc::new(known_utxos),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1307,17 +1421,18 @@ async fn v5_transaction_with_transparent_transfer_is_rejected_by_the_script() {
 }
 
 /// Test if V5 transaction with an internal double spend of transparent funds is rejected.
+#[ignore]   // Nu5 not supported in komodo
 #[tokio::test]
-async fn v5_transaction_with_conflicting_transparent_spend_is_rejected() {
+async fn komodo_v5_transaction_with_conflicting_transparent_spend_is_rejected() {
     let network = Network::Mainnet;
     let network_upgrade = NetworkUpgrade::Nu5;
 
-    let canopy_activation_height = NetworkUpgrade::Canopy
+    let sapling_activation_height = NetworkUpgrade::Sapling
         .activation_height(network)
-        .expect("Canopy activation height is specified");
+        .expect("Sapling activation height is specified");
 
     let transaction_block_height =
-        (canopy_activation_height + 10).expect("transaction block height is too large");
+        (sapling_activation_height + 10).expect("transaction block height is too large");
 
     let fake_source_fund_height =
         (transaction_block_height - 1).expect("fake source fund block height is too small");
@@ -1346,6 +1461,8 @@ async fn v5_transaction_with_conflicting_transparent_spend_is_rejected() {
             known_utxos: Arc::new(known_utxos),
             height: transaction_block_height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1362,6 +1479,7 @@ async fn v5_transaction_with_conflicting_transparent_spend_is_rejected() {
 /// Test if signed V4 transaction with a dummy [`sprout::JoinSplit`] is accepted.
 ///
 /// This test verifies if the transaction verifier correctly accepts a signed transaction.
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks
 #[test]
 fn v4_with_signed_sprout_transfer_is_accepted() {
     zebra_test::init();
@@ -1391,6 +1509,8 @@ fn v4_with_signed_sprout_transfer_is_accepted() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH,
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1405,6 +1525,7 @@ fn v4_with_signed_sprout_transfer_is_accepted() {
 ///
 /// This test verifies if the transaction verifier correctly rejects the transaction because of the
 /// invalid JoinSplit.
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks
 #[test]
 fn v4_with_modified_joinsplit_is_rejected() {
     zebra_test::init();
@@ -1453,17 +1574,19 @@ async fn v4_with_joinsplit_is_rejected_for_modification(
 
     // Initialize the verifier
     let state_service =
-        service_fn(|_| async { unreachable!("State service should not be called") });
+        service_fn(/*|_| async { unreachable!("State service should not be called") }*/ fake_state_handler);
     let verifier = Verifier::new(network, state_service);
 
     // Test the transaction verifier
     let result = verifier
         .clone()
         .oneshot(Request::Block {
-            transaction,
+            transaction: transaction.clone(),
             known_utxos: Arc::new(HashMap::new()),
             height,
             time: chrono::MAX_DATETIME,
+            previous_hash: FAKE_PREV_BLOCK_HASH,
+            last_tx_verify_data: None, // unused
         })
         .await;
 
@@ -1471,6 +1594,7 @@ async fn v4_with_joinsplit_is_rejected_for_modification(
 }
 
 /// Test if a V4 transaction with Sapling spends is accepted by the verifier.
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks
 #[test]
 fn v4_with_sapling_spends() {
     zebra_test::init();
@@ -1500,6 +1624,8 @@ fn v4_with_sapling_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1543,6 +1669,8 @@ fn v4_with_duplicate_sapling_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1556,6 +1684,7 @@ fn v4_with_duplicate_sapling_spends() {
 }
 
 /// Test if a V4 transaction with Sapling outputs but no spends is accepted by the verifier.
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks
 #[test]
 fn v4_with_sapling_outputs_and_no_spends() {
     zebra_test::init();
@@ -1577,7 +1706,7 @@ fn v4_with_sapling_outputs_and_no_spends() {
 
         // Initialize the verifier
         let state_service =
-            service_fn(|_| async { unreachable!("State service should not be called") });
+            service_fn(/*|_| async { unreachable!("State service should not be called") }*/ fake_state_handler);
         let verifier = Verifier::new(network, state_service);
 
         // Test the transaction verifier
@@ -1588,6 +1717,8 @@ fn v4_with_sapling_outputs_and_no_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH,
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1637,6 +1768,8 @@ fn v5_with_sapling_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1648,6 +1781,7 @@ fn v5_with_sapling_spends() {
 }
 
 /// Test if a V5 transaction with a duplicate Sapling spend is rejected by the verifier.
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks 
 #[test]
 fn v5_with_duplicate_sapling_spends() {
     zebra_test::init();
@@ -1681,6 +1815,8 @@ fn v5_with_duplicate_sapling_spends() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -1694,6 +1830,7 @@ fn v5_with_duplicate_sapling_spends() {
 }
 
 /// Test if a V5 transaction with a duplicate Orchard action is rejected by the verifier.
+#[ignore] // Not supported in Komodo due to different network upgrades and blocks
 #[test]
 fn v5_with_duplicate_orchard_action() {
     zebra_test::init();
@@ -1744,6 +1881,8 @@ fn v5_with_duplicate_orchard_action() {
                 known_utxos: Arc::new(HashMap::new()),
                 height,
                 time: chrono::MAX_DATETIME,
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
+                last_tx_verify_data: None, // unused
             })
             .await;
 
@@ -2074,6 +2213,7 @@ fn add_to_sprout_pool_after_nu() {
     );
 }
 
+#[ignore]  // Not supported in Komodo due to different network upgrades and blocks
 #[test]
 fn coinbase_outputs_are_decryptable_for_historical_blocks() -> Result<(), Report> {
     zebra_test::init();
@@ -2244,4 +2384,278 @@ fn shielded_outputs_are_not_decryptable_for_fake_v5_blocks() {
             Err(TransactionError::CoinbaseOutputsNotDecryptable)
         );
     }
+}
+
+
+
+#[test]
+/// These tests should be fully equal to https://github.com/DeckerSU/KomodoOcean/blob/patch-test-isfinaltx/src/test-komodo/test_isfinaltx.cpp .
+fn is_final_tx_komodo_tests() {
+
+    let network = Network::Mainnet;
+
+
+    // let sapling_activation_height = Height(1140409);
+    let sapling_activation_height = NetworkUpgrade::Sapling
+        .activation_height(network)
+        .expect("Sapling activation height is specified");
+
+    let sapling_block_time = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1544835390, 0), Utc);
+
+    // TODO: may be best way will be to somehow call NN::NNDataMain::new() and extract needed data from it, but for now we will use constants
+    let n_staked_december_hardfork_timestamp = DateTime::<Utc>::from_utc(NaiveDateTime::from_timestamp(1576840000, 0), Utc); //December 2019 hardfork 12/20/2019 @ 11:06am (UTC)
+    let n_december_hardfork_height = Height(1670000); //December 2019 hardfork
+    let fake_source_fund_height = sapling_activation_height;
+
+    let tbh = n_december_hardfork_height;
+    let tbt = n_staked_december_hardfork_timestamp;
+
+    // closure implements BuildTransactionTemplate https://github.com/DeckerSU/KomodoOcean/blob/patch-test-isfinaltx/src/test-komodo/test_isfinaltx.cpp#L82
+    let build_transaction_template = | lock_time: LockTime, count_final: u8, count_non_final: u8, default_seq: u32 | -> Transaction {
+
+        let mut fake_inputs: Vec<Input> = vec![];
+        let mut fake_outputs: Vec<Output> = vec![];
+
+        let mut vin_number = 0;
+
+        // adding "final" vins
+        for _n in 1..=count_final {
+            vin_number = vin_number + 1;
+            let prev_txid = [vin_number; 32];
+            let new_outpoint = transparent::OutPoint {
+                hash: Hash(prev_txid),
+                index: vin_number as u32,
+            };
+            let (mut input, _, _) = mock_transparent_transfer(fake_source_fund_height, true, 0);
+            input.set_outpoint(new_outpoint);
+            input.set_sequence(u32::MAX);
+            fake_inputs.push(input);
+        }
+
+        // adding "non-final" vins
+        for _n in 1..=count_non_final {
+            vin_number = vin_number + 1;
+            let prev_txid = [vin_number; 32];
+            let new_outpoint = transparent::OutPoint {
+                hash: Hash(prev_txid),
+                index: vin_number as u32,
+            };
+            let (mut input, _, _) = mock_transparent_transfer(fake_source_fund_height, true, 0);
+            input.set_outpoint(new_outpoint);
+
+            // make sure that passed default_seq is "non-final", if "final" is passed - make it "non-final"
+            let seq = match default_seq {
+                u32::MAX => u32::MAX - 1,
+                _ => default_seq
+            };
+
+            input.set_sequence(seq);
+            fake_inputs.push(input);
+        }
+
+        let (_, output, _) = mock_transparent_transfer(fake_source_fund_height, true, 0);
+        fake_outputs.push(output);
+
+        let tx = Transaction::V4 {
+            inputs: fake_inputs,
+            outputs: fake_outputs,
+            lock_time,
+            expiry_height: (tbh + 1).expect("expiry height is too large"),
+            joinsplit_data: None,
+            sapling_shielded_data: None,
+        };
+
+        tx
+    };
+
+    // println!("{:?}", tbh);
+    // println!("{:?}", build_transaction_template(LockTime::Height(zebra_chain::block::Height(0)), 1, 2, 777));
+
+    /* common cases, when nLockTime = 0 or nLockTime < nBlockHeight | nBlockTime */
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(zebra_chain::block::Height(0)), 1, 1, 0), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh - 1).expect("height is ok")), 1, 1, 0), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt - Duration::seconds(1)), 1, 1, 0), tbh, tbt), Ok(()));
+
+    /* first we will do the test for before December 2019 hardfork values */
+
+    /* before hardfork tx with vin with nSequence == 0xfffffffe treated as final if
+        nLockTime > (nBlockTime | nBlockHeight), such vins considered same way as vins with
+        Sequence == 0xffffffff. all other sequences in vins should be considered same way as in bitcoin,
+        if vin have "non-final" sequence and nLockTime >= (nBlockTime | nBlockHeight) it should be
+        considered as non-final.
+    */
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh + 1).expect("height is ok")), 1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1)), 1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(tbh), 1, 1, u32::MAX - 1), tbh, tbt), Err(TransactionError::LockedUntilAfterBlockHeight(tbh)));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt),   1, 1, u32::MAX - 1), tbh, tbt), Err(TransactionError::LockedUntilAfterBlockTime(tbt)));
+
+    // https://stackoverflow.com/questions/51121446/how-do-i-assert-an-enum-is-a-specific-variant-if-i-dont-care-about-its-fields
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh + 1).expect("height is ok")), 1, 1, 777), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1))        , 1, 1, 777), tbh, tbt), Err(_)));
+
+    // all vins have SEQUENCE_FINAL, so it's final
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1)), 1, 0, u32::MAX - 1), tbh, tbt), Ok(()));
+
+    /* after let's "jump" into hardfork times, we will increase tbh and tbt to match HF times */
+    let tbh = (tbh + 2).expect("height is ok");
+    let tbt = tbt + Duration::seconds(1);
+    // in below tests in komodod we have chainActive.Height() = 1670001, inside komodo_hardfork_active, so HF assumed active,
+    // here to get the same effect we should increase tbh by 2.
+
+    /* after hardfork we consider nSequence == 0xfffffffe as final if nLockTime <= (nBlockTime | nBlockHeight) */
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh - 1).expect("height is ok")), 1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt - Duration::seconds(1)),         1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(tbh), 1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt),   1, 1, u32::MAX - 1), tbh, tbt), Ok(()));
+
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh + 1).expect("height is ok")), 1, 1, u32::MAX - 1), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1))        , 1, 1, u32::MAX - 1), tbh, tbt), Err(_)));
+
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh - 1).expect("height is ok")), 1, 1, 777), tbh, tbt), Ok(()));
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt - Duration::seconds(1)),         1, 1, 777), tbh, tbt), Ok(()));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height(tbh), 1, 1, 777), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt)  , 1, 1, 777), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Height((tbh + 1).expect("height is ok")), 1, 1, 777), tbh, tbt), Err(_)));
+    assert!(matches!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1))        , 1, 1, 777), tbh, tbt), Err(_)));
+
+    // all vins have SEQUENCE_FINAL, so it's final
+    assert_eq!(check::is_final_tx_komodo(network, &build_transaction_template(LockTime::Time(tbt + Duration::seconds(1)), 1, 0, u32::MAX - 1), tbh, tbt), Ok(()));
+}
+
+
+/// Check the predefined set of transactions containing (or not) banned inputs using [`check::tx_has_banned_inputs`].
+#[test]
+fn tx_has_banned_inputs_multiple_tests() {
+    let network = Network::Mainnet;
+
+    let sapling_activation_height = NetworkUpgrade::Sapling
+        .activation_height(network)
+        .expect("Sapling activation height is specified");
+
+    let transaction_block_height =
+        (sapling_activation_height + 10).expect("transaction block height is too large");
+
+    let fake_source_fund_height =
+        (transaction_block_height - 1).expect("fake source fund block height is too small");
+
+    let test_cases: [(&str, u32, Result<(), TransactionError>); 5] = [
+        ("c85dcffb16d5a45bd239021ad33443414d60224760f11d535ae2063e5709efee", 1, Err(TransactionError::BannedInputs)),
+        ("bbd3a3d9b14730991e1066bd7c626ca270acac4127131afe25f877a5a886eb25", 1, Err(TransactionError::BannedInputs)),
+        ("c4ea1462c207547cd6fb6a4155ca6d042b22170d29801a465db5c09fec55b19d", 333, Err(TransactionError::BannedInputs)),
+        ("c85dcffb16d5a45bd239021ad33443414d60224760f11d535ae2063e5709efee", 0, Ok(())),
+        ("0101010101010101010101010101010101010101010101010101010101010101", 0, Ok(())),
+    ];
+
+    for (transaction_id, n, result) in test_cases {
+        let txid: Hash = transaction_id.parse().expect("txid should be correct");
+        let new_outpoint = transparent::OutPoint {
+            hash: txid,
+            index: n,
+        };
+
+        let (mut input, output, _) = mock_transparent_transfer(fake_source_fund_height, true, 0);
+        input.set_outpoint(new_outpoint);
+
+        let tx = Transaction::V4 {
+            inputs: vec![input],
+            outputs: vec![output],
+            lock_time: LockTime::Height(block::Height(0)),
+            expiry_height: (transaction_block_height + 1).expect("expiry height is too large"),
+            joinsplit_data: None,
+            sapling_shielded_data: None,
+        };
+
+        assert_eq!(check::tx_has_banned_inputs(&tx), result);
+    };
+
+}
+
+/// Block #3263485, https://kmdexplorer.io/block/0d57540a4e2562420b7e6eef7d3b52d486e58e12d6fe115f3ddbc751b30d90f4
+/// OP_RETURN calculation check
+#[test]
+fn merkle_opret_calculation() {
+
+    let hashes = [
+        "0db4c219be942611da29836724bd149f5bfd38a34ff7e54bee50b88a348bd486",
+        "baad150093bd566ac323af985215fc84dff1fcbfc52c0398a7c7f5af1943ef8b",
+    ];
+
+    let calculated_root = hashes.into_iter().map(|hash| hash.parse::<Hash>().expect("hash parse is ok")).collect::<Root>(); 
+    let expected_root = Root("08622318f80582f117b8b1421e81eca925afc2743cad610f0b16e0f0740fda82".parse::<Hash>().expect("parse is ok").0
+                                    .into_iter().rev().collect::<Vec<_>>().as_slice().try_into().unwrap());
+
+    let hash  = block::Hash::from(expected_root.0);
+    // println!("hash = {:?}, expected_root = {:?}", hash, expected_root);
+
+    assert_eq!(calculated_root, expected_root);
+
+}
+
+
+/// Tests if a transaction has locktime too early possibly trying to collect extra interest
+#[tokio::test(flavor = "multi_thread")]
+async fn komodo_transaction_locktime_too_early() {
+
+    zebra_test::init();
+
+    // Load komodo sample net blocks
+    let blocks: Vec<Arc<Block>> = zebra_state::komodo_test_helpers::komodo_load_testnet_a_node_1();
+
+    // Create a populated state service
+    let (state_service, _read_state, _latest_chain_tip, _chain_tip_change) =
+        zebra_state::populated_state(blocks.clone(), Network::Testnet).await;
+    
+    let verifier = Verifier::new(Network::Testnet, state_service);
+
+    let last_block = blocks[blocks.len()-1].clone();
+    let last_block_height = last_block.coinbase_height().expect("valid last block height");
+    let lock_time = last_block.header.time - chrono::Duration::seconds(6000);
+
+    let fund_height = (last_block_height - 1).expect("fake source fund block height is too small");
+    let (input, output, _known_utxos) = mock_transparent_transfer(fund_height, true, 0);
+
+    let expiry_height = (last_block_height + 200).expect("valid last block height");
+    let next_height = (last_block_height + 1).expect("valid last block height");
+
+    // Create a non-coinbase V4 tx.
+    let transaction = Transaction::V4 {
+        inputs: vec![input],
+        outputs: vec![output],
+        lock_time: LockTime::Time(lock_time),
+        expiry_height,
+        joinsplit_data: None,
+        sapling_shielded_data: None,
+    };
+    let unmined_transaction = UnminedTx::from(transaction.clone());
+
+    let result = verifier
+        .clone()
+        .oneshot(Request::Mempool {
+            transaction: unmined_transaction,
+            height: next_height,
+            check_low_fee: false,
+            reject_absurd_fee: false,
+        })
+        .await;
+
+    assert!( if let Err(TransactionError::KomodoTxLockTimeTooEarly(_, _)) = result { true } else { false } );
+
+    let result = verifier
+        .clone()
+        .oneshot(Request::Block {
+            transaction: Arc::new(transaction),
+            known_utxos: Arc::new(HashMap::new()),
+            height: next_height,
+            time: chrono::MAX_DATETIME,
+            previous_hash: last_block.hash(),
+            last_tx_verify_data: None,
+        })
+        .await;
+
+    assert!( if let Err(TransactionError::KomodoTxLockTimeTooEarly(_, _)) = result { true } else { false } );
+
 }

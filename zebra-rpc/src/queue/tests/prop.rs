@@ -11,7 +11,7 @@ use tower::ServiceExt;
 use zebra_chain::{
     block::{Block, Height},
     serialization::ZcashDeserializeInto,
-    transaction::{Transaction, UnminedTx},
+    transaction::{Transaction, UnminedTx, UnminedTxWithMempoolParams},
 };
 use zebra_node_services::mempool::{Gossip, Request, Response};
 use zebra_state::{BoxError, ReadRequest, ReadResponse};
@@ -37,7 +37,7 @@ proptest! {
         let mut runner = Queue::start();
 
         // insert transaction
-        runner.queue.insert(transaction.clone());
+        runner.queue.insert(UnminedTxWithMempoolParams::new(transaction.clone(), false, false).into());
 
         // transaction was inserted to queue
         let queue_transactions = runner.queue.transactions();
@@ -57,7 +57,7 @@ proptest! {
         let mut runner = Queue::start();
 
         // insert all transactions we have
-        transactions.iter().for_each(|t| runner.queue.insert(t.clone()));
+        transactions.iter().for_each(|t| runner.queue.insert(UnminedTxWithMempoolParams::new(t.clone(), false, false).into()));
 
         // transaction queue is never above limit
         let queue_transactions = runner.queue.transactions();
@@ -72,10 +72,10 @@ proptest! {
         // fill the queue and check insertion order
         for i in 0..CHANNEL_AND_QUEUE_CAPACITY {
             let transaction = transactions[i].clone();
-            runner.queue.insert(transaction.clone());
+            runner.queue.insert(UnminedTxWithMempoolParams::new(transaction.clone(), false, false).into());
             let queue_transactions = runner.queue.transactions();
             prop_assert_eq!(i + 1, queue_transactions.len());
-            prop_assert_eq!(UnminedTx::from(queue_transactions[i].0.clone()), transaction);
+            prop_assert_eq!(queue_transactions[i].0.clone(), UnminedTxWithMempoolParams::new(transaction, false, false));
         }
 
         // queue is full
@@ -84,17 +84,17 @@ proptest! {
 
         // keep adding transaction, new transactions will always be on top of the queue
         for transaction in transactions.iter().skip(CHANNEL_AND_QUEUE_CAPACITY) {
-            runner.queue.insert(transaction.clone());
+            runner.queue.insert(UnminedTxWithMempoolParams::new(transaction.clone(), false, false).into());
             let queue_transactions = runner.queue.transactions();
             prop_assert_eq!(CHANNEL_AND_QUEUE_CAPACITY, queue_transactions.len());
-            prop_assert_eq!(UnminedTx::from(queue_transactions.last().unwrap().1.0.clone()), transaction.clone());
+            prop_assert_eq!(queue_transactions.last().unwrap().1.0.clone(), UnminedTxWithMempoolParams::new(transaction.clone(), false, false));
         }
 
         // check the order of the final queue
         let queue_transactions = runner.queue.transactions();
         for i in 0..CHANNEL_AND_QUEUE_CAPACITY {
             let transaction = transactions[(CHANNEL_AND_QUEUE_CAPACITY - 8) + i].clone();
-            prop_assert_eq!(UnminedTx::from(queue_transactions[i].0.clone()), transaction);
+            prop_assert_eq!(queue_transactions[i].0.clone(), UnminedTxWithMempoolParams::new(transaction, false, false));
         }
     }
 
@@ -111,7 +111,7 @@ proptest! {
             let mut runner = Queue::start();
 
             // insert a transaction to the queue
-            runner.queue.insert(transaction);
+            runner.queue.insert(UnminedTxWithMempoolParams::new(transaction, false, false).into());
             prop_assert_eq!(runner.queue.transactions().len(), 1);
 
             // have a block interval value equal to the one at Height(1)
@@ -169,7 +169,7 @@ proptest! {
 
             // insert a transaction to the queue
             let unmined_transaction = UnminedTx::from(transaction);
-            runner.queue.insert(unmined_transaction.clone());
+            runner.queue.insert(UnminedTxWithMempoolParams::new(unmined_transaction.clone(), false, false).into());
             let transactions = runner.queue.transactions();
             prop_assert_eq!(transactions.len(), 1);
 
@@ -193,8 +193,8 @@ proptest! {
             prop_assert_eq!(result, HashSet::new());
 
             // insert transaction to the mempool
-            let request = Request::Queue(vec![Gossip::Tx(unmined_transaction.clone())]);
-            let expected_request = Request::Queue(vec![Gossip::Tx(unmined_transaction.clone())]);
+            let request = Request::Queue(vec![Gossip::Tx(UnminedTxWithMempoolParams::new(unmined_transaction.clone(), false, false))]);
+            let expected_request = Request::Queue(vec![Gossip::Tx(UnminedTxWithMempoolParams::new(unmined_transaction.clone(), false, false))]);
             let send_task = tokio::spawn(mempool.clone().oneshot(request));
             let response = Response::Queued(vec![Ok(())]);
 
@@ -250,7 +250,7 @@ proptest! {
 
             // insert a transaction to the queue
             let unmined_transaction = UnminedTx::from(&transaction);
-            runner.queue.insert(unmined_transaction.clone());
+            runner.queue.insert(UnminedTxWithMempoolParams::new(unmined_transaction.clone(), false, false).into());
             prop_assert_eq!(runner.queue.transactions().len(), 1);
 
             // get a `HashSet` of transactions to call state with
@@ -324,7 +324,7 @@ proptest! {
 
             // insert a transaction to the queue
             let unmined_transaction = UnminedTx::from(transaction.clone());
-            runner.queue.insert(unmined_transaction.clone());
+            runner.queue.insert(UnminedTxWithMempoolParams::new(unmined_transaction.clone(), false, false).into());
             let transactions = runner.queue.transactions();
             prop_assert_eq!(transactions.len(), 1);
 
@@ -335,7 +335,7 @@ proptest! {
             let send_task = tokio::spawn(Runner::retry(mempool.clone(), transactions_vec.clone()));
 
             // retry will queue the transaction to mempool
-            let gossip = Gossip::Tx(UnminedTx::from(transaction.clone()));
+            let gossip = Gossip::Tx(UnminedTxWithMempoolParams::new(UnminedTx::from(transaction.clone()), false, false));
             let expected_request = Request::Queue(vec![gossip]);
             let response = Response::Queued(vec![Ok(())]);
 

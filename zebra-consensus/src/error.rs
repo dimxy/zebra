@@ -8,9 +8,9 @@
 use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use zebra_chain::{amount, block, orchard, sapling, sprout, transparent};
+use zebra_chain::{amount::{self, Amount}, block, orchard, sapling, sprout, transparent};
 
-use crate::{block::MAX_BLOCK_SIGOPS, BoxError};
+use crate::{block::MAX_BLOCK_SIGOPS, BoxError, transaction};
 
 #[cfg(any(test, feature = "proptest-impl"))]
 use proptest_derive::Arbitrary;
@@ -31,6 +31,9 @@ pub enum SubsidyError {
 
     #[error("a sum of amounts overflowed")]
     SumOverflow,
+
+    #[error("coinbase pays too much")]
+    KomodoCoinbasePaysTooMuch,
 }
 
 #[derive(Error, Clone, Debug, PartialEq, Eq)]
@@ -177,6 +180,64 @@ pub enum TransactionError {
 
     #[error("must have at least one active orchard flag")]
     NotEnoughFlags,
+
+    #[error("cannot get tip time")]
+    KomodoTipTimeError,
+
+    #[error("komodo transaction locktime {0:?} too early for block height {1:?}")]
+    KomodoTxLockTimeTooEarly(i64, block::Height),
+
+    #[error("cannot get median time past")]
+    KomodoMedianTimePastError,
+    
+    #[error("banned inputs usage attempt")]
+    BannedInputs,
+
+    #[error(
+        "coinbase tx {coinbase_hash:?} at block {block_height:?} \
+         failed bcz of illegal outputs"
+    )]
+    IllegalCoinbaseOutput {
+        block_height: zebra_chain::block::Height,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
+
+    #[error(
+        "coinbase tx {coinbase_hash:?} at block {block_height:?} \
+         failed bcz of strange output"
+    )]
+    CoinbaseStrangeOutput {
+        block_height: zebra_chain::block::Height,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
+
+    #[error(
+        "notaryproof tx {transaction_hash:?} at block {block_height:?} \
+         not match coinbase {coinbase_hash:?}"
+    )]
+    NotaryProofNotMatched {
+        block_height: zebra_chain::block::Height,
+        transaction_hash: zebra_chain::transaction::Hash,
+        coinbase_hash: zebra_chain::transaction::Hash,
+    },
+
+    #[error(
+        "failed or missing merkleroot expected.{expected_root:?} != merkleroot.{opret_root:?} \
+         in tx {transaction_hash:?} at block {block_height:?}
+        "
+    )]
+    FailedMerkleOpretInEasyMined {
+        block_height: zebra_chain::block::Height,
+        transaction_hash: zebra_chain::transaction::Hash,
+        expected_root: block::merkle::Root,
+        opret_root: block::merkle::Root,
+    },
+
+    #[error("komodo low fee transaction rate limit txid {0:?} reason {1:?}")]
+    KomodoLowFeeLimit(zebra_chain::transaction::Hash, String),
+
+    #[error("komodo transaction {0:?} has absurd fee {1:?}")]
+    KomodoAbsurdFee(zebra_chain::transaction::Hash, Amount),
 }
 
 impl From<BoxError> for TransactionError {
@@ -273,6 +334,13 @@ pub enum BlockError {
 
     #[error("summing miner fees for block {height:?} {hash:?} failed: {source:?}")]
     SummingMinerFees {
+        height: zebra_chain::block::Height,
+        hash: zebra_chain::block::Hash,
+        source: amount::Error,
+    },
+
+    #[error("summing interest for block {height:?} {hash:?} failed: {source:?}")]
+    SummingInterest {
         height: zebra_chain::block::Height,
         hash: zebra_chain::block::Hash,
         source: amount::Error,

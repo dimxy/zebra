@@ -162,6 +162,7 @@ async fn mempool_push_transaction() -> Result<(), crate::BoxError> {
         responder.respond(transaction::Response::from(VerifiedUnminedTx::new(
             transaction,
             Amount::zero(),
+            Amount::zero(),
         )));
     });
 
@@ -264,6 +265,7 @@ async fn mempool_advertise_transaction_ids() -> Result<(), crate::BoxError> {
         responder.respond(transaction::Response::from(VerifiedUnminedTx::new(
             transaction,
             Amount::zero(),
+            Amount::zero(),
         )));
     });
 
@@ -362,6 +364,7 @@ async fn mempool_transaction_expiration() -> Result<(), crate::BoxError> {
         // Set a dummy fee.
         responder.respond(transaction::Response::from(VerifiedUnminedTx::new(
             transaction,
+            Amount::zero(),
             Amount::zero(),
         )));
     });
@@ -491,6 +494,7 @@ async fn mempool_transaction_expiration() -> Result<(), crate::BoxError> {
         // Set a dummy fee.
         responder.respond(transaction::Response::from(VerifiedUnminedTx::new(
             transaction,
+            Amount::zero(),
             Amount::zero(),
         )));
     });
@@ -809,6 +813,7 @@ async fn setup(
         sync_status.clone(),
         latest_chain_tip.clone(),
         chain_tip_change.clone(),
+        network,
     );
 
     // Enable the mempool

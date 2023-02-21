@@ -55,7 +55,7 @@ use proptest_derive::Arbitrary;
 /// let max_size: usize = MAX_PROTOCOL_MESSAGE_LEN.try_into().unwrap();
 /// let size = CompactSizeMessage::try_from(max_size).unwrap();
 /// let buf = size.zcash_serialize_to_vec().unwrap();
-/// assert_eq!(buf, b"\xfe\x00\x00\x20\x00");
+/// assert_eq!(buf, b"\xfe\x18\x00\x40\x00"); // fixed for komodo MAX_PROTOCOL_MESSAGE_LEN
 /// ```
 ///
 /// [`CompactSizeMessage`]s greater than the maximum network message length
@@ -95,7 +95,7 @@ use proptest_derive::Arbitrary;
 /// let max_size: usize = MAX_PROTOCOL_MESSAGE_LEN.try_into().unwrap();
 /// assert_eq!(
 ///     CompactSizeMessage::try_from(max_size).unwrap(),
-///     Cursor::new(b"\xfe\x00\x00\x20\x00").zcash_deserialize_into().unwrap(),
+///     Cursor::new(b"\xfe\x18\x00\x40\x00").zcash_deserialize_into().unwrap(),  // fixed for komodo MAX_PROTOCOL_MESSAGE_LEN
 /// );
 /// ```
 ///
@@ -104,7 +104,7 @@ use proptest_derive::Arbitrary;
 /// ```
 /// # use zebra_chain::serialization::{CompactSizeMessage, ZcashDeserialize, MAX_PROTOCOL_MESSAGE_LEN};
 /// # use std::{convert::TryFrom, io::Cursor};
-/// let max_size_plus_one = Cursor::new(b"\xfe\x01\x00\x20\x00");
+/// let max_size_plus_one = Cursor::new(b"\xfe\x19\x00\x40\x00");   // fixed for komodo MAX_PROTOCOL_MESSAGE_LEN
 /// assert!(CompactSizeMessage::zcash_deserialize(max_size_plus_one).is_err());
 ///
 /// let bytes = Cursor::new(b"\xfe\xfd\xaa\xbb\x00");
@@ -152,11 +152,11 @@ pub struct CompactSizeMessage(
 /// let max_size = u64::try_from(MAX_PROTOCOL_MESSAGE_LEN).unwrap();
 /// let size = CompactSize64::from(max_size);
 /// let buf = size.zcash_serialize_to_vec().unwrap();
-/// assert_eq!(buf, b"\xfe\x00\x00\x20\x00");
+/// assert_eq!(buf, b"\xfe\x18\x00\x40\x00");   // fixed for komodo MAX_PROTOCOL_MESSAGE_LEN
 ///
 /// let size = CompactSize64::from(max_size + 1);
 /// let buf = size.zcash_serialize_to_vec().unwrap();
-/// assert_eq!(buf, b"\xfe\x01\x00\x20\x00");
+/// assert_eq!(buf, b"\xfe\x19\x00\x40\x00");   // fixed for komodo MAX_PROTOCOL_MESSAGE_LEN
 ///
 /// let size = CompactSize64::from(0xbbaafd);
 /// let buf = size.zcash_serialize_to_vec().unwrap();
@@ -191,12 +191,12 @@ pub struct CompactSizeMessage(
 /// let max_size = u64::try_from(MAX_PROTOCOL_MESSAGE_LEN).unwrap();
 /// assert_eq!(
 ///     CompactSize64::from(max_size),
-///     Cursor::new(b"\xfe\x00\x00\x20\x00").zcash_deserialize_into().unwrap(),
+///     Cursor::new(b"\xfe\x18\x00\x40\x00").zcash_deserialize_into().unwrap(),
 /// );
 ///
 /// assert_eq!(
 ///     CompactSize64::from(max_size + 1),
-///     Cursor::new(b"\xfe\x01\x00\x20\x00").zcash_deserialize_into().unwrap(),
+///     Cursor::new(b"\xfe\x19\x00\x40\x00").zcash_deserialize_into().unwrap(),
 /// );
 ///
 /// assert_eq!(

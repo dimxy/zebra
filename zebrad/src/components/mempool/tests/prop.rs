@@ -251,6 +251,7 @@ fn setup(
         sync_status,
         latest_chain_tip,
         chain_tip_change,
+        network,
     );
 
     (
@@ -290,6 +291,7 @@ impl FakeChainTip {
                     time: previous.time + mock_block_time_delta,
                     transaction_hashes: chain_tip_block.transaction_hashes.clone(),
                     previous_block_hash: previous.hash,
+                    mtp: -1,
                 }
             }
 

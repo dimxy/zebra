@@ -9,6 +9,7 @@ use proptest::{collection::vec, prelude::*};
 use thiserror::Error;
 use tower::buffer::Buffer;
 
+use tracing::Span;
 use zebra_chain::{
     amount::{Amount, NonNegative},
     block::{Block, Height},
@@ -18,7 +19,7 @@ use zebra_chain::{
         NetworkUpgrade,
     },
     serialization::{ZcashDeserialize, ZcashSerialize},
-    transaction::{self, Transaction, UnminedTx, UnminedTxId},
+    transaction::{self, Transaction, UnminedTx, UnminedTxId, UnminedTxWithMempoolParams},
     transparent,
 };
 use zebra_node_services::mempool;
@@ -29,6 +30,11 @@ use zebra_test::mock_service::MockService;
 use super::super::{
     AddressBalance, AddressStrings, NetworkUpgradeStatus, Rpc, RpcImpl, SentTransactionHash,
 };
+
+use std::sync::Arc;
+use zebra_network::AddressBook;
+use std::net::SocketAddr;
+use std::str::FromStr;
 
 proptest! {
     /// Test that when sending a raw transaction, it is received by the mempool service.
@@ -45,6 +51,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
             let hash = SentTransactionHash(transaction.hash());
 
@@ -56,7 +63,7 @@ proptest! {
             let send_task = tokio::spawn(rpc.send_raw_transaction(transaction_hex));
 
             let unmined_transaction = UnminedTx::from(transaction);
-            let expected_request = mempool::Request::Queue(vec![unmined_transaction.into()]);
+            let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(unmined_transaction, false, true).into()]);
             let response = mempool::Response::Queued(vec![Ok(())]);
 
             mempool
@@ -97,6 +104,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let transaction_bytes = transaction
@@ -107,7 +115,7 @@ proptest! {
             let send_task = tokio::spawn(rpc.send_raw_transaction(transaction_hex));
 
             let unmined_transaction = UnminedTx::from(transaction);
-            let expected_request = mempool::Request::Queue(vec![unmined_transaction.into()]);
+            let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(unmined_transaction, false, true).into()]);
 
             mempool
                 .expect_request(expected_request)
@@ -154,6 +162,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let transaction_bytes = transaction
@@ -164,7 +173,7 @@ proptest! {
             let send_task = tokio::spawn(rpc.send_raw_transaction(transaction_hex));
 
             let unmined_transaction = UnminedTx::from(transaction);
-            let expected_request = mempool::Request::Queue(vec![unmined_transaction.into()]);
+            let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(unmined_transaction, false, true).into()]);
             let response = mempool::Response::Queued(vec![Err(DummyError.into())]);
 
             mempool
@@ -219,6 +228,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let send_task = tokio::spawn(rpc.send_raw_transaction(non_hex_string));
@@ -273,6 +283,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let send_task = tokio::spawn(rpc.send_raw_transaction(hex::encode(random_bytes)));
@@ -325,6 +336,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let call_task = tokio::spawn(rpc.get_raw_mempool());
@@ -380,6 +392,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let send_task = tokio::spawn(rpc.get_raw_transaction(non_hex_string, 0));
@@ -436,6 +449,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let send_task = tokio::spawn(rpc.get_raw_transaction(hex::encode(random_bytes), 0));
@@ -481,6 +495,7 @@ proptest! {
             Buffer::new(state.clone(), 1),
             NoChainTip,
             network,
+            Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
         );
 
         let response = rpc.get_blockchain_info();
@@ -529,6 +544,7 @@ proptest! {
             Buffer::new(state.clone(), 1),
             chain_tip,
             network,
+            Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
         );
         let response = rpc.get_blockchain_info();
 
@@ -613,6 +629,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 chain_tip,
                 network,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             // Build the future to call the RPC
@@ -674,6 +691,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 chain_tip,
                 network,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let address_strings = AddressStrings {
@@ -723,6 +741,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             // send a transaction
@@ -733,7 +752,7 @@ proptest! {
             let send_task = tokio::spawn(rpc.send_raw_transaction(tx_hex));
 
             let tx_unmined = UnminedTx::from(tx);
-            let expected_request = mempool::Request::Queue(vec![tx_unmined.clone().into()]);
+            let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(tx_unmined.clone(), false, true).into()]);
 
             // fail the mempool insertion
             mempool
@@ -772,7 +791,7 @@ proptest! {
 
             // now a retry will be sent to the mempool
             let expected_request =
-                mempool::Request::Queue(vec![mempool::Gossip::Tx(tx_unmined.clone())]);
+                mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(tx_unmined.clone(), false, true).into()]);
             let response = mempool::Response::Queued(vec![Ok(())]);
 
             mempool
@@ -810,6 +829,7 @@ proptest! {
                 Buffer::new(state.clone(), 1),
                 NoChainTip,
                 Mainnet,
+                Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
             );
 
             let mut transactions_hash_set = HashSet::new();
@@ -822,7 +842,7 @@ proptest! {
                 let send_task = tokio::spawn(rpc.send_raw_transaction(tx_hex));
 
                 let tx_unmined = UnminedTx::from(tx.clone());
-                let expected_request = mempool::Request::Queue(vec![tx_unmined.clone().into()]);
+                let expected_request = mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(tx_unmined.clone(), false, true).into()]);
 
                 // insert to hs we will use later
                 transactions_hash_set.insert(tx_unmined.id);
@@ -869,7 +889,7 @@ proptest! {
             // each transaction will be retried
             for tx in txs.clone() {
                 let expected_request =
-                    mempool::Request::Queue(vec![mempool::Gossip::Tx(UnminedTx::from(tx))]);
+                    mempool::Request::Queue(vec![UnminedTxWithMempoolParams::new(UnminedTx::from(tx), false, true).into()]);
                 let response = mempool::Response::Queued(vec![Ok(())]);
 
                 mempool

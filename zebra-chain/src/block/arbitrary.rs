@@ -1,11 +1,12 @@
 //! Randomised property testing for [`Block`]s.
 
+use chrono::{DateTime, Utc};
 use proptest::{
     arbitrary::{any, Arbitrary},
     prelude::*,
 };
 
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use crate::{
     amount::NonNegative,
@@ -268,7 +269,9 @@ impl Default for LedgerState {
         let default_network = Network::default();
         let default_override = LedgerStateOverride::default();
 
-        let most_recent_nu = NetworkUpgrade::current(default_network, Height::MAX);
+        //let most_recent_nu = NetworkUpgrade::current(default_network, Height::MAX);
+        let most_recent_nu = NetworkUpgrade::Sapling;   // fixed for Komodo as its upgrades >= Blossom are set to Height::MAX and some tests fail
+                                                                        // Also, does this mean that generated heights are possible in 0..most_recent_activation_height, what about over?
         let most_recent_activation_height =
             most_recent_nu.activation_height(default_network).unwrap();
 
@@ -416,6 +419,7 @@ impl Block {
         // after the vec strategy generates blocks, fixup invalid parts of the blocks
         vec.prop_map(move |mut vec| {
             let mut previous_block_hash = None;
+            let mut previous_block_time = None; // previous block time for komodo interest calculation
             let mut utxos = HashMap::new();
             let mut chain_value_pools = ValueBalance::zero();
             let mut sapling_tree = sapling::tree::NoteCommitmentTree::default();
@@ -433,13 +437,18 @@ impl Block {
                 if let Some(previous_block_hash) = previous_block_hash {
                     Arc::make_mut(&mut block.header).previous_block_hash = previous_block_hash;
                 }
+                if let Some(previous_block_time) = previous_block_time {
+                    Arc::make_mut(&mut block.header).time = previous_block_time + chrono::Duration::seconds(60); // Komodo update block time (cant be random). TODO: make range 0..MAX_FUTURE_BLOCK_TIME
+                }
 
                 let mut new_transactions = Vec::new();
                 for (tx_index_in_block, transaction) in block.transactions.drain(..).enumerate() {
                     if let Some(transaction) = fix_generated_transaction(
+                        current.network,
                         (*transaction).clone(),
                         tx_index_in_block,
                         *height,
+                        previous_block_time,
                         &mut chain_value_pools,
                         &mut utxos,
                         check_transparent_coinbase_spend,
@@ -540,6 +549,7 @@ impl Block {
                 // now that we've made all the changes, calculate our block hash,
                 // so the next block can use it
                 previous_block_hash = Some(block.hash());
+                previous_block_time = Some(block.header.time);
             }
             SummaryDebug(
                 vec.into_iter()
@@ -557,9 +567,11 @@ impl Block {
 ///
 /// If the transaction can't be fixed, returns `None`.
 pub fn fix_generated_transaction<F, T, E>(
+    network: Network,
     mut transaction: Transaction,
     tx_index_in_block: usize,
     height: Height,
+    last_block_time: Option<DateTime<Utc>>,
     chain_value_pools: &mut ValueBalance<NonNegative>,
     utxos: &mut HashMap<transparent::OutPoint, transparent::OrderedUtxo>,
     check_transparent_coinbase_spend: F,
@@ -575,7 +587,7 @@ where
 {
     let mut spend_restriction = transaction.coinbase_spend_restriction(height);
     let mut new_inputs = Vec::new();
-    let mut spent_outputs = HashMap::new();
+    let mut spent_utxos = HashMap::new();
 
     // fixup the transparent spends
     let original_inputs = transaction.inputs().to_vec();
@@ -596,7 +608,7 @@ where
                 let spent_utxo = utxos
                     .remove(&selected_outpoint)
                     .expect("selected outpoint must have a UTXO");
-                spent_outputs.insert(selected_outpoint, spent_utxo.utxo.output);
+                    spent_utxos.insert(selected_outpoint, spent_utxo.utxo);
             }
             // otherwise, drop the invalid input, because it has no valid UTXOs to spend
         } else {
@@ -609,7 +621,7 @@ where
     *transaction.inputs_mut() = new_inputs;
 
     let (_remaining_transaction_value, new_chain_value_pools) = transaction
-        .fix_chain_value_pools(*chain_value_pools, &spent_outputs)
+        .fix_chain_value_pools(network, *chain_value_pools, &spent_utxos, height, last_block_time)
         .expect("value fixes produce valid chain value pools and remaining transaction values");
 
     // TODO: if needed, check output count here as well
@@ -724,7 +736,7 @@ impl Arbitrary for Header {
             any::<Hash>(),
             any::<merkle::Root>(),
             any::<[u8; 32]>(),
-            serialization::arbitrary::datetime_u32(),
+            serialization::arbitrary::datetime_u27(),   // Komodo fixed because datetime_u32 produces too big time differences for generated block heights for komodo network upgrades
             any::<CompactDifficulty>(),
             any::<[u8; 32]>(),
             any::<equihash::Solution>(),

@@ -9,24 +9,26 @@ use std::{
     task::{Context, Poll},
 };
 
-use chrono::{DateTime, Utc, Date};
+use chrono::{DateTime, Utc, Duration};
 use futures::{
     stream::{FuturesUnordered, StreamExt},
     FutureExt,
 };
+
 use tower::{timeout::Timeout, Service, ServiceExt};
 use tracing::Instrument;
 
 use zebra_chain::{
-    amount::{Amount, NonNegative, NegativeAllowed, COIN},
-    block, orchard,
+    amount::{Amount, NonNegative, Error as AmountError, NegativeAllowed},
+    block::{self, Block}, orchard,
     parameters::{Network, NetworkUpgrade},
-    primitives::Groth16Proof,
+    primitives::{Groth16Proof},
     sapling,
     transaction::{
-        self, HashType, SigHash, Transaction, UnminedTx, UnminedTxId, VerifiedUnminedTx,
+        self, HashType, SigHash, Transaction, UnminedTx, UnminedTxId, VerifiedUnminedTx, LockTime,
     },
-    transparent::{self, OrderedUtxo},
+    transparent::{self, OrderedUtxo}, komodo_hardfork::NN, interest::KOMODO_MAXMEMPOOLTIME, work::difficulty::{CompactDifficulty},
+    serialization::ZcashSerialize,
 };
 
 use zebra_script::CachedFfiTransaction;
@@ -34,9 +36,14 @@ use zebra_state as zs;
 use zs::HashOrHeight;
 
 use crate::{error::TransactionError, groth16::DescriptionWrapper, primitives, script, BoxError};
-use crate::{interest::*};
 
 pub mod check;
+mod komodo_fee_check;
+
+use komodo_fee_check::{FeeRate, DEFAULT_MIN_RELAY_TX_FEE};
+
+use self::komodo_fee_check::TX_RATE_LIMITER;
+
 #[cfg(test)]
 mod tests;
 
@@ -66,6 +73,9 @@ pub struct Verifier<ZS> {
     network: Network,
     state: Timeout<ZS>,
     script_verifier: script::Verifier,
+
+    /// komodo tx min relay tx fee calc 
+    min_relay_txfee: FeeRate,
 }
 
 impl<ZS> Verifier<ZS>
@@ -79,9 +89,78 @@ where
             network,
             state: Timeout::new(state, UTXO_LOOKUP_TIMEOUT),
             script_verifier: script::Verifier::default(),
+            min_relay_txfee: FeeRate::new(Amount::try_from(DEFAULT_MIN_RELAY_TX_FEE).expect("valid min fee default")),
+        }
+    }
+
+    /// create request to await for the last block and return its time
+    fn get_last_block_time(state: &Timeout<ZS>, req: &Request) -> impl Future<Output = Result<DateTime<Utc>, TransactionError>>  {
+        let state = state.clone();
+    
+        let req = req.clone();
+        async move {
+            match req {
+                Request::Block { previous_hash, .. } => {
+                    let query = state.oneshot(
+                        zebra_state::Request::AwaitBlock(
+                            previous_hash
+                        ));
+    
+                    match query.await?  {
+                        zebra_state::Response::Block(Some(last_block)) => {
+                            Ok(last_block.header.time)
+                        },
+                        zebra_state::Response::Block(None) => { tracing::info!("cannot await for previous block {:?}", previous_hash);  Err(TransactionError::KomodoTipTimeError) },
+                        _ => unreachable!("Incorrect response from state service"),
+                    }    
+                },
+                Request::Mempool { .. } => {
+                    let query = state.oneshot(
+                        zebra_state::Request::Block(HashOrHeight::Height(
+                            (req.height() - 1).expect("current block height should be always valid")
+                        )));
+                    match query.await?    {
+                        zebra_state::Response::Block(Some(last_block)) => {
+                            Ok(last_block.header.time)
+                        },
+                        zebra_state::Response::Block(None) => { tracing::info!("cannot get block {:?}", req.height() - 1);  Err(TransactionError::KomodoTipTimeError) }, 
+                        _ => unreachable!("Incorrect response from state service"),
+                    }
+                },
+            }
+        }
+    }
+
+    /// create request to state to obtain median time past
+    fn get_median_time_past(state: &Timeout<ZS>, block_hash: Option<block::Hash>) -> impl Future<Output = Result<DateTime<Utc>, TransactionError>>   {
+
+        let state = state.clone();
+    
+        async move {
+            if let Some(block_hash) = block_hash {
+                let state = state.clone();
+                // wait for the block to be added in the chain
+                let query = state.oneshot(
+                    zebra_state::Request::AwaitBlock(
+                        block_hash
+                    ));
+                query.await?;
+            }
+            let query = state.oneshot(zebra_state::Request::GetMedianTimePast(block_hash));
+
+            match query.await? {
+                zebra_state::Response::MedianTimePast(Some(median_time_past)) => {
+                    Ok(median_time_past)
+                },
+                zebra_state::Response::MedianTimePast(None) => { tracing::info!("cannot get MedianTimePast");  Err(TransactionError::KomodoMedianTimePastError)  }, 
+                _ => unreachable!("Incorrect response from state service"),
+            }
         }
     }
 }
+
+/// additional data needed for verification last transaction in block (added by Komodo)
+type LastTxDataVerify = (Arc<Transaction>, CompactDifficulty, block::merkle::Root);
 
 /// Specifies whether a transaction should be verified as part of a block or as
 /// part of the mempool.
@@ -100,6 +179,10 @@ pub enum Request {
         height: block::Height,
         /// The time that the block was mined.
         time: DateTime<Utc>,
+        /// previous block hash (komodo added)
+        previous_hash: block::Hash,
+        /// various data encapsulated in tuple, needed for last tx in the block verification, should be Some(...) only for last tx
+        last_tx_verify_data: Option<LastTxDataVerify>,
     },
     /// Verify the supplied transaction as part of the mempool.
     ///
@@ -114,6 +197,12 @@ pub enum Request {
         /// The next block is the first block that could possibly contain a
         /// mempool transaction.
         height: block::Height,
+
+        /// komodo added: check if tx fee is below limit (true for txns sent from remote nodes)
+        check_low_fee: bool,
+
+        /// komodo added: check if tx fee is too high (true for txns created locally)
+        reject_absurd_fee: bool,
     },
 }
 
@@ -145,6 +234,9 @@ pub enum Response {
         /// The number of legacy signature operations in this transaction's
         /// transparent inputs and outputs.
         legacy_sigop_count: u64,
+
+        /// komodo interest for tx
+        interest: Option<Amount<NonNegative>>,
     },
 
     /// A response to a mempool transaction verification request.
@@ -230,6 +322,14 @@ impl Request {
             Request::Mempool { .. } => true,
         }
     }
+
+    /// Returns the coinbase if it's block request and it's passed.
+    pub fn get_last_tx_verify_data(&self) -> Option<LastTxDataVerify> {
+        match self {
+            Request::Block { last_tx_verify_data, .. } => last_tx_verify_data.clone(),
+            _ => None
+        }
+    }
 }
 
 impl Response {
@@ -280,6 +380,16 @@ impl Response {
             Response::Mempool { .. } => true,
         }
     }
+
+    /// The komodo interest for the transaction in this response.
+    ///
+    /// Coinbase transactions do not have a miner fee.
+    pub fn komodo_interest(&self) -> Option<Amount<NonNegative>> {
+        match self {
+            Response::Block { interest, .. } => *interest,
+            Response::Mempool { transaction, .. } => Some(transaction.interest),
+        }
+    }
 }
 
 impl<ZS> Service<Request> for Verifier<ZS>
@@ -301,6 +411,7 @@ where
         let script_verifier = self.script_verifier;
         let network = self.network;
         let state = self.state.clone();
+        let min_relay_txfee = self.min_relay_txfee.clone();
 
         let tx = req.transaction();
         let tx_id = req.tx_id();
@@ -311,7 +422,7 @@ where
 
             // Do basic checks first
             if let Some(block_time) = req.block_time() {
-                check::lock_time_has_passed(&tx, req.height(), block_time)?;
+                check::is_final_tx_komodo(network, &tx, req.height(), block_time)?;
             }
 
             check::has_inputs_and_outputs(&tx)?;
@@ -346,24 +457,35 @@ where
 
             check::spend_conflicts(&tx)?;
 
-            // Load last block from state and read its time, in case of mempool request
-            // (in this case req.height() contains the next block height after last tip)
-
-            let mut last_tip_blocktime: Option<DateTime<Utc>> = None;
-            if req.is_mempool() {
-                let query = state.clone().oneshot(
-                    zebra_state::Request::Block(HashOrHeight::Height(
-                        (req.height() - 1).expect("current block height should be always valid")
-                    )));
-
-                last_tip_blocktime = match query.await? {
-                    zebra_state::Response::Block(Some(last_block)) => {
-                        Some(last_block.header.time)
-                    },
-                    zebra_state::Response::Block(None) => None, // missing best block from state?
-                    _ => unreachable!("Incorrect response from state service"),
-                };
-            }
+            // Validate that tx locktime is not too early to prevent cheating with the beginning of komodo interest calculation period 
+            let _ = match req.clone() {
+                Request::Mempool { transaction, height, .. } => {
+                    let query = Verifier::<ZS>::get_median_time_past(&state, None);
+                    let cmp_time = query.await? + Duration::seconds(777); 
+                    komodo_validate_interest_locktime(network, &transaction.transaction, height, cmp_time)?;
+                    
+                },
+                Request::Block { transaction, height, time, previous_hash, .. } => {
+                    let mut cmp_time = time; 
+                    if NN::komodo_is_gap_after_second_block_allowed(network, &height) {
+                        let query = Verifier::<ZS>::get_median_time_past(&state, Some(previous_hash));
+                        let mtp = query.await?;
+                        cmp_time = mtp + Duration::seconds(777); // HF22 - check interest validation against prev_block's MedianTimePast + 777 
+                    }
+                    komodo_validate_interest_locktime(network, &transaction, height, cmp_time)?;
+                },
+            };
+                        
+            let last_tip_blocktime = if !tx.is_coinbase() {
+                // Request the tip block from the state and read its time to calculate komodo interest
+                let query = Verifier::<ZS>::get_last_block_time(&state, &req);
+                Some(query.await?)
+            } else {
+                None
+            };
+            
+            // tx shouldn't have banned inputs
+            check::tx_has_banned_inputs(&tx)?;
 
             // "The consensus rules applied to valueBalance, vShieldedOutput, and bindingSig
             // in non-coinbase transactions MUST also be applied to coinbase transactions."
@@ -378,6 +500,11 @@ where
             // Load spent UTXOs from state.
             let (spent_utxos, spent_outputs) =
                 Self::spent_utxos(tx.clone(), req.known_utxos(), state).await?;
+
+            // combined `komodo_check_deposit` and `komodo_checkopret` implementation (banned inputs is not part of the this check)
+            if let Some(last_tx_verify_data)= req.get_last_tx_verify_data() {
+                check::komodo_check_deposit_and_opret(&tx, &spent_utxos, &last_tx_verify_data, network, req.height())?;
+            }
 
             let cached_ffi_transaction =
                 Arc::new(CachedFfiTransaction::new(tx.clone(), spent_outputs));
@@ -417,119 +544,43 @@ where
             async_checks.check().await?;
 
             // Get the `value_balance` to calculate the transaction fee.
-            let value_balance = tx.value_balance(&spent_utxos);
-
-            if let Ok(vb) = value_balance {
-                // !DEBUG
-                // vb: tx.value_balance(... [Outpoint, Utxo]) -> tx.value_balance_from_outputs(... [Outpoint, Output])
-                // tx.transparent_value_balance_from_outputs(... [Outpoint, Output])
-                let block_height = req.height();
-                let block_time = req.block_time();
-                let txid = tx.hash();
-                let spent_utxos_count = spent_utxos.len();
-
-                // transparent_value_balance_from_utxos (!)
-                // 1. input_value (interest included)
-                // 2. output_value
-                // 3. return (input_value - output_value)
-
-                // let input_value = tx
-                //     .inputs()
-                //     .iter()
-                //     .map(|i| i.value(&spent_utxos))
-                //     .sum::<Result<Amount<NonNegative>, zebra_chain::amount::Error>>()
-                //     .unwrap_or(Amount::zero());
-                //     // .constrain::<NegativeAllowed>()
-                //     // .expect("conversion from NonNegative to NegativeAllowed is always valid");
-
-                // let output_value = tx
-                //     .outputs()
-                //     .iter()
-                //     .map(|o| o.value())
-                //     .sum::<Result<Amount<NonNegative>, zebra_chain::amount::Error>>()
-                //     .unwrap_or(Amount::zero());
-
-                let interest_value = tx
-                    .inputs()
-                    .iter()
-                    .map(|i| -> Amount<NonNegative> {
-                        // Input::value(...) : spent_utxos: &HashMap<OutPoint, utxo::Utxo>
-                        if let Some(outpoint) = i.outpoint()
-                        {
-
-                            let utxo = spent_utxos
-                                .get(&outpoint)
-                                .expect("provided Utxos don't have spent OutPoint");
-
-                            let tx_height = utxo.height;
-                            let lock_time = utxo.lock_time;
-
-                            let mut interest = Amount::zero();
-                            if block_height > block::Height(60_000) {
-                                if utxo.output.value() >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()
-                                {
-                                    // TODO! if req is Request::Mempool, block_time = req.block_time() will be None,
-                                    // in this case seems we should calculate interest against last tip (?) time
-                                    // ... look at the GetValueIn call in AcceptToMemory pool.
-
-                                    // Also don't forget about validating tx.lock_time field consensus rule with
-                                    // komodo_validate_interest.
-
-                                    let tip_time = if let Some(block_time) = block_time {
-                                        Some(block_time)
-                                    } else {
-                                        last_tip_blocktime
-                                    };
-
-                                    interest = komodo_interest(tx_height, utxo.output.value(), lock_time, tip_time);
-                                }
-                            }
-
-                            interest
-
-                        } else {
-                            Amount::zero() // Coinbase. input (i) is Input::Coinbase (i.e. not Input::PrevOut),
-                                           // i.e. no previous output transaction reference (coins created from mining)
-                        }
-                    })
-                    .sum::<Result<Amount<NonNegative>, zebra_chain::amount::Error>>()
-                    .unwrap_or(Amount::zero());
-
-                if interest_value > Amount::<NonNegative>::zero()
-                {
-                    tracing::info!(?block_height, ?block_time, "check against");
-                    tracing::info!(?txid, ?spent_utxos_count, ?vb, "check what");
-                    tracing::info!(?interest_value, "check values");
-                }
-
-                // as we have interest_value calculated we can add it to vb.transparent (!) as a part of
-                // input value
-            }
+            let value_balance = tx.value_balance(network, &spent_utxos, req.height(), last_tip_blocktime);
+            // also get dedicated interest value for checking it
+            let value_interest = tx.komodo_interest_tx(network, &spent_utxos, req.height(), last_tip_blocktime);
 
             // Calculate the fee only for non-coinbase transactions.
             let mut miner_fee = None;
-            // if !tx.is_coinbase() {
-            //     // TODO: deduplicate this code with remaining_transaction_value (#TODO: open ticket)
-            //     miner_fee = match value_balance {
-            //         Ok(vb) => match vb.remaining_transaction_value() {
-            //             Ok(tx_rtv) => Some(tx_rtv),
-            //             Err(_) => return Err(TransactionError::IncorrectFee),
-            //         },
-            //         Err(_) => return Err(TransactionError::IncorrectFee),
-            //     };
-            // }
+            if !tx.is_coinbase() {
+                // TODO: deduplicate this code with remaining_transaction_value (#TODO: open ticket)
+                miner_fee = match value_balance {
+                    Ok(vb) => match vb.remaining_transaction_value() {
+                        Ok(tx_rtv) => Some(tx_rtv),
+                        Err(_) => { tracing::info!("remaining_transaction_value is error"); return Err(TransactionError::IncorrectFee) },
+                    },
+                    Err(_) => { tracing::info!("value_balance is error");  return Err(TransactionError::IncorrectFee) },
+                };
+
+                // for mempool check miner fee (too low or absurd), if requested
+                if let Some(miner_fee) = miner_fee  { 
+                    if let Request::Mempool { check_low_fee, reject_absurd_fee, .. } = req {
+                        komodo_miner_fee_valid_for_mempool(min_relay_txfee, &tx, miner_fee.constrain().expect("miner fee conversion to NegativeAllowed must be okay"), check_low_fee, reject_absurd_fee)?;
+                    }
+                }
+            }
 
             let rsp = match req {
                 Request::Block { .. } => Response::Block {
                     tx_id,
                     miner_fee,
                     legacy_sigop_count: cached_ffi_transaction.legacy_sigop_count()?,
+                    interest: Some(value_interest),
                 },
                 Request::Mempool { transaction, .. } => Response::Mempool {
                     transaction: VerifiedUnminedTx::new(
                         transaction,
-                        miner_fee.unwrap_or(Amount::zero())
-                        //expect("unexpected mempool coinbase transaction: should have already rejected",),
+                        miner_fee // unwrap_or(Amount::zero()),
+                            .expect("unexpected mempool coinbase transaction: should have already rejected"),
+                        value_interest,
                     ),
                 },
             };
@@ -1155,3 +1206,58 @@ where
         AsyncChecks(iterator.into_iter().map(FutureExt::boxed).collect())
     }
 }
+
+/// validate tx lock time so it has not stayed in mempool for a long time 
+/// to prevent cheating with the tx lock time, which is actually the start of interest period, to get extra interest value
+pub fn komodo_validate_interest_locktime(network: Network, tx: &Transaction, tx_height: block::Height, cmp_time: DateTime<Utc>) -> Result<(), TransactionError> {
+
+    if let Some(lock_time) = tx.raw_lock_time() {       // in komodo we should not use zcash's special lock_time()
+        if let LockTime::Time(lock_time) = lock_time {  
+            if NN::komodo_interest_validate_locktime_active(network, &tx_height)  {
+                let mut cmp_time_adj = cmp_time;
+                if NN::komodo_interest_adjust_max_mempool_time_active(network, &tx_height)  {
+                    cmp_time_adj -= Duration::seconds(16000);
+                }
+                if lock_time < cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME)   {
+                    tracing::info!("komodo_validate_interest_locktime reject tx {:?} for ht={:?} too early secs {} locktime {} cmp_time {}\n", tx.hash(), tx_height, (lock_time - (cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME))), lock_time.timestamp(), cmp_time_adj.timestamp());
+                    return Err(TransactionError::KomodoTxLockTimeTooEarly(lock_time.timestamp(), tx_height));
+                }
+                tracing::debug!("komodo_validate_interest_locktime accept tx {:?} for ht={:?} locktime-maxtime secs {} locktime {} cmp_time {}\n", tx.hash(), tx_height, (lock_time - (cmp_time_adj - Duration::seconds(KOMODO_MAXMEMPOOLTIME))), lock_time.timestamp(), cmp_time_adj.timestamp());
+            }
+        }
+    }
+    Ok(())
+}
+
+/// validate transaction fee amount for too small or absurd values
+fn komodo_miner_fee_valid_for_mempool(min_relay_txfee: FeeRate, tx: &Transaction, tx_fee: Amount, check_low_fee: bool, reject_absurd_fee: bool) -> Result<(), TransactionError>   {
+    let tx_size = tx.zcash_serialized_size().expect("structurally valid transaction must have size");
+    
+    if check_low_fee && tx_fee < min_relay_txfee.get_fee(tx_size)  {
+        if let Ok(mut limiter) = TX_RATE_LIMITER.lock()  {
+            if limiter.check_rate_limit(tx, Utc::now()) {
+                return Err(TransactionError::KomodoLowFeeLimit(tx.hash(), String::from("low txfee limit reached")));
+            }
+        }
+        else {
+            return Err(TransactionError::KomodoLowFeeLimit(tx.hash(), String::from("internal error: cannot lock limiter")));
+        }
+    }
+    if reject_absurd_fee {
+        let output_value = tx
+            .outputs()
+            .iter()
+            .map(|o| o.value())
+            .sum::<Result<Amount<NonNegative>, AmountError>>()
+            .unwrap_or_else(|_| Amount::<NonNegative>::zero())
+            .constrain::<NegativeAllowed>()
+            .expect("conversion from NonNegative to NegativeAllowed is always valid");
+
+        if tx_fee > (min_relay_txfee.get_fee(tx_size) * 10000 as u64).expect("valid min txfee") && tx_fee > (output_value / 19u64).expect("valid tx output value") {
+            return Err(TransactionError::KomodoAbsurdFee(tx.hash(), tx_fee));
+        }
+    }
+    
+    Ok(())
+}
+
