@@ -2,20 +2,25 @@
 //!
 //! Code in this file can freely assume that no pre-V4 transactions are present.
 
-use std::{borrow::Cow, collections::HashSet, convert::TryFrom, hash::Hash};
+use std::{borrow::Cow, collections::{HashSet, HashMap}, convert::TryFrom, hash::Hash};
 
 use chrono::{DateTime, Utc};
 
 use zebra_chain::{
-    amount::{Amount, NonNegative},
-    block::Height,
+    amount::{Amount, NonNegative, Error as AmountError, COIN},
+    block::{Height, self},
     orchard::Flags,
     parameters::{Network, NetworkUpgrade},
     primitives::zcash_note_encryption,
-    transaction::{LockTime, Transaction},
+    transaction::{LockTime, Transaction, self},
+    transparent, komodo_utils::parse_p2pk, work::difficulty::{ExpandedDifficulty, CompactDifficulty},
 };
 
+use zebra_chain::komodo_hardfork::NN;
+
 use crate::error::TransactionError;
+
+use super::LastTxDataVerify;
 
 /// Checks if the transaction's lock time allows this transaction to be included in a block.
 ///
@@ -28,7 +33,9 @@ use crate::error::TransactionError;
 /// [`Transaction::lock_time`] validates the transparent input sequence numbers, returning [`None`]
 /// if they indicate that the transaction is finalized by them. Otherwise, this function validates
 /// if the lock time is in the past.
+/// (this function is not used in komodo, see is_final_tx_komodo() instead)
 pub fn lock_time_has_passed(
+    network: Network,
     tx: &Transaction,
     block_height: Height,
     block_time: DateTime<Utc>,
@@ -56,6 +63,97 @@ pub fn lock_time_has_passed(
         }
         None => Ok(()),
     }
+}
+
+
+/// This function should match `komodod` function here: https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L924
+///
+/// Main rules:
+///
+/// 1. If nLockTime tx field set to 0 - it's final.
+/// 2. If nLockTime < nBlockHeight or nBlockTime (consider "apples are apples", mean that nLockTime represented the Height compare only
+///    with Height, and nLockTime represented Time, compare only with Time values) - tx is also considered to be final.
+/// 3. If all vins have 0xFFFFFFFF sequence tx is considered to be final regardless of nLockTime fields.
+/// 4. And finally, there is a some historical Komodo exceptions for vins with sequence == 0xFFFFFFFE, depends on komodo_hardfork_active.
+
+pub fn is_final_tx_komodo(
+    network: Network,
+    tx: &Transaction,
+    block_height: Height,
+    block_time: DateTime<Utc>,
+) -> Result<(), TransactionError> {
+
+    if let Some(lock_time) = tx.raw_lock_time() {
+
+        if lock_time == LockTime::unlocked() {
+            return Ok(());
+        }
+
+        match lock_time {
+            LockTime::Height(unlock_height) => {
+                if unlock_height < block_height {
+                    return Ok(())
+                }
+            },
+            LockTime::Time(unlock_time) => {
+                if unlock_time < block_time {
+                    return Ok(())
+                }
+            }
+        }
+
+        // in `komodod` HF check is implemented in komodo_hardfork_active function, but for KMD coin
+        // this check is implemented like chainActive.Height() > nDecemberHardforkHeight), where
+        // chain.Tip() ? chain.Tip()->nHeight : -1. In other words, it always compared with the
+        // height of a last tip (!), i.e. one block before block being validated.
+
+        let validation_height = block_height - 1;
+        let hf_active = if let Some(ht) = validation_height {
+            NN::komodo_s3_5_december_hardfork_active(network, &ht)
+        } else {
+            false
+        };
+
+        // now let's analyze tx vins
+        let tx_is_non_final = tx
+            .inputs()
+            .iter()
+            .map(transparent::Input::sequence)
+            .any(|sequence_number| {
+
+                // this closure should return true if vin is "non-final" (it's sequence != u32::MAX
+                // and it doesn't satisfied other komodo exceptions)
+
+                // f_exception is true, when nLockTime > (nBlockTime or nBlockHeight)
+                let f_exception = match lock_time {
+                    LockTime::Height(unlock_height) => unlock_height > block_height,
+                    LockTime::Time(unlock_time) => unlock_time > block_time
+                };
+
+                if !hf_active && sequence_number == u32::MAX - 1 && f_exception
+                {
+                    false
+                } else if hf_active && sequence_number == u32::MAX - 1 && !f_exception
+                {
+                    false
+                } else {
+                    sequence_number != u32::MAX
+                }
+            });
+
+        if tx_is_non_final {
+            return match lock_time {
+                LockTime::Height(unlock_height) => Err(TransactionError::LockedUntilAfterBlockHeight(unlock_height)),
+                LockTime::Time(unlock_time) => Err(TransactionError::LockedUntilAfterBlockTime(unlock_time)),
+            };
+        }
+    }
+
+    // if tx.raw_lock_time() returned None it means that tx.lock_time == LockTime::unlocked(), i.e.
+    // LockTime::Height(block::Height(0)), and in this case tx also considered to be final.
+
+    Ok(())
+
 }
 
 /// Checks that the transaction has inputs and outputs.
@@ -138,6 +236,212 @@ pub fn coinbase_tx_no_prevout_joinsplit_spend(tx: &Transaction) -> Result<(), Tr
             }
         }
     }
+
+    Ok(())
+}
+/// Combined `komodo_check_deposit` and `komodo_checkopret` implementation.
+///
+/// - <https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L5273>
+/// - <https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L5144-L5157>
+///
+/// Take into account that banned tx check distinquished into a separate check: `tx_has_banned_inputs` and
+/// not a part of `komodo_check_deposit_and_opret`.
+pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+                            last_tx_verify_data: &LastTxDataVerify, network: Network, req_height: Height) -> Result<(), TransactionError> {
+    let activation = block::Height(235_300);
+
+    let mut not_matched: bool = false;
+    let mut nn_id: Option<u32> = None;
+    let mut notary_pk = None;
+
+    let (coinbase, req_nbits, merkle_opret) = last_tx_verify_data;
+
+    // as we have coinbase passed, then tx - is a last tx of a block here,
+    // first vout of last have 0.00005 KMD value and it's produced from single vin
+    if tx.outputs().first().map_or(false, |out| i64::from(out.value) == 5000)
+        && tx.inputs().len() == 1
+    {
+        if let Some(vin) = tx.inputs().first() {
+
+            let prev_output = match vin {
+                transparent::Input::PrevOut { outpoint, .. } => {
+                    spent_utxos.get(outpoint).map(|utxo| &utxo.output)
+                },
+                _ => None
+            };
+
+            if let Some(prev_out) = prev_output {
+                if coinbase.outputs().first().map_or(false, |coinbase_vout_0| coinbase_vout_0.lock_script == prev_out.lock_script) {
+                    not_matched = true;
+                    notary_pk = parse_p2pk(&prev_out.lock_script);
+                }
+            }
+
+            nn_id = notary_pk.and_then(|nn_pk| NN::komodo_get_notary_id(network, &req_height, &nn_pk).map_or(None, |id| id));
+        }
+    }
+
+    let sapling_activation_height = NetworkUpgrade::Sapling
+        .activation_height(network)
+        .expect("Sapling activation height is specified");
+
+    if req_height >= sapling_activation_height {
+
+        // coinbase vouts check ... yes, kind of strange to do these checks on the last tx in the block check, but as
+        // the result depends on not_matched value, which could be calculated only on verify of last tx in a block, we
+        // will do these checks here
+
+        let strangeout = coinbase.outputs().iter().skip(2).filter(|out| {
+            let raw_script = out.lock_script.as_raw_bytes();
+            !raw_script.is_empty() && raw_script[0] != 0x6a && i64::from(out.value) < 5000
+        }).count();
+
+        // let total = coinbase.outputs().iter().skip(1).fold(Amount::zero(), |acc, out| (acc + out.value).expect("sum of coinbase outputs should be ok"));
+        let mut overflow = false;
+        let total: Amount<NonNegative> = coinbase
+            .outputs()
+            .iter()
+            .skip(1)
+            .map(|o| o.value())
+            .sum::<Result<Amount<NonNegative>, AmountError>>()
+            .unwrap_or_else(|_| {
+                overflow = true;
+                Amount::zero()
+            });
+
+        let tx_hash = tx.hash();
+        let pubkey_hash = notary_pk.map(|v| v.serialize().iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(""));
+        tracing::debug!(?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, ?total, "komodo_check_deposit_and_opret");
+
+        if overflow || i64::from(total) > COIN/10 {
+            if req_height > activation {
+                //illegal nonz output
+                return Err(TransactionError::IllegalCoinbaseOutput {
+                    block_height: req_height,
+                    coinbase_hash: coinbase.hash(),
+                });
+            }
+        } else {
+            let mindiff = ExpandedDifficulty::target_difficulty_limit(network).to_compact(); // 0x200f0f0f for mainnet
+            // https://github.com/KomodoPlatform/komodo/blob/master/src/komodo_gateway.cpp#L773
+            if *req_nbits == mindiff && i64::from(total) > 0 && NN::komodo_notaries_height1_reached(network, &req_height) {
+                // "deal with fee stealing" komodod rule, actually it's incorrect, bcz block.nBits == KOMODO_MINDIFF_NBITS
+                // rule doesn't mean notary mined block, it was a mistake, but it's in history now.
+                return Err(TransactionError::IllegalCoinbaseOutput {
+                    block_height: req_height,
+                    coinbase_hash: coinbase.hash(),
+                });
+            }
+        }
+
+        // TODO: simplify checking code below based on the following conditions (at present it's just line-by-line repeats komodod sources)
+        //
+        // 1. strangeouts in coinbase not allowed when ht. > 1_000_000
+        // 2. if notaryproof tx vin lock_script matches coinbase lock_script - it's Ok anytime
+        // 3. if notaryproof tx vin lock_script not match coinbase lock_script and is notary mined block, and height > 1_000_000 - it's illegal
+
+        if strangeout != 0 || not_matched {
+            if req_height > block::Height(1_000_000) && strangeout != 0 {
+                return Err(TransactionError::CoinbaseStrangeOutput {
+                    block_height: req_height,
+                    coinbase_hash: coinbase.hash(),
+                });
+            }
+        } else if req_height > block::Height(814_000) {
+            // strangeout == 0 && not_matched == false case
+            if nn_id.is_some() && req_height > block::Height(1_000_000) {
+                return Err(TransactionError:: NotaryProofNotMatched {
+                    block_height: req_height,
+                    transaction_hash: tx.hash(),
+                    coinbase_hash: coinbase.hash(),
+                });
+            }
+        }
+    }
+
+    // https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L5144-L5157
+    //
+    // Consensus rule for easy-mined (notary-mined) blocks:
+    //
+    // Notaryvin spend transactions beginning at a certain block height should include an OP_RETURN
+    // with a merkleroot composed of the hash of the previous block and the hashes of all the transactions
+    // in this notary-mined (easy-mined) block, excluding the notaryvin spend transaction itself.
+
+    if NN::komodo_s3_5_december_hardfork_active(network, &req_height) {
+        if let Some(notaryid) = nn_id {
+            if notaryid > 0 || (notaryid == 0 && NN::komodo_s5_hardfork_active(network, &req_height)) {
+                // komodo_checkopret - https://github.com/KomodoPlatform/komodo/blob/master/src/komodo_bitcoind.cpp#L638-L642
+
+                let mut merkle_raw_bytes = [0u8; 32];
+                let mut merkle_in_tx = block::merkle::Root(merkle_raw_bytes);
+
+                let lock_script_valid = tx.outputs().last().map_or(false, |out| {
+                    let lsr = out.lock_script.as_raw_bytes(); // lock script raw
+                    if lsr.len() == 34 && lsr[0] == 0x6A && lsr[1] == 32 {
+
+                        merkle_raw_bytes.clone_from_slice(&lsr[2..34]);
+                        merkle_in_tx = block::merkle::Root(merkle_raw_bytes);
+
+                        *merkle_opret == merkle_in_tx
+
+                    } else {
+                        false
+                    }
+                });
+
+                // println!("ht.{:?} tx.{:?} - expected_root.{:?}, opret_root.{:?} -> lock_script_valid.{:?}", req_height, tx.hash(), merkle_opret, merkle_in_tx, lock_script_valid);
+                if !lock_script_valid {
+                    // failed-merkle-opret-in-easy-mined
+                    return Err(
+                        TransactionError::FailedMerkleOpretInEasyMined { block_height: req_height, transaction_hash: tx.hash(), expected_root: *merkle_opret, opret_root: merkle_in_tx }
+                    );
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Check if tx has banned inputs, see CheckTransaction and komodo_bannedset + komodo_checkvout calls.
+///
+/// <https://github.com/KomodoPlatform/komodo/blob/master/src/main.cpp#L1362>
+
+pub fn tx_has_banned_inputs(tx: &Transaction) -> Result<(), TransactionError> {
+
+    let banned_txids_1: Vec<transaction::Hash> = [
+        "78cb4e21245c26b015b888b14c4f5096e18137d2741a6de9734d62b07014dfca", // vout1 only 233559
+        "00697be658e05561febdee1aafe368b821ca33fbb89b7027365e3d77b5dfede5", //234172
+        "e909465788b32047c472d73e882d79a92b0d550f90be008f76e1edaee6d742ea", //234187
+        "f56c6873748a327d0b92b8108f8ec8505a2843a541b1926022883678fb24f9dc", //234188
+        "abf08be07d8f5b3a433ddcca7ef539e79a3571632efd6d0294ec0492442a0204", //234213
+        "3b854b996cc982fba8c06e76cf507ae7eed52ab92663f4c0d7d10b3ed879c3b0", //234367
+        "fa9e474c2cda3cb4127881a40eb3f682feaba3f3328307d518589024a6032cc4", //234635
+        "ca746fa13e0113c4c0969937ea2c66de036d20274efad4ce114f6b699f1bc0f3", //234662
+        "43ce88438de4973f21b1388ffe66e68fda592da38c6ef939be10bb1b86387041", //234697
+        "0aeb748de82f209cd5ff7d3a06f65543904c4c17387c9d87c65fd44b14ad8f8c", //234899
+        "bbd3a3d9b14730991e1066bd7c626ca270acac4127131afe25f877a5a886eb25", //235252
+        "fa9943525f2e6c32cbc243294b08187e314d83a2870830180380c3c12a9fd33c", //235253
+        "a01671c8775328a41304e31a6693bbd35e9acbab28ab117f729eaba9cb769461", //235265
+        "2ef49d2d27946ad7c5d5e4ab5c089696762ff04e855f8ab48e83bdf0cc68726d", //235295
+        "c85dcffb16d5a45bd239021ad33443414d60224760f11d535ae2063e5709efee",
+    ].iter().map(|str| str.parse::<transaction::Hash>().expect("hash should parse correctly")).collect();
+
+    let banned_txids_all: Vec<transaction::Hash> = [
+        "c4ea1462c207547cd6fb6a4155ca6d042b22170d29801a465db5c09fec55b19d", //246748
+        "305dc96d8bc23a69d3db955e03a6a87c1832673470c32fe25473a46cc473c7d1", //247204
+    ].iter().map(|str| str.parse::<transaction::Hash>().expect("hash should parse correctly")).collect();
+
+    // check if tx contains banned inputs
+    if tx.inputs().iter().any(|input| {
+        if let Some(vin) = input.outpoint() {
+            (banned_txids_1.contains(&vin.hash) && vin.index == 1) || banned_txids_all.contains(&vin.hash)
+        } else {
+            false
+        }
+    }) {
+        return Err(TransactionError::BannedInputs);
+    };
 
     Ok(())
 }

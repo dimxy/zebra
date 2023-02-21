@@ -2,6 +2,7 @@
 
 use std::{collections::HashMap, fmt, iter};
 
+use chrono::{DateTime, Utc};
 use halo2::pasta::pallas;
 
 mod auth_digest;
@@ -28,12 +29,12 @@ pub use memo::Memo;
 pub use sapling::FieldNotPresent;
 pub use serialize::SerializedTransaction;
 pub use sighash::{HashType, SigHash};
-pub use unmined::{UnminedTx, UnminedTxId, VerifiedUnminedTx};
+pub use unmined::{UnminedTx, UnminedTxId, VerifiedUnminedTx, UnminedTxWithMempoolParams};
 
 use crate::{
-    amount::{Amount, Error as AmountError, NegativeAllowed, NonNegative},
-    block, orchard,
-    parameters::NetworkUpgrade,
+    amount::{Amount, Error as AmountError, NegativeAllowed, NonNegative, COIN, self},
+    block::{self, Height}, orchard,
+    parameters::{NetworkUpgrade, Network},
     primitives::{ed25519, Bctv14Proof, Groth16Proof},
     sapling, sprout,
     transparent::{
@@ -41,6 +42,8 @@ use crate::{
         CoinbaseSpendRestriction::{self, *},
     },
     value_balance::{ValueBalance, ValueBalanceError},
+    komodo_hardfork::NN,
+    interest::komodo_interest,
 };
 
 /// A Zcash transaction.
@@ -281,7 +284,7 @@ impl Transaction {
             // because of other consensus rules
             OnlyShieldedOutputs { spend_height }
         } else {
-            SomeTransparentOutputs
+            SomeTransparentOutputs { spend_height }
         }
     }
 
@@ -975,8 +978,13 @@ impl Transaction {
     #[allow(clippy::unwrap_in_result)]
     fn transparent_value_balance_from_outputs(
         &self,
-        outputs: &HashMap<transparent::OutPoint, transparent::Output>,
+        network: Network,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
+
+        let outputs = &outputs_from_utxos(utxos.clone());
         let input_value = self
             .inputs()
             .iter()
@@ -986,22 +994,8 @@ impl Transaction {
             .constrain()
             .expect("conversion from NonNegative to NegativeAllowed is always valid");
 
-        // DEBUG!
-        for input in self.inputs().iter() {
-            if let transparent::Input::PrevOut {
-                outpoint,
-                unlock_script,
-                ..
-            } = input {
-                // here good to have the interest calculation code, we should find
-                // the tx by outpoint.hash, check its locktime and do the calculations.
-
-                // outpoint.hash -> tx -> nlocktime
-                // TODO: how to get tx and its locktime from outpoint here?
-
-                // println!("{:?} -> {:?}", input, input.value_from_outputs(outputs));
-            }
-        }
+        let interest = self.komodo_interest_tx(network, utxos, block_height, last_block_time).constrain::<NegativeAllowed>()
+            .expect("conversion from NonNegative to NegativeAllowed is always valid");
 
         let output_value = self
             .outputs()
@@ -1012,7 +1006,7 @@ impl Transaction {
             .constrain()
             .expect("conversion from NonNegative to NegativeAllowed is always valid");
 
-        (input_value - output_value)
+        (input_value + interest - output_value)
             .map(ValueBalance::from_transparent_amount)
             .map_err(ValueBalanceError::Transparent)
     }
@@ -1035,9 +1029,12 @@ impl Transaction {
     #[allow(dead_code)]
     fn transparent_value_balance(
         &self,
+        network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
-        self.transparent_value_balance_from_outputs(&outputs_from_utxos(utxos.clone()))
+        self.transparent_value_balance_from_outputs(network, utxos, block_height, last_block_time)
     }
 
     /// Modify the transparent output values of this transaction, regardless of version.
@@ -1401,9 +1398,12 @@ impl Transaction {
     /// See `value_balance` for details.
     pub(crate) fn value_balance_from_outputs(
         &self,
-        outputs: &HashMap<transparent::OutPoint, transparent::Output>,
+        network: Network,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
-        self.transparent_value_balance_from_outputs(outputs)?
+        self.transparent_value_balance_from_outputs(network, utxos, block_height, last_block_time)?
             + self.sprout_value_balance()?
             + self.sapling_value_balance()
             + self.orchard_value_balance()
@@ -1430,8 +1430,63 @@ impl Transaction {
     /// value pool.
     pub fn value_balance(
         &self,
+        network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
-        self.value_balance_from_outputs(&outputs_from_utxos(utxos.clone()))
+        self.value_balance_from_outputs(network, utxos, block_height, last_block_time)
+    }
+
+    /// calc komodo interest for input
+    /// spent_utxos is a map of spent utxos where the uxto spent by this input must exist
+    pub fn komodo_interest_input(network: Network,
+        input: &transparent::Input,
+        spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>, 
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
+    ) -> Amount<NonNegative> {
+
+        if let Some(outpoint) = input.outpoint()    {
+            let utxo = spent_utxos
+            .get(&outpoint)
+            .expect("provided Utxos don't have spent OutPoint");
+
+            let tx_height = utxo.height;
+            let lock_time = utxo.lock_time;
+
+            let mut interest = Amount::zero();
+            if NN::komodo_interest_calc_active(network, &block_height) {
+                if utxo.output.value() >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()   {
+                    interest = komodo_interest(tx_height, utxo.output.value(), lock_time, last_block_time);
+                }
+            }
+            //debug!("komodo_interest_tx tx block_height={:?} block_time={:?} tx_height={:?} lock_time={:?} interest={:?}", block_height, if let Some(last_block_time) = last_block_time { last_block_time.timestamp() } else { 0i64 }, tx_height,  <lock_time::LockTime as TryInto<u32>>::try_into(lock_time), interest);
+            interest
+        } else {
+            Amount::zero()  // Coinbase. input (i) is Input::Coinbase (i.e. not Input::PrevOut),
+                            // i.e. no previous output transaction reference (coins created from mining)
+        }
+    }
+
+    /// calc komodo interest for transaction
+    pub fn komodo_interest_tx(&self, 
+        network: Network,
+        spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>, 
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
+    ) -> Amount<NonNegative> {
+
+        let interest_value = self
+            .inputs()
+            .iter()
+            .map(|i| -> Amount<NonNegative> {
+                Self::komodo_interest_input(network, i, spent_utxos, block_height, last_block_time)
+            })
+            .sum::<Result<Amount<NonNegative>, amount::Error>>()
+            .unwrap_or(Amount::zero());
+
+        debug!("komodo_interest_tx total block_height={:?} block_time={:?} interest_value={:?}", block_height, if let Some(last_block_time) = last_block_time  { last_block_time.timestamp() } else { 0i64 }, interest_value);
+        interest_value
     }
 }

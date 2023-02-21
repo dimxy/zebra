@@ -13,9 +13,11 @@ use std::{
     time::Duration,
 };
 
+use chrono::{DateTime, Utc};
 use thiserror::Error;
 
-use zebra_chain::transaction::{self, Hash, UnminedTx, UnminedTxId, VerifiedUnminedTx};
+use zebra_chain::{transaction::{self, Hash, UnminedTx, UnminedTxId, VerifiedUnminedTx}, block, parameters::Network};
+use zebra_consensus::transaction::komodo_validate_interest_locktime;
 
 use self::{eviction_list::EvictionList, verified_set::VerifiedSet};
 use super::{config, downloads::TransactionDownloadVerifyError, MempoolError};
@@ -87,6 +89,9 @@ pub enum SameEffectsChainRejectionError {
     /// [ZIP-401]: https://zips.z.cash/zip-0401#specification
     #[error("transaction evicted from the mempool due to ZIP-401 denial of service limits")]
     RandomlyEvicted,
+
+    #[error("komodo transaction stays too long in mempool")]
+    KomodoTooLongInMempool,
 }
 
 /// Storage error that combines all other specific error types.
@@ -540,5 +545,40 @@ impl Storage {
             "mempool.rejected.transaction.ids.bytes",
             (self.rejected_transaction_count() * item_size) as f64,
         );
+    }
+
+    /// Remove transactions from the mempool if they have stayed too long in mempool 
+    /// because this may affect the interest time
+    ///
+    /// transactions lock_time field is checked against median_time_past so transactions with too early lock_time are removed 
+    pub fn komodo_remove_too_early_transactions(
+        &mut self,
+        network: Network,
+        tip_height: block::Height,
+        median_time_past: DateTime<Utc>,
+    ) -> HashSet<UnminedTxId> {
+        let mut txid_set = HashSet::new();
+        // we need a separate set, since reject() takes the original unmined ID,
+        // then extracts the mined ID out of it
+        let mut unmined_id_set = HashSet::new();
+
+        for t in self.transactions() {
+            let cmp_time = median_time_past + chrono::Duration::seconds(777);  // TODO: use time::Duration to get along with zebra code?
+            if komodo_validate_interest_locktime(network, &t.transaction, tip_height, cmp_time).is_err()    {
+                txid_set.insert(t.id.mined_id());
+                unmined_id_set.insert(t.id);
+                info!("removing by komodo_validate_interest_locktime transaction {:?}", t.id);
+            }
+        }
+
+        // tx lock time is effecting data, so we match by non-malleable TXID
+        self.remove_same_effects(&txid_set);
+
+        // also reject it
+        for id in unmined_id_set.iter() {
+            self.reject(*id, SameEffectsChainRejectionError::KomodoTooLongInMempool.into());
+        }
+
+        unmined_id_set
     }
 }

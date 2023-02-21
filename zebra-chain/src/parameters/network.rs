@@ -82,7 +82,7 @@ impl Network {
     pub fn default_port(&self) -> u16 {
         match self {
             Network::Mainnet => 7770,
-            Network::Testnet => 18233,
+            Network::Testnet => 17770,
         }
     }
 

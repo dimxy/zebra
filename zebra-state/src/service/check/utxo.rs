@@ -2,9 +2,10 @@
 
 use std::collections::{HashMap, HashSet};
 
+use chrono::{DateTime, Utc};
 use zebra_chain::{
     amount, block,
-    transparent::{self, utxos_from_ordered_utxos, CoinbaseSpendRestriction::*},
+    transparent::{self, utxos_from_ordered_utxos, CoinbaseSpendRestriction::*}, parameters::Network,
 };
 
 use crate::{
@@ -36,7 +37,9 @@ use crate::{
 /// - spends of an immature transparent coinbase output,
 /// - unshielded spends of a transparent coinbase output.
 pub fn transparent_spend(
+    network: Network,
     prepared: &PreparedBlock,
+    last_block_time: Option<DateTime<Utc>>,
     non_finalized_chain_unspent_utxos: &HashMap<transparent::OutPoint, transparent::OrderedUtxo>,
     non_finalized_chain_spent_utxos: &HashSet<transparent::OutPoint>,
     finalized_state: &ZebraDb,
@@ -86,7 +89,7 @@ pub fn transparent_spend(
         }
     }
 
-    remaining_transaction_value(prepared, &block_spends)?;
+    remaining_transaction_value(network, prepared, last_block_time, &block_spends)?;
 
     Ok(block_spends)
 }
@@ -193,30 +196,44 @@ pub fn transparent_coinbase_spend(
     spend_restriction: transparent::CoinbaseSpendRestriction,
     utxo: transparent::OrderedUtxo,
 ) -> Result<transparent::OrderedUtxo, ValidateContextError> {
-    Ok(utxo)
-    // if !utxo.utxo.from_coinbase {
-    //     return Ok(utxo);
-    // }
 
-    // match spend_restriction {
-    //     OnlyShieldedOutputs { spend_height } => {
-    //         let min_spend_height =
-    //             utxo.utxo.height + block::Height(MIN_TRANSPARENT_COINBASE_MATURITY);
-    //         let min_spend_height =
-    //             min_spend_height.expect("valid UTXOs have coinbase heights far below Height::MAX");
-    //         if spend_height >= min_spend_height {
-    //             Ok(utxo)
-    //         } else {
-    //             Err(ImmatureTransparentCoinbaseSpend {
-    //                 outpoint,
-    //                 spend_height,
-    //                 min_spend_height,
-    //                 created_height: utxo.utxo.height,
-    //             })
-    //         }
-    //     }
-    //     SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
-    // }
+    if !utxo.utxo.from_coinbase {
+        return Ok(utxo);
+    }
+
+    let min_spend_height =
+                utxo.utxo.height + block::Height(MIN_TRANSPARENT_COINBASE_MATURITY);
+    let min_spend_height =
+        min_spend_height.expect("valid UTXOs have coinbase heights far below Height::MAX");
+
+    match spend_restriction {
+        OnlyShieldedOutputs { spend_height } => {
+            if spend_height >= min_spend_height {
+                Ok(utxo)
+            } else {
+                Err(ImmatureTransparentCoinbaseSpend {
+                    outpoint,
+                    spend_height,
+                    min_spend_height,
+                    created_height: utxo.utxo.height,
+                })
+            }
+        },
+
+        SomeTransparentOutputs { spend_height } => {
+            if spend_height >= min_spend_height {
+                Ok(utxo)
+            } else {
+                Err(ImmatureTransparentCoinbaseSpend {
+                    outpoint,
+                    spend_height,
+                    min_spend_height,
+                    created_height: utxo.utxo.height,
+                })
+            }
+        },
+        // SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
+    }
 
 }
 
@@ -233,9 +250,12 @@ pub fn transparent_coinbase_spend(
 ///
 /// <https://zips.z.cash/protocol/protocol.pdf#transactions>
 pub fn remaining_transaction_value(
+    network: Network,
     prepared: &PreparedBlock,
+    last_block_time: Option<DateTime<Utc>>,
     utxos: &HashMap<transparent::OutPoint, transparent::OrderedUtxo>,
 ) -> Result<(), ValidateContextError> {
+
     for (tx_index_in_block, transaction) in prepared.block.transactions.iter().enumerate() {
         // TODO: check coinbase transaction remaining value (#338, #1162)
         if transaction.is_coinbase() {
@@ -243,38 +263,38 @@ pub fn remaining_transaction_value(
         }
 
         // Check the remaining transparent value pool for this transaction
-        let value_balance = transaction.value_balance(&utxos_from_ordered_utxos(utxos.clone()));
-        // match value_balance {
-        //     Ok(vb) => match vb.remaining_transaction_value() {
-        //         Ok(_) => Ok(()),
-        //         Err(amount_error @ amount::Error::Constraint { .. })
-        //             if amount_error.invalid_value() < 0 =>
-        //         {
-        //             Err(ValidateContextError::NegativeRemainingTransactionValue {
-        //                 amount_error,
-        //                 height: prepared.height,
-        //                 tx_index_in_block,
-        //                 transaction_hash: prepared.transaction_hashes[tx_index_in_block],
-        //             })
-        //         }
-        //         Err(amount_error) => {
-        //             Err(ValidateContextError::CalculateRemainingTransactionValue {
-        //                 amount_error,
-        //                 height: prepared.height,
-        //                 tx_index_in_block,
-        //                 transaction_hash: prepared.transaction_hashes[tx_index_in_block],
-        //             })
-        //         }
-        //     },
-        //     Err(value_balance_error) => {
-        //         Err(ValidateContextError::CalculateTransactionValueBalances {
-        //             value_balance_error,
-        //             height: prepared.height,
-        //             tx_index_in_block,
-        //             transaction_hash: prepared.transaction_hashes[tx_index_in_block],
-        //         })
-        //     }
-        // }?
+        let value_balance = transaction.value_balance(network, &utxos_from_ordered_utxos(utxos.clone()), prepared.height, last_block_time);
+        match value_balance {
+            Ok(vb) => match vb.remaining_transaction_value() {
+                Ok(_) => Ok(()),
+                Err(amount_error @ amount::Error::Constraint { .. })
+                    if amount_error.invalid_value() < 0 =>
+                {
+                    Err(ValidateContextError::NegativeRemainingTransactionValue {
+                        amount_error,
+                        height: prepared.height,
+                        tx_index_in_block,
+                        transaction_hash: prepared.transaction_hashes[tx_index_in_block],
+                    })
+                }
+                Err(amount_error) => {
+                    Err(ValidateContextError::CalculateRemainingTransactionValue {
+                        amount_error,
+                        height: prepared.height,
+                        tx_index_in_block,
+                        transaction_hash: prepared.transaction_hashes[tx_index_in_block],
+                    })
+                }
+            },
+            Err(value_balance_error) => {
+                Err(ValidateContextError::CalculateTransactionValueBalances {
+                    value_balance_error,
+                    height: prepared.height,
+                    tx_index_in_block,
+                    transaction_hash: prepared.transaction_hashes[tx_index_in_block],
+                })
+            }
+        }?
     }
 
     Ok(())

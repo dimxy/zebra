@@ -7,7 +7,7 @@ use zebra_chain::{
     block::{self, Block},
     transaction::{Transaction, LockTime},
     transparent,
-    value_balance::ValueBalance,
+    value_balance::ValueBalance, parameters::Network,
 };
 
 use crate::{
@@ -63,6 +63,7 @@ impl From<PreparedBlock> for ChainTipBlock {
             time: block.header.time,
             transaction_hashes,
             previous_block_hash: block.header.previous_block_hash,
+            mtp: -1,
         }
     }
 }
@@ -124,7 +125,7 @@ impl ContextuallyValidBlock {
             .map(|outpoint| (outpoint, zero_utxo.clone()))
             .collect();
 
-        ContextuallyValidBlock::with_block_and_spent_utxos(block, zero_spent_utxos)
+        ContextuallyValidBlock::with_block_and_spent_utxos(Network::Mainnet, block, None, zero_spent_utxos)
             .expect("all UTXOs are provided with zero values")
     }
 

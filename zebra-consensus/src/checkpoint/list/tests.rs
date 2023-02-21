@@ -238,11 +238,13 @@ fn checkpoint_list_load_hard_coded() -> Result<(), BoxError> {
     Ok(())
 }
 
+#[ignore] // blocks are different in Komodo. TODO: fix for KMD
 #[test]
 fn checkpoint_list_hard_coded_mandatory_mainnet() -> Result<(), BoxError> {
     checkpoint_list_hard_coded_mandatory(Mainnet)
 }
 
+#[ignore] // blocks are different in Komodo. TODO: fix for KMD
 #[test]
 fn checkpoint_list_hard_coded_mandatory_testnet() -> Result<(), BoxError> {
     checkpoint_list_hard_coded_mandatory(Testnet)

@@ -73,6 +73,7 @@ use futures::FutureExt;
 use tokio::{pin, select, sync::oneshot};
 use tower::{builder::ServiceBuilder, util::BoxService};
 use tracing_futures::Instrument;
+use std::sync::Arc;
 
 use zebra_rpc::server::RpcServer;
 
@@ -156,6 +157,7 @@ impl StartCmd {
             sync_status.clone(),
             latest_chain_tip.clone(),
             chain_tip_change.clone(),
+            config.network.network,
         );
         let mempool = BoxService::new(mempool);
         let mempool = ServiceBuilder::new()

@@ -8,7 +8,7 @@ use std::{
     sync::Arc,
 };
 
-use chrono::{TimeZone, Utc};
+use chrono::{TimeZone, Utc, DateTime};
 use proptest::{
     arbitrary::any, array, collection::vec, option, prelude::*, test_runner::TestRunner,
 };
@@ -16,7 +16,7 @@ use proptest::{
 use crate::{
     amount::{self, Amount, NegativeAllowed, NonNegative},
     at_least_one,
-    block::{self, arbitrary::MAX_PARTIAL_CHAIN_BLOCKS},
+    block::{self, arbitrary::MAX_PARTIAL_CHAIN_BLOCKS, Height},
     orchard,
     parameters::{Network, NetworkUpgrade},
     primitives::{
@@ -25,7 +25,7 @@ use crate::{
     },
     sapling::{self, AnchorVariant, PerSpendAnchor, SharedAnchor},
     serialization::ZcashDeserializeInto,
-    sprout, transparent,
+    sprout, transparent::{self, outputs_from_utxos},
     value_balance::{ValueBalance, ValueBalanceError},
     LedgerState,
 };
@@ -285,8 +285,11 @@ impl Transaction {
     //       remaining value in each chain value pool
     pub fn fix_chain_value_pools(
         &mut self,
+        network: Network,
         chain_value_pools: ValueBalance<NonNegative>,
-        outputs: &HashMap<transparent::OutPoint, transparent::Output>,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        height: Height,
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<(Amount<NonNegative>, ValueBalance<NonNegative>), ValueBalanceError> {
         self.fix_overflow();
 
@@ -296,7 +299,7 @@ impl Transaction {
 
         for input in self.inputs() {
             input_chain_value_pools = input_chain_value_pools
-                .add_transparent_input(input, outputs)
+                .add_transparent_input(network, input, utxos, height, last_block_time)
                 .expect("find_valid_utxo_for_spend only spends unspent transparent outputs");
         }
 
@@ -333,17 +336,39 @@ impl Transaction {
             }
         }
 
-        let remaining_transaction_value = self.fix_remaining_value(outputs)?;
+        let remaining_transaction_value = self.fix_remaining_value(network, utxos, height, last_block_time)?;
 
         // check our calculations are correct
         let transaction_chain_value_pool_change =
             self
-            .value_balance_from_outputs(outputs)
+            .value_balance_from_outputs(network, utxos, height, last_block_time)
             .expect("chain value pool and remaining transaction value fixes produce valid transaction value balances")
             .neg();
 
+        // add tx interest to chain value pool 
+        let interest = self.komodo_interest_tx(network, utxos, height, last_block_time).constrain::<NegativeAllowed>()
+            .expect("conversion from NonNegative to NegativeAllowed is always valid");
+        
+        let interest_chain_value_pool_change = ValueBalance::from_transparent_amount(interest);
+        let chain_value_pools = chain_value_pools.add_chain_value_pool_change(interest_chain_value_pool_change)
+            .unwrap_or_else(|err| {
+                panic!(
+                    "unexpected chain value pool error: {:?}, \n\
+                    original chain value pools: {:?}, \n\
+                    interest chain value change: {:?}, \n\
+                    input-only transaction chain value pools: {:?}, \n\
+                    calculated remaining transaction value: {:?}",
+                    err,
+                    chain_value_pools, // old value
+                    interest_chain_value_pool_change,
+                    input_chain_value_pools,
+                    remaining_transaction_value,
+                )
+            });
+
+
         let chain_value_pools = chain_value_pools
-            .add_transaction(self, outputs)
+            .add_transaction(network, self, utxos, height, last_block_time)
             .unwrap_or_else(|err| {
                 panic!(
                     "unexpected chain value pool error: {:?}, \n\
@@ -430,7 +455,10 @@ impl Transaction {
     //       remaining value in the transaction value pool
     pub fn fix_remaining_value(
         &mut self,
-        outputs: &HashMap<transparent::OutPoint, transparent::Output>,
+        network: Network,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<Amount<NonNegative>, ValueBalanceError> {
         if self.is_coinbase() {
             // TODO: if needed, fixup coinbase:
@@ -443,7 +471,10 @@ impl Transaction {
             return Ok(Amount::zero());
         }
 
-        let mut remaining_input_value = self.input_value_pool(outputs)?;
+        let outputs = &outputs_from_utxos(utxos.clone());
+        let mut remaining_input_value = //self.input_value_pool(outputs)?;
+            (self.input_value_pool(outputs)? + self.komodo_interest_tx(network, utxos, block_height, last_block_time))
+                .expect("valid input amount with interest");
 
         // assign remaining input value to outputs,
         // zeroing any outputs that would exceed the input value
@@ -490,7 +521,7 @@ impl Transaction {
 
         // check our calculations are correct
         let remaining_transaction_value = self
-            .value_balance_from_outputs(outputs)
+            .value_balance_from_outputs(network, utxos, block_height, last_block_time)
             .expect("chain is limited to MAX_MONEY")
             .remaining_transaction_value()
             .unwrap_or_else(|err| {
@@ -500,6 +531,7 @@ impl Transaction {
                     err, remaining_input_value
                 )
             });
+
         assert_eq!(
             remaining_input_value,
             remaining_transaction_value,
@@ -758,7 +790,7 @@ impl Arbitrary for Transaction {
                 Self::v1_strategy(ledger_state)
             }
             NetworkUpgrade::Overwinter => Self::v2_strategy(ledger_state),
-            NetworkUpgrade::Sapling => Self::v3_strategy(ledger_state),
+            NetworkUpgrade::Sapling => Self::v3_strategy(ledger_state),     // TODO: komodo why v3 for Sapling (v4 is supposed)
             NetworkUpgrade::Blossom | NetworkUpgrade::Heartwood | NetworkUpgrade::Canopy => {
                 Self::v4_strategy(ledger_state)
             }

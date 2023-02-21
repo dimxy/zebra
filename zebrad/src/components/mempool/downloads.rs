@@ -45,7 +45,7 @@ use tracing_futures::Instrument;
 
 use zebra_chain::{
     block::Height,
-    transaction::{self, UnminedTxId, VerifiedUnminedTx},
+    transaction::{self, UnminedTxId, VerifiedUnminedTx, UnminedTxWithMempoolParams},
 };
 use zebra_consensus::transaction as tx;
 use zebra_network as zn;
@@ -231,7 +231,7 @@ where
         gossiped_tx: Gossip,
     ) -> Result<(), MempoolError> {
         let txid = gossiped_tx.id();
-
+        
         if self.cancel_handles.contains_key(&txid) {
             debug!(
                 ?txid,
@@ -310,22 +310,24 @@ where
                         1,
                         "version" => format!("{}",tx.transaction.version()),
                     );
-                    tx
+                    UnminedTxWithMempoolParams::new(tx, true, false) // for remote txns limit txns with low fee and do not check absurd fees
                 }
-                Gossip::Tx(tx) => {
+                Gossip::Tx(tx_with_params) => {
                     metrics::counter!(
                         "mempool.pushed.transactions.total",
                         1,
-                        "version" => format!("{}",tx.transaction.version()),
+                        "version" => format!("{}",tx_with_params.transaction.transaction.version()),
                     );
-                    tx
+                    tx_with_params
                 }
             };
 
             let result = verifier
                 .oneshot(tx::Request::Mempool {
-                    transaction: tx.clone(),
+                    transaction: tx.transaction.clone(),
                     height: next_height,
+                    check_low_fee: tx.check_low_fee,
+                    reject_absurd_fee: tx.reject_absurd_fee,
                 })
                 .map_ok(|rsp| {
                     rsp.into_mempool_transaction()

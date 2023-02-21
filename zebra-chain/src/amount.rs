@@ -498,6 +498,26 @@ impl Constraint for NonNegative {
     }
 }
 
+
+/// Marker type for `Amount` that requires all i64 possible values.
+///
+/// ```
+/// # use zebra_chain::amount::{Constraint, MAX_MONEY, MaxInt64};
+/// assert_eq!(
+///     MaxInt64::valid_range(),
+///     -i64::MAX..=i64::MAX,
+/// );
+/// ```
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct MaxInt64;
+
+impl Constraint for MaxInt64 {
+    fn valid_range() -> RangeInclusive<i64> {
+        -i64::MAX..=i64::MAX
+    }
+}
+
+
 /// Number of zatoshis in 1 ZEC
 pub const COIN: i64 = 100_000_000;
 

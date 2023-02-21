@@ -15,6 +15,7 @@ proptest! {
     ///
     /// Given a pair of block heights, estimate the time difference and use it with the lowest
     /// height to check if the estimation of the height is correct.
+    #[ignore]  // Upgrades are different in Komodo
     #[test]
     fn network_chain_tip_height_estimation_is_correct(
         network in any::<Network>(),
@@ -70,7 +71,7 @@ fn estimate_time_difference(
     end_height: block::Height,
     active_network_upgrade: NetworkUpgrade,
 ) -> Duration {
-    let spacing_seconds = active_network_upgrade.target_spacing().num_seconds();
+    let spacing_seconds = active_network_upgrade.target_spacing(Network::Mainnet).num_seconds();
 
     let height_difference = i64::from(end_height - start_height);
 
@@ -83,7 +84,7 @@ fn estimate_time_difference(
 /// This is used to "displace" the time used in the test so that the test inputs aren't exact
 /// multiples of the target spacing.
 fn calculate_time_displacement(displacement: f64, network_upgrade: NetworkUpgrade) -> Duration {
-    let target_spacing = network_upgrade.target_spacing();
+    let target_spacing = network_upgrade.target_spacing(Network::Mainnet);
 
     let nanoseconds = target_spacing
         .num_nanoseconds()

@@ -7,6 +7,8 @@
 //! See the full list of
 //! [Differences between JSON-RPC 1.0 and 2.0.](https://www.simple-is-better.org/rpc/#differences-between-1-0-and-2-0)
 
+use std::sync::Arc;
+
 use jsonrpc_core::{Compatibility, MetaIoHandler};
 use jsonrpc_http_server::ServerBuilder;
 use tokio::task::JoinHandle;
@@ -16,6 +18,7 @@ use tracing_futures::Instrument;
 
 use zebra_chain::{chain_tip::ChainTip, parameters::Network};
 use zebra_node_services::{mempool, BoxError};
+use zebra_network::AddressBook;
 
 use crate::{
     config::Config,
