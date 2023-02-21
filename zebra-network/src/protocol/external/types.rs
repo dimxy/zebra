@@ -163,6 +163,15 @@ mod proptest {
     use crate::constants::magics;
 
     #[test]
+    fn komodo_magic_debug() {
+        zebra_test::init();
+
+        assert_eq!(format!("{:?}", magics::MAINNET), "Magic(\"f9eee48d\")");
+        assert_eq!(format!("{:?}", magics::TESTNET), "Magic(\"5a1f7e62\")");
+    }
+
+    #[ignore] // magics are different in Komodo. TODO: add similar test for Komodo
+    #[test]
     fn magic_debug() {
         zebra_test::init();
 
@@ -214,18 +223,18 @@ mod test {
     }
 
     #[test]
-    fn version_consistent_mainnet() {
-        version_consistent(Mainnet)
+    fn komodo_version_consistent_mainnet() {
+        komodo_version_consistent(Mainnet)
     }
 
     #[test]
-    fn version_consistent_testnet() {
-        version_consistent(Testnet)
+    fn komodo_version_consistent_testnet() {
+        komodo_version_consistent(Testnet)
     }
 
     /// Check that the min_specified_for_upgrade and min_specified_for_height functions
     /// are consistent for `network`.
-    fn version_consistent(network: Network) {
+    fn komodo_version_consistent(network: Network) {
         zebra_test::init();
 
         let highest_network_upgrade = NetworkUpgrade::current(network, block::Height::MAX);
@@ -234,12 +243,14 @@ mod test {
 
         for &network_upgrade in &[
             BeforeOverwinter,
-            Overwinter,
+        //  in komodo Overwinter is overriden by Sapling :
+        //    Overwinter,
             Sapling,
-            Blossom,
-            Heartwood,
-            Canopy,
-            Nu5,
+        //  no such upgrades in komodo:
+        //    Blossom,
+        //   Heartwood,
+        //    Canopy,
+        //    Nu5,
         ] {
             let height = network_upgrade.activation_height(network);
             if let Some(height) = height {

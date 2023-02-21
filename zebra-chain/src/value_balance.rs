@@ -4,12 +4,17 @@ use crate::{
     amount::{self, Amount, Constraint, NegativeAllowed, NonNegative},
     block::Block,
     transparent,
+    block::Height,
 };
+use crate::parameters::Network;
+
+use chrono::{Utc, DateTime};
 
 use std::{borrow::Borrow, collections::HashMap, convert::TryInto};
 
 #[cfg(any(test, feature = "proptest-impl"))]
 use crate::{amount::MAX_MONEY, transaction::Transaction};
+use crate::transparent::outputs_from_utxos;
 
 #[cfg(any(test, feature = "proptest-impl"))]
 mod arbitrary;
@@ -160,6 +165,7 @@ impl ValueBalance<NegativeAllowed> {
         // https://zebra.zfnd.org/dev/rfcs/0012-value-pools.html#definitions
         //
         // This will error if the remaining value in the transaction value pool is negative.
+        tracing::trace!(?self.transparent, ?self.sprout, ?self.sapling, ?self.orchard, "remaining_transaction_value amounts");
         (self.transparent + self.sprout + self.sapling + self.orchard)?.constrain::<NonNegative>()
     }
 }
@@ -210,10 +216,12 @@ impl ValueBalance<NonNegative> {
     /// <https://developer.bitcoin.org/devguide/transactions.html#transaction-fees-and-change>
     pub fn add_block(
         self,
+        network: Network,
         block: impl Borrow<Block>,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        last_block_time: Option<DateTime<Utc>>, // previous block time to calc komodo interest
     ) -> Result<ValueBalance<NonNegative>, ValueBalanceError> {
-        let chain_value_pool_change = block.borrow().chain_value_pool_change(utxos)?;
+        let chain_value_pool_change = block.borrow().chain_value_pool_change(network, utxos, block.borrow().coinbase_height().unwrap(), last_block_time)?;
 
         // This will error if the chain value pool balance gets negative with the change.
         self.add_chain_value_pool_change(chain_value_pool_change)
@@ -246,8 +254,11 @@ impl ValueBalance<NonNegative> {
     #[cfg(any(test, feature = "proptest-impl"))]
     pub fn add_transaction(
         self,
+        network: Network,
         transaction: impl Borrow<Transaction>,
-        utxos: &HashMap<transparent::OutPoint, transparent::Output>,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        height: Height,
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NonNegative>, ValueBalanceError> {
         use std::ops::Neg;
 
@@ -255,7 +266,7 @@ impl ValueBalance<NonNegative> {
         // transaction value balances (inputs - outputs)
         let chain_value_pool_change = transaction
             .borrow()
-            .value_balance_from_outputs(utxos)?
+            .value_balance_from_outputs(network, utxos, height, last_block_time)?
             .neg();
 
         self.add_chain_value_pool_change(chain_value_pool_change)
@@ -274,17 +285,27 @@ impl ValueBalance<NonNegative> {
     #[cfg(any(test, feature = "proptest-impl"))]
     pub fn add_transparent_input(
         self,
+        network: Network,
         input: impl Borrow<transparent::Input>,
-        utxos: &HashMap<transparent::OutPoint, transparent::Output>,
+        utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
+        block_height: Height, 
+        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NonNegative>, ValueBalanceError> {
         use std::ops::Neg;
 
+        let outputs = &outputs_from_utxos(utxos.clone());
+
+        // for komodo we need to add interest to the chain value
+        let interest = Amount::constrain::<NegativeAllowed>(Transaction::komodo_interest_input(network, &input.borrow(), utxos, block_height, last_block_time))
+            .expect("interest conversion from NonNegative to NegativeAllowed is always valid");
+
         // the chain pool (unspent outputs) has the opposite sign to
         // transaction value balances (inputs - outputs)
-        let transparent_value_pool_change = input.borrow().value_from_outputs(utxos).neg();
-        let transparent_value_pool_change =
-            ValueBalance::from_transparent_amount(transparent_value_pool_change);
+        let transparent_value_pool_change = input.borrow().value_from_outputs(outputs).neg();
 
+        let transparent_value_pool_change =
+            ValueBalance::from_transparent_amount( (interest + transparent_value_pool_change).expect("valid amount for value_pool_change with interest") );
+ 
         self.add_chain_value_pool_change(transparent_value_pool_change)
     }
 

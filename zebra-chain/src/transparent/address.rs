@@ -7,6 +7,10 @@ use secp256k1::PublicKey;
 use sha2::Digest as Sha256Digest;
 use sha2::Sha256;
 
+use std::io::BufReader;
+use std::io::Read;
+
+
 use crate::{
     parameters::Network,
     serialization::{SerializationError, ZcashDeserialize, ZcashSerialize},
@@ -21,12 +25,12 @@ use proptest::prelude::*;
 mod magics {
     pub mod p2sh {
         pub const MAINNET: [u8; 1] = [85];
-        pub const TESTNET: [u8; 1] = [0];
+        pub const TESTNET: [u8; 1] = [5];
     }
 
     pub mod p2pkh {
         pub const MAINNET: [u8; 1] = [60];
-        pub const TESTNET: [u8; 1] = [5];
+        pub const TESTNET: [u8; 1] = [0];
     }
 }
 
@@ -107,7 +111,7 @@ impl std::str::FromStr for Address {
 
         match result {
             Ok(bytes) => Self::zcash_deserialize(&bytes[..]),
-            Err(_) => Err(SerializationError::Parse("t-addr decoding error")),
+            Err(_) => Err(SerializationError::Parse("t-addr/r-addr decoding error")),
         }
     }
 }
@@ -135,7 +139,8 @@ impl ZcashSerialize for Address {
                 // default to testnet bytes if it's not mainnet.
                 match *network {
                     Network::Mainnet => writer.write_all(&magics::p2pkh::MAINNET[..])?,
-                    _ => writer.write_all(&magics::p2pkh::TESTNET[..])?,
+                    Network::Testnet => writer.write_all(&magics::p2pkh::TESTNET[..])?,
+                    //_ => (), //Err(io::Error::new(io::ErrorKind::Other, "unknown network")),
                 }
                 writer.write_all(pub_key_hash)?
             }
@@ -285,7 +290,19 @@ mod tests {
 
         let t_addr = pub_key.to_address(Network::Testnet);
 
-        assert_eq!(format!("{}", t_addr), "3KamVE1bnqAP6Z7Ff6FrMzrCsxpvVpeduu");
+        assert_eq!(format!("{}", t_addr), "1JtkZgXAEvr11PQpXzbFwNVGjSYCudQatX");
+    }
+
+    #[test]
+    fn pubkey_kmdmainnet() {
+        let _init_guard = zebra_test::init();
+
+        let pub_key = PublicKey::from_slice( hex::decode("035d3b0f2e98cf0fba19f80880ec7c08d770c6cf04aa5639bc57130d5ac54874db").expect("valid hex").as_ref() )
+            .expect("A PublicKey from slice");
+
+        let r_addr = pub_key.to_address(Network::Mainnet);
+
+        assert_eq!(format!("{}", r_addr), "RJXkCF7mn2DRpUZ77XBNTKCe55M2rJbTcu");
     }
 
     #[test]
@@ -307,7 +324,16 @@ mod tests {
 
         let t_addr = script.to_address(Network::Testnet);
 
-        assert_eq!(format!("{}", t_addr), "1EXCN4m6mNL88QzPwksBnpVqr5F1dC4SGa");
+        assert_eq!(format!("{}", t_addr), "3FDDHcFYKGeWDagq4rXnDSrmzbXjDhP97D");
+    }
+
+    #[test]
+    fn from_string_kmd() {
+        let _init_guard = zebra_test::init();
+
+        let r_addr: Address = "RJXkCF7mn2DRpUZ77XBNTKCe55M2rJbTcu".parse().unwrap();
+
+        assert_eq!(format!("{}", r_addr), "RJXkCF7mn2DRpUZ77XBNTKCe55M2rJbTcu");
     }
 
     #[test]
@@ -320,7 +346,7 @@ mod tests {
     }
 
     #[test]
-    fn debug() {
+    fn komodo_debug() {
         zebra_test::init();
 
         let t_addr: Address = "RXPbZC5uPgiG7rk5d4rYkJV8kLPF7Su2Jb".parse().unwrap();

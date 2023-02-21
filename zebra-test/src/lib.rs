@@ -25,6 +25,9 @@ pub mod zip0143;
 pub mod zip0243;
 pub mod zip0244;
 
+pub mod komodo_vectors;
+
+
 /// A single-threaded Tokio runtime that can be shared between tests.
 /// This runtime should be used for tests that need a single thread for consistent timings.
 ///

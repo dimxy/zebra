@@ -24,6 +24,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use chrono::{DateTime, Utc, NaiveDateTime, Timelike};
 use futures::future::FutureExt;
 use tokio::sync::{oneshot, watch};
 use tower::{util::BoxService, Service};
@@ -35,8 +36,9 @@ use tower::buffer::Buffer;
 use zebra_chain::{
     block::{self, CountedHeader},
     diagnostic::CodeTimer,
-    parameters::{Network, NetworkUpgrade},
+    parameters::{Network, NetworkUpgrade, POW_AVERAGING_WINDOW},
     transparent,
+    komodo_hardfork::NN,
 };
 
 use crate::{
@@ -44,11 +46,12 @@ use crate::{
         chain_tip::{ChainTipBlock, ChainTipChange, ChainTipSender, LatestChainTip},
         finalized_state::{FinalizedState, ZebraDb},
         non_finalized_state::{Chain, NonFinalizedState, QueuedBlocks},
-        pending_utxos::PendingUtxos,
-        watch_receiver::WatchReceiver,
+        pending_utxos::PendingUtxos, pending_blocks::PendingBlocks,
+        komodo_transparent::komodo_transparent_spend_finalized,
+        watch_receiver::WatchReceiver, check::difficulty::{POW_MEDIAN_BLOCK_SPAN, AdjustedDifficulty},
     },
     BoxError, CloneError, CommitBlockError, Config, FinalizedBlock, PreparedBlock, ReadRequest,
-    ReadResponse, Request, Response, ValidateContextError,
+    ReadResponse, Request, Response, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx,
 };
 
 pub mod block_iter;
@@ -60,7 +63,10 @@ pub(crate) mod check;
 mod finalized_state;
 mod non_finalized_state;
 mod pending_utxos;
+mod pending_blocks;
 pub(crate) mod read;
+
+mod komodo_transparent;
 
 #[cfg(any(test, feature = "proptest-impl"))]
 pub mod arbitrary;
@@ -69,6 +75,9 @@ pub mod arbitrary;
 mod tests;
 
 pub use finalized_state::{OutputIndex, OutputLocation, TransactionLocation};
+
+use self::check::get_median_time_past_for_chain;
+const MAX_LAST_NOTA_DEPTH: u32 = 144000;
 
 pub type QueuedBlock = (
     PreparedBlock,
@@ -123,6 +132,9 @@ pub(crate) struct StateService {
 
     /// A sender channel for the current best non-finalized chain.
     best_chain_sender: watch::Sender<Option<Arc<Chain>>>,
+
+    /// The set of block hashes with pending requests for their associated Block for komodo interest calc
+    pending_blocks: PendingBlocks,
 }
 
 /// A read-only service for accessing Zebra's cached blockchain state.
@@ -189,17 +201,20 @@ impl StateService {
 
         let queued_blocks = QueuedBlocks::default();
         let pending_utxos = PendingUtxos::default();
+        let pending_blocks = PendingBlocks::default();
 
-        let state = Self {
+        let mut state = Self {  // TODO remove mut when 'nota' moved from state.mem to its own object
             disk,
             mem,
             queued_blocks,
             pending_utxos,
+            pending_blocks,
             network,
             last_prune: Instant::now(),
             chain_tip_sender,
             best_chain_sender,
         };
+
         timer.finish(module_path!(), line!(), "initializing state service");
 
         tracing::info!("starting legacy chain check");
@@ -228,6 +243,10 @@ impl StateService {
         }
         tracing::info!("no legacy chain found");
         timer.finish(module_path!(), line!(), "legacy chain check");
+
+        let timer = CodeTimer::start();
+        state.komodo_init_last_nota();
+        timer.finish(module_path!(), line!(), "komodo last nota init");
 
         (state, read_only_service, latest_chain_tip, chain_tip_change)
     }
@@ -293,6 +312,12 @@ impl StateService {
 
         self.process_queued(parent_hash);
 
+        if !self.mem.best_chain().is_some() {
+            tracing::debug!("non finalized blocks still empty, returning early");
+            return rsp_rx;
+        }
+
+        // in case 
         while self.mem.best_chain_len() > crate::constants::MAX_BLOCK_REORG_HEIGHT {
             tracing::trace!("finalizing block past the reorg limit");
             let finalized = self.mem.finalize();
@@ -341,7 +366,7 @@ impl StateService {
     #[instrument(level = "debug", skip(self))]
     fn update_latest_chain_channels(&mut self) -> Option<block::Height> {
         let best_chain = self.mem.best_chain();
-        let tip_block = best_chain
+        let mut tip_block = best_chain
             .and_then(|chain| chain.tip_block())
             .cloned()
             .map(ChainTipBlock::from);
@@ -351,6 +376,28 @@ impl StateService {
         if self.best_chain_sender.receiver_count() > 0 {
             // If the final receiver was just dropped, ignore the error.
             let _ = self.best_chain_sender.send(best_chain.cloned());
+        }
+
+        // let's calculate mtp (median time past) for the tip_block and broadcast it inside tip_block structure
+        if let Some(tip) = tip_block.as_mut() {
+            let relevant_chain = self.any_ancestor_blocks(tip.hash);
+            /*let mut block_times: Vec<_> = relevant_chain.map(|block| {
+                block.header.time.timestamp()
+            }).take(POW_MEDIAN_BLOCK_SPAN).collect();
+
+            block_times.sort();
+            let mtp_calculated = block_times[block_times.len() / 2];*/
+            let mtp_calculated = get_median_time_past_for_chain(self.network, relevant_chain);
+
+            // advance mtp inside ChainTipBlock and then send via channel in set_best_non_finalized_tip
+            if let Some(mtp_calculated) = mtp_calculated    {
+                tip.mtp = mtp_calculated.timestamp();
+            } else {
+                tip.mtp = -1;
+            }
+
+            let tip_block_hash = tip.hash;
+            tracing::debug!(?tip_block_height, ?tip_block_hash, ?mtp_calculated, std::stringify!(update_latest_chain_channels));
         }
 
         self.chain_tip_sender.set_best_non_finalized_tip(tip_block);
@@ -415,6 +462,9 @@ impl StateService {
                         // Update the metrics if semantic and contextual validation passes
                         metrics::counter!("state.full_verifier.committed.block.count", 1);
                         metrics::counter!("zcash.chain.verified.block.total", 1);
+                    }
+                    else {
+                        info!(?result, "validate_and_commit returned error");
                     }
                 }
 
@@ -541,12 +591,51 @@ impl StateService {
     /// Assert some assumptions about the prepared `block` before it is validated.
     fn assert_block_can_be_validated(&self, block: &PreparedBlock) {
         // required by validate_and_commit, moved here to make testing easier
+        /* no canopy in kmd
         assert!(
             block.height > self.network.mandatory_checkpoint_height(),
             "invalid non-finalized block height: the canopy checkpoint is mandatory, pre-canopy \
             blocks, and the canopy activation block, must be committed to the state as finalized \
             blocks"
-        );
+        );*/ 
+    }
+
+    /// look back from the finalised tip for the latest komodo notarisation 
+    pub fn komodo_init_last_nota(&mut self) {
+
+        if let Some(tip) = self.disk.db().tip() {
+            info!("komodo looking back for the last notarisation for no more than {} blocks for tip at {:?}...", MAX_LAST_NOTA_DEPTH, tip.0);
+            let mut finalised_chain = self.any_ancestor_blocks(tip.1);
+            let mut depth = 0;
+            while depth < MAX_LAST_NOTA_DEPTH {
+                if let Some(block) = finalised_chain.next() {
+                    if let Some(height) = block.coinbase_height() {
+                        trace!("komodo last nota checking height={:?}", height);
+
+                        let spent_outputs = komodo_transparent_spend_finalized(&block, self.disk.db());
+                        trace!("komodo last nota height={:?} spent_outputs.len={}", height, spent_outputs.len());
+
+                        if let Some(nota) = komodo_block_has_notarisation_tx(self.network, &block, &spent_outputs, &height) {
+                            self.mem.last_nota = Some(nota);
+                            info!("komodo found last nota at height {:?}", height);
+                            break;
+                        }
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+                depth += 1;
+            }
+            // ht=250000 is the beginning of current notarisation protocol 
+            if !self.mem.last_nota.is_some() {
+                info!("komodo last notarisation not found"); 
+                if self.network == Network::Mainnet && NN::komodo_hardcoded_notaries_ended(self.network, &tip.0) {    // for testnet last checkpoint is not required
+                    panic!("komodo last notarisation not found for mainnet at the height where it must exist, shutdown");            
+                }
+            }
+        }
     }
 }
 
@@ -584,6 +673,7 @@ impl Service<Request> for StateService {
             let old_len = self.pending_utxos.len();
 
             self.pending_utxos.prune();
+            self.pending_blocks.prune();
             self.last_prune = now;
 
             let new_len = self.pending_utxos.len();
@@ -623,6 +713,8 @@ impl Service<Request> for StateService {
 
                 self.pending_utxos
                     .check_against_ordered(&prepared.new_outputs);
+
+                self.pending_blocks.respond(prepared.block.clone());
 
                 // # Performance
                 //
@@ -669,6 +761,7 @@ impl Service<Request> for StateService {
                 let timer = CodeTimer::start();
 
                 self.pending_utxos.check_against(&finalized.new_outputs);
+                self.pending_blocks.respond(finalized.block.clone());
 
                 // # Performance
                 //
@@ -930,6 +1023,60 @@ impl Service<Request> for StateService {
                 .map(|join_result| join_result.expect("panic in Request::Block"))
                 .boxed()
             }
+
+            Request::AwaitBlock(hash) => {
+                metrics::counter!(
+                    "state.requests",
+                    1,
+                    "service" => "state",
+                    "type" => "await_block",
+                );
+
+                let timer = CodeTimer::start();
+                let span = Span::current();
+
+                let fut = self.pending_blocks.queue(hash);
+
+                if let Some(block) = self.any_ancestor_blocks(hash).next() {
+                    self.pending_blocks.respond(block.clone());
+                }
+
+                // The future waits on a channel for a response.
+                timer.finish(module_path!(), line!(), "AwaitBlock");
+
+                fut.instrument(span).boxed()
+            }
+
+            Request::GetMedianTimePast(block_hash) => {
+                metrics::counter!(
+                    "state.requests",
+                    1,
+                    "service" => "state",
+                    "type" => "median_time_past",
+                );
+
+                let timer = CodeTimer::start();
+                let block_hash = if block_hash.is_some() { block_hash } else { self.best_tip().map(|t| t.1) };
+                let network = self.network.clone();
+                 
+                let relevant_chain = if let Some(block_hash) = block_hash  { 
+                    self.any_ancestor_blocks(block_hash)
+                } else  {
+                    block_iter::Iter {
+                        service: self,
+                        state: block_iter::IterState::Finished, // empty relevant chain
+                    }
+                };
+
+                let median_time_past = get_median_time_past_for_chain(network, relevant_chain);
+
+                // The work is all done, the future just returns the result.
+                timer.finish(module_path!(), line!(), "GetMedianTimePast");
+
+                let rsp = Ok(Response::MedianTimePast(median_time_past));
+
+                async move { rsp }.boxed()
+            }
         }
     }
 }
@@ -972,7 +1119,10 @@ impl Service<ReadRequest> for ReadStateService {
 
                         // The work is done in the future.
                         timer.finish(module_path!(), line!(), "ReadRequest::Block");
-
+                        match &block  {
+                            Some(b) => println!("block {}", b),
+                            None => println!("block not found"), 
+                        }
                         Ok(ReadResponse::Block(block))
                     })
                 })
