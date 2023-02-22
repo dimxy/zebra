@@ -51,7 +51,7 @@ fn accept_shielded_mature_coinbase_utxo_spend() {
     };
 
     let result =
-        check::utxo::transparent_coinbase_spend(outpoint, spend_restriction, ordered_utxo.clone());
+        check::utxo::transparent_coinbase_spend(Network::Mainnet, outpoint, spend_restriction, ordered_utxo.clone());
     assert_eq!(result, Ok(ordered_utxo));
 }
 
@@ -76,7 +76,7 @@ fn accept_unshielded_mature_coinbase_utxo_spend() {
     let spend_restriction =
         transparent::CoinbaseSpendRestriction::OnlyShieldedOutputs { spend_height };
 
-    let result = check::utxo::transparent_coinbase_spend(outpoint, spend_restriction, ordered_utxo.clone());
+    let result = check::utxo::transparent_coinbase_spend(Network::Mainnet, outpoint, spend_restriction, ordered_utxo.clone());
     assert_eq!(
         result,
         Ok(ordered_utxo)
@@ -102,7 +102,7 @@ fn reject_immature_unshielded_coinbase_utxo_spend() {
     let spend_height = Height(min_spend_height.0 - 1);
     let spend_restriction = transparent::CoinbaseSpendRestriction::SomeTransparentOutputs { spend_height };
 
-    let result = check::utxo::transparent_coinbase_spend(outpoint, spend_restriction, ordered_utxo);
+    let result = check::utxo::transparent_coinbase_spend(Network::Mainnet, outpoint, spend_restriction, ordered_utxo);
     assert_eq!(result, Err(ImmatureTransparentCoinbaseSpend {
         outpoint,
         spend_height,
@@ -133,7 +133,7 @@ fn reject_immature_coinbase_utxo_spend() {
     let spend_restriction =
         transparent::CoinbaseSpendRestriction::OnlyShieldedOutputs { spend_height };
 
-    let result = check::utxo::transparent_coinbase_spend(outpoint, spend_restriction, ordered_utxo);
+    let result = check::utxo::transparent_coinbase_spend(Network::Mainnet, outpoint, spend_restriction, ordered_utxo);
     assert_eq!(
         result,
         Err(ImmatureTransparentCoinbaseSpend {

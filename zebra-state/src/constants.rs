@@ -1,6 +1,7 @@
 //! Definitions of constants.
 
 pub use zebra_chain::transparent::MIN_TRANSPARENT_COINBASE_MATURITY;
+pub use zebra_chain::transparent::KOMODO_MIN_TESTNET_TRANSPARENT_COINBASE_MATURITY;
 
 /// The maximum chain reorganisation height.
 ///
