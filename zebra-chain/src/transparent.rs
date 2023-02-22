@@ -47,6 +47,10 @@ use std::{collections::HashMap, fmt, iter};
 /// [7.1](https://zips.z.cash/protocol/nu5.pdf#txnencodingandconsensus)
 pub const MIN_TRANSPARENT_COINBASE_MATURITY: u32 = 100;
 
+/// Komodo testnet coinbase maturity
+pub const KOMODO_MIN_TESTNET_TRANSPARENT_COINBASE_MATURITY: u32 = 1;
+
+
 /// Arbitrary data inserted by miners into a coinbase transaction.
 #[derive(Clone, Eq, PartialEq)]
 #[cfg_attr(any(test, feature = "proptest-impl"), derive(Serialize))]
