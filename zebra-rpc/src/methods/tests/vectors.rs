@@ -35,6 +35,7 @@ async fn rpc_getinfo() {
         NoChainTip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     let get_info = rpc.get_info().expect("We should have a GetInfo struct");
@@ -78,6 +79,7 @@ async fn rpc_getblock() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // Make calls with verbosity=0 and check response
@@ -131,6 +133,7 @@ async fn rpc_getblock_parse_error() {
         NoChainTip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // Make sure we get an error if Zebra can't parse the block height.
@@ -162,6 +165,7 @@ async fn rpc_getblock_missing_error() {
         NoChainTip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // Make sure Zebra returns the correct error code `-8` for missing blocks
@@ -229,6 +233,7 @@ async fn rpc_getbestblockhash() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // Get the tip hash using RPC method `get_best_block_hash`
@@ -270,6 +275,7 @@ async fn rpc_getrawtransaction() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // Test case where transaction is in mempool.
@@ -357,6 +363,7 @@ async fn rpc_getaddresstxids_invalid_arguments() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // call the method with an invalid address string
@@ -499,6 +506,7 @@ async fn rpc_getaddresstxids_response_with(
         latest_chain_tip,
         network,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // call the method with valid arguments
@@ -550,6 +558,7 @@ async fn rpc_getaddressutxos_invalid_arguments() {
         NoChainTip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // call the method with an invalid address string
@@ -600,6 +609,7 @@ async fn rpc_getaddressutxos_response() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+        Arc::new(std::sync::Mutex::new(InboundConns::new(Mainnet))),
     );
 
     // call the method with a valid address
