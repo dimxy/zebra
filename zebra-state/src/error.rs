@@ -44,7 +44,7 @@ impl From<BoxError> for CloneError {
 pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 /// An error describing the reason a block could not be committed to the state.
-#[derive(Debug, Error, PartialEq, Eq)]
+#[derive(/*Debug,*/ Error, PartialEq, Eq)]
 #[error("block is not contextually valid")]
 pub struct CommitBlockError(#[from] ValidateContextError);
 
@@ -313,5 +313,11 @@ impl DuplicateNullifierError for orchard::Nullifier {
             nullifier: *self,
             in_finalized_state,
         }
+    }
+}
+
+impl std::fmt::Debug for CommitBlockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CommitBlockError(\"{}\": ValidateContextError(\"{}\"))", self.to_string(), self.0.to_string())
     }
 }
