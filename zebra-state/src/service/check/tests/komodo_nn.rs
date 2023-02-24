@@ -5,7 +5,7 @@ use std::sync::Arc;
 use hex::FromHex;
 
 use zebra_chain::serialization::ZcashDeserializeInto;
-use zebra_chain::block::{self, Block, Height};
+use zebra_chain::block::{self, Block};
 
 use zebra_chain::parameters::Network::Testnet;
 use zebra_chain::transparent::OutPoint;
@@ -15,49 +15,99 @@ use crate::{Config, CommitBlockError, PreparedBlock};
 use crate::service::StateService;
 use crate::{ValidateContextError, FinalizedBlock};
 use crate::arbitrary::Prepare;
+use lazy_static::lazy_static;
 
-const CHAIN_A_BLOCK_HASH_WITH_NOTA: &str = "00e5a0b985d58cd3be4c6b580f30de57d041a56589d61e98b85a0fe20f76383f";
-const CHAIN_A_BLOCK_HASH_TO_FAIL: &str = "00065fd6734d951e25db612fb6ec4a93567b5545f218de24142f075fd12eee1c";
+/// pubkey which is a not a test notary
 const NON_NOTARY_P2PK: &str = "2102c50c23b6578f6a688f9868efca41bddd33b4225583474bb6183ff3ddf593ae01ac";
 
 struct SampleChain<'a> {
     pub genesis: &'a str, 
     pub node_1: &'a str, 
     pub node_2: &'a str, 
-    pub fork: usize,    // not including genesis
-    pub tip_1: usize,
-    pub tip_2: usize,
+    pub finalized: usize,   // last height stored in the finalized state
+    pub fork: usize,        // fork ht
+    pub branch_1: &'a [usize],  // heights to load in branch 1
+    pub branch_2: &'a [usize],  // heights to load in branch 2
 }
 
 const SAMPLE_CHAIN_A: SampleChain<'static> = SampleChain { 
     genesis: include_str!("./testnet_a_genesis.hex"), 
+    // no nota before fork
     node_1: include_str!("./testnet_a_node_1.hex"),
-    node_2: include_str!("./testnet_a_node_2.hex"), // branch with the nota
+    node_2: include_str!("./testnet_a_node_2.hex"), // branch with the nota at ht=136, last notarised ht=134
+    finalized: 126,
     fork:  127, 
-    tip_1: 136,
-    tip_2: 140,
+    branch_1: &[136], // stop heights in branch_1
+    branch_2: &[140], // stop heights in branch_2
 };
+
+lazy_static! {
+    static ref CHAIN_A_BLOCK_HASH_WITH_NOTA: block::Hash = block::Hash::from_hex("00e5a0b985d58cd3be4c6b580f30de57d041a56589d61e98b85a0fe20f76383f").expect("valid hex");
+    static ref CHAIN_A_BLOCK_HASH_TO_FAIL: block::Hash = block::Hash::from_hex("009b7faa4fffb879db787dec6acafe02767297158a867361ad82a699c6c8839c").expect("valid hex");
+    static ref CHAIN_A_EXPECTED_FORK_HT: block::Height = block::Height(127);
+    static ref CHAIN_A_EXPECTED_LAST_NTZ_HT: block::Height = block::Height(128);
+}
 
 const SAMPLE_CHAIN_B: SampleChain<'static> = SampleChain { 
     genesis: include_str!("./testnet_b_genesis.hex"), 
+    // first nota at ht=127, last notarised ht=126
     node_1: include_str!("./testnet_b_node_2.hex"), // no nota in this branch
-    node_2: include_str!("./testnet_b_node_1.hex"), // branch with the extra nota
-    fork:  128,
-    tip_1: 139,
-    tip_2: 140,
+    node_2: include_str!("./testnet_b_node_1.hex"), // branch with the second nota at ht=136, last notarised ht=134
+    finalized: 127,
+    fork:  128, 
+    branch_1: &[139], 
+    branch_2: &[140],
 };
 
-/// Contextual validation tests helper to load test blocks and modify them if needed
-/// it also calls result checker to assert or continue block loading (for non finalised part from ht=127)
-/// For testing blocks transactions can be modified before committing as contextual validation does net check merkle root
+const SAMPLE_CHAIN_C: SampleChain<'static> = SampleChain { 
+    genesis: include_str!("./testnet_b_genesis.hex"), 
+    // first nota at ht=127, last notarised ht=126
+    node_1: include_str!("./testnet_b_node_1.hex"), // no nota in this branch
+    node_2: include_str!("./testnet_b_node_2.hex"), // branch with the second nota at ht=136, last notarised ht=134
+    finalized: 127,
+    fork:  128, 
+    branch_1: &[139],
+    branch_2: &[140],
+};
+
+lazy_static! {
+    static ref CHAIN_C_BLOCK_HASH_TO_FAIL: block::Hash = block::Hash::from_hex("014bbdb306f24d9303514a50478d9c6dda1e02085331a86ff03286a5de1b8623").expect("valid hex");
+    static ref CHAIN_C_EXPECTED_FORK_HT: block::Height = block::Height(128);
+    static ref CHAIN_C_EXPECTED_LAST_NTZ_HT: block::Height = block::Height(134);
+}
+
+const SAMPLE_CHAIN_D: SampleChain<'static> = SampleChain { 
+    genesis: include_str!("./testnet_b_genesis.hex"), 
+    // first nota at ht=127, last notarised ht=126
+    node_1: include_str!("./testnet_b_node_2.hex"), // no nota in this branch
+    node_2: include_str!("./testnet_b_node_1.hex"), // branch with the second nota at ht=136, last notarised ht=134
+    finalized: 127,
+    fork:  128, 
+    branch_1: &[136, 137],
+    branch_2: &[136],
+};
+
+lazy_static! {
+    static ref CHAIN_D_BLOCK_HASH_TO_FAIL: block::Hash = block::Hash::from_hex("01544989840a5632601b8ab8e78d089c187fa09995b14060ae26f7887c10a30e").expect("valid hex");
+    static ref CHAIN_D_EXPECTED_FORK_HT: block::Height = block::Height(128);
+    static ref CHAIN_D_EXPECTED_LAST_NTZ_HT: block::Height = block::Height(134);
+}
+
+/// Contextual validation test helper to load and commit test blocks of a small forked chain with 2 branches
+/// calls passed modifier function (for test purposes block transactions can be modified before committing as contextual validation does net check merkle root)
+/// calls commit result checker to assert or continue block loading
+/// chain_desc contains heights for blocks saved into the finalized state, the rest blocks go into non finalized state,
+/// chain_desc also has a fork height and stop points in both branches to test various test cases in a forked chain
 fn komodo_load_testnet_both_branches<M, C>(chain_desc: SampleChain, modify_block: M, check_commit_result: C)
     where 
         M: Fn(&mut Block),
         C: Fn(&PreparedBlock, &Result<(), CommitBlockError>)->bool,  // continue if true
 {
-   
     let (mut state, _, _, _) = StateService::new(Config::ephemeral(), Testnet);
 
+    assert!(chain_desc.fork >= chain_desc.finalized);
+
+    // load genesis
     let genesis_bin = Vec::from_hex(chain_desc.genesis.trim()).expect("invalid genesis hex");
     let genesis = genesis_bin.zcash_deserialize_into::<Arc<Block>>()
         .expect("block should deserialize");
@@ -68,12 +118,12 @@ fn komodo_load_testnet_both_branches<M, C>(chain_desc: SampleChain, modify_block
         .expect("unexpected invalid genesis block test vector");
 
     let blocks_node1_hex = chain_desc.node_1.split("\n").collect::<Vec<_>>();
+    let blocks_node2_hex = chain_desc.node_2.split("\n").collect::<Vec<_>>();
 
-    
-    let finalized = chain_desc.fork - 1; // add some blocks below the fork to finalized 
-    let remained_1 = chain_desc.tip_1 - finalized; // how many to add after finalized (minus genesis) 
-    let remained_2 = chain_desc.tip_2 - chain_desc.fork; // how many to add after fork (minus genesis)
-    for block_hex in blocks_node1_hex.iter().take(finalized)   {   // one off is genesis
+    let mut take_1 = chain_desc.finalized;
+
+    // load finalized chain from node 1
+    for block_hex in blocks_node1_hex.iter().take(take_1)   {   // one off is genesis
         if block_hex.trim().is_empty() { break; }
         let block_bin = Vec::from_hex(block_hex.trim()).expect("invalid block hex");
         let block = block_bin.zcash_deserialize_into::<Block>().expect("could not deserialise block");
@@ -83,35 +133,71 @@ fn komodo_load_testnet_both_branches<M, C>(chain_desc: SampleChain, modify_block
         assert!(commit_result.is_ok());
     }
 
-    // fork is othe last common block for both branches
-    // load remaining part of the second branch with the nota from the block after finalized to 136 to memory
-    for block_hex in blocks_node1_hex.iter().skip(finalized).take(remained_1)   {     // load 136 blocks, less than blocks num in the second branch
-        if block_hex.trim().is_empty() { break; }
-        let block_bin = Vec::from_hex(block_hex.trim()).expect("invalid block hex");
-        let mut block = block_bin.zcash_deserialize_into::<Block>().expect("could not deserialise block");
+    // we need to call this to find latest nota in finalized blocks as simplified state loading is used
+    state.komodo_init_last_nota(); 
 
-        modify_block(&mut block);   // allow to change block for different test cases
-        let block = Arc::new(block);
-        let block_prepared = block.prepare();
+    let mut prev_1 = chain_desc.finalized;
+    take_1 = chain_desc.fork - chain_desc.finalized;
 
-        let commit_result = state.validate_and_commit(block_prepared.clone());
-        if !check_commit_result(&block_prepared, &commit_result) { break; }  // check results
+    if take_1 > 0 {
+        // load shared chain part till the fork height
+        for block_hex in blocks_node1_hex.iter().skip(prev_1).take(take_1)   {    
+            if block_hex.trim().is_empty() { break; }
+            let block_bin = Vec::from_hex(block_hex.trim()).expect("invalid block hex");
+            let mut block = block_bin.zcash_deserialize_into::<Block>().expect("could not deserialise block");
+
+            modify_block(&mut block);   // allow to change block for different test cases
+            let block = Arc::new(block);
+            let block_prepared = block.prepare();
+
+            let commit_result = state.validate_and_commit(block_prepared.clone());
+            if !check_commit_result(&block_prepared, &commit_result) { break; }  // check results
+        }
+        prev_1 = chain_desc.fork;
     }
 
-    let blocks_node2_hex = chain_desc.node_2.split("\n").collect::<Vec<_>>();
+    let mut prev_2 = prev_1; // start loading since the next block after fork
 
-    // load second branch from the block after fork to tip_2
-    for block_hex in blocks_node2_hex.iter().skip(chain_desc.fork).take(remained_2)   {     // start a branch from block 128
-        if block_hex.trim().is_empty() { break; }
-        let block_bin = Vec::from_hex(block_hex.trim()).expect("invalid block hex");
-        let mut block = block_bin.zcash_deserialize_into::<Block>().expect("could not deserialise block");
+    // load branches, switching at stop points
+    for i in 0..std::cmp::max(chain_desc.branch_1.len(), chain_desc.branch_2.len()) {
 
-        modify_block(&mut block);
-        let block = Arc::new(block);
-        let block_prepared = block.prepare();
+        // load part of the first branch
+        if i < chain_desc.branch_1.len() {
+            let take_1 = chain_desc.branch_1[i] - prev_1;
+            // load remaining part of the second branch with the nota from the block after finalized to 136 to memory
+            for block_hex in blocks_node1_hex.iter().skip(prev_1).take(take_1)   {   
+                if block_hex.trim().is_empty() { break; }
+                let block_bin = Vec::from_hex(block_hex.trim()).expect("invalid block hex");
+                let mut block = block_bin.zcash_deserialize_into::<Block>().expect("could not deserialise block");
 
-        let commit_result = state.validate_and_commit(block_prepared.clone());
-        if !check_commit_result(&block_prepared, &commit_result) { break; }  // check results
+                modify_block(&mut block);   // allow to change block for different test cases
+                let block = Arc::new(block);
+                let block_prepared = block.prepare();
+                // println!("loading node 1 height {}", block_prepared.height.0);  
+                let commit_result = state.validate_and_commit(block_prepared.clone());
+                if !check_commit_result(&block_prepared, &commit_result) { break; }  // check results
+            }
+            prev_1 = chain_desc.branch_1[i];
+        }
+
+        // load part of the second branch 
+        if i < chain_desc.branch_2.len() {
+            let take_2 = chain_desc.branch_2[i] - prev_2;
+
+            for block_hex in blocks_node2_hex.iter().skip(prev_2).take(take_2)   {     // start a branch from block 128
+                if block_hex.trim().is_empty() { break; }
+                let block_bin = Vec::from_hex(block_hex.trim()).expect("invalid block hex");
+                let mut block = block_bin.zcash_deserialize_into::<Block>().expect("could not deserialise block");
+
+                modify_block(&mut block);
+                let block = Arc::new(block);
+                let block_prepared = block.prepare();
+                // println!("loading node 2 height {}", block_prepared.height.0);  
+                let commit_result = state.validate_and_commit(block_prepared.clone());
+                if !check_commit_result(&block_prepared, &commit_result) { break; }  // check results
+            }
+            prev_2 = chain_desc.branch_2[i];
+        }
     }
 }
 
@@ -152,7 +238,7 @@ fn replace_nota_input_pubkey(block: &mut Block, r: Range<usize>)   {
 /// komodo test contextual validation to reject blocks forked below the last notarised height stored in a notarisation transaction
 /// use komodo testnet blocks
 #[test]
-fn komodo_reject_fork_from_below_last_notarised_height() {
+fn komodo_reject_fork_from_below_last_notarised_height_1() {
     let _init_guard = zebra_test::init();
 
     // test invalid fork from ht < ntz_ht 
@@ -160,17 +246,12 @@ fn komodo_reject_fork_from_below_last_notarised_height() {
         SAMPLE_CHAIN_A,
         |_| {}, 
         |prepared, commit_result| {
-            // forked chain must become invalid at height 137 (where it becomes the best chain)
-            let bad_block_hash = block::Hash::from_hex(CHAIN_A_BLOCK_HASH_TO_FAIL).expect("valid hex");
-            if prepared.hash == bad_block_hash {
+            // println!("commit_result={:?}", commit_result);
+            // TODO: update this: forked chain must become invalid at height CHAIN_A_EXPECTED_FORK_HT+1
+            if prepared.hash == *CHAIN_A_BLOCK_HASH_TO_FAIL {
                 assert_eq!( 
                     *commit_result, 
-                    Err(
-                        ValidateContextError::KomodoInvalidNotarisedChain(
-                            bad_block_hash, Height(127), Height(128)
-                        )
-                        .into()
-                    ) 
+                    Err(ValidateContextError::KomodoInvalidNotarisedChain(*CHAIN_A_BLOCK_HASH_TO_FAIL, *CHAIN_A_EXPECTED_FORK_HT, *CHAIN_A_EXPECTED_LAST_NTZ_HT).into())
                 );
                 return false; // end of test
             } 
@@ -179,12 +260,60 @@ fn komodo_reject_fork_from_below_last_notarised_height() {
     );
 }
 
-/// komodo test nota validation
+/// komodo test contextual validation to reject blocks forked below the last notarised height stored in a notarisation transaction
+/// yet another case with first nota below the fork and the second nota in the node_2
 #[test]
-fn komodo_valid_fork_from_below_last_notarised_height() {
+fn komodo_reject_fork_from_below_last_notarised_height_2() {
     let _init_guard = zebra_test::init();
 
     // test invalid fork from ht < ntz_ht 
+    komodo_load_testnet_both_branches(
+        SAMPLE_CHAIN_C,
+        |_| {}, 
+        |prepared, commit_result| {
+            // println!("commit_result={:?}", commit_result);
+            // TODO: update this: forked chain must become invalid at height CHAIN_A_EXPECTED_FORK_HT+1
+            if prepared.hash == *CHAIN_C_BLOCK_HASH_TO_FAIL {
+                assert_eq!( 
+                    *commit_result, 
+                    Err(ValidateContextError::KomodoInvalidNotarisedChain(*CHAIN_C_BLOCK_HASH_TO_FAIL, *CHAIN_C_EXPECTED_FORK_HT, *CHAIN_C_EXPECTED_LAST_NTZ_HT).into())
+                );
+                return false; // end of test
+            } 
+            return true;
+        }
+    );
+}
+
+// test that branch with no nota cannot grow more that notarised branch
+#[test]
+fn komodo_reject_fork_from_below_last_notarised_height_3() {
+    let _init_guard = zebra_test::init();
+
+    komodo_load_testnet_both_branches(
+        SAMPLE_CHAIN_D,
+        |_| {}, 
+        |prepared, commit_result| {
+            // println!("commit_result={:?}", commit_result);
+            // TODO: forked chain must become invalid at block CHAIN_D_BLOCK_HASH_TO_FAIL
+            if prepared.hash == *CHAIN_D_BLOCK_HASH_TO_FAIL {
+                assert_eq!( 
+                    *commit_result, 
+                    Err(ValidateContextError::KomodoInvalidNotarisedChain(*CHAIN_D_BLOCK_HASH_TO_FAIL, *CHAIN_D_EXPECTED_FORK_HT, *CHAIN_D_EXPECTED_LAST_NTZ_HT).into())
+                );
+                return false; // end of test
+            }
+            return true;
+        }
+    );
+}
+
+/// komodo test for a valid forked branch containing a nota
+#[test]
+fn komodo_valid_fork_with_nota() {
+    let _init_guard = zebra_test::init();
+
+    // branch with nota is always valid 
     komodo_load_testnet_both_branches(
         SAMPLE_CHAIN_B,
         |_| {}, 
@@ -206,7 +335,7 @@ fn komodo_too_few_notary_inputs() {
     komodo_load_testnet_both_branches(
         SAMPLE_CHAIN_A,
         |block|{ 
-            if block.hash() == block::Hash::from_hex(CHAIN_A_BLOCK_HASH_WITH_NOTA).expect("valid hex") {
+            if block.hash() == *CHAIN_A_BLOCK_HASH_WITH_NOTA {
                 let prev_outputs = block.transactions[1].outputs().to_owned();  // funding tx
                 let inputs = Arc::get_mut(&mut block.transactions[2]).unwrap().inputs_mut();    // notarisation tx
                 let mut removed_amount = Amount::zero();
@@ -230,14 +359,14 @@ fn komodo_too_few_notary_inputs() {
     );
 }
 
-/// test if signed notaries number reduced for the min ratify number 
+/// test when signed notaries number reduced for the min ratify number nota is still valid
 #[test]
 fn komodo_min_notary_inputs() {
     let _init_guard = zebra_test::init();
     komodo_load_testnet_both_branches(
         SAMPLE_CHAIN_A,
         |block|{ 
-            if block.hash() == block::Hash::from_hex(CHAIN_A_BLOCK_HASH_WITH_NOTA).expect("valid hex") {
+            if block.hash() == *CHAIN_A_BLOCK_HASH_WITH_NOTA {
                 let prev_outputs = block.transactions[1].outputs().to_owned();  // funding tx
                 let inputs = Arc::get_mut(&mut block.transactions[2]).unwrap().inputs_mut();    // notarisation tx
                 let mut removed_amount = Amount::zero();
@@ -251,18 +380,11 @@ fn komodo_min_notary_inputs() {
             }
         }, 
         |prepared, commit_result| {
-            // still have nota in the chain
-            // forked chain must become invalid at height 137
-            let bad_block_hash = block::Hash::from_hex(CHAIN_A_BLOCK_HASH_TO_FAIL).expect("valid hex");
-            if prepared.hash == bad_block_hash {
+            // still have valid nota in the chain and error is generated
+            if prepared.hash == *CHAIN_A_BLOCK_HASH_TO_FAIL {
                 assert_eq!( 
                     *commit_result, 
-                    Err(
-                        ValidateContextError::KomodoInvalidNotarisedChain(
-                            bad_block_hash, Height(127), Height(128)
-                        )
-                        .into()
-                    ) 
+                    Err(ValidateContextError::KomodoInvalidNotarisedChain(*CHAIN_A_BLOCK_HASH_TO_FAIL, *CHAIN_A_EXPECTED_FORK_HT, *CHAIN_A_EXPECTED_LAST_NTZ_HT).into())
                 );
                 return false; // end of test
             } else {
@@ -276,15 +398,15 @@ fn komodo_min_notary_inputs() {
     );
 }
 
-/// test non-notary signers for the notarised transaction  
+/// test non-notary signers for the notarised transaction 
+/// (then nota does not exist in the chain) 
 #[test]
 fn komodo_not_notary_inputs() {
     let _init_guard = zebra_test::init();
-    //let lock_script = <Vec<u8>>::from_hex(NON_NOTARY_P2PK).expect("valid hex");
     komodo_load_testnet_both_branches(
         SAMPLE_CHAIN_A,
         |block|{ 
-            if block.hash() == block::Hash::from_hex(CHAIN_A_BLOCK_HASH_WITH_NOTA).expect("valid hex") {
+            if block.hash() == *CHAIN_A_BLOCK_HASH_WITH_NOTA {
                 // replace pubkey in 6+ inputs to a non-notary pubkey
                 replace_nota_input_pubkey(block, 6..block.transactions[2].inputs().len());
             }

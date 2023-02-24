@@ -279,7 +279,7 @@ pub enum ValidateContextError {
     #[error("komodo special notary block invalid")]
     KomodoSpecialBlockInvalid(#[from] NotaryValidateContextError),
 
-    #[error("komodo notarised chain with block {0:?} forked at height {1:?} below last notarised height {2:?}")]
+    #[error("komodo branch with new block {0:?} forked at height {1:?} below last notarised height {2:?}")]
     KomodoInvalidNotarisedChain(zebra_chain::block::Hash, zebra_chain::block::Height, zebra_chain::block::Height),
 }
 
