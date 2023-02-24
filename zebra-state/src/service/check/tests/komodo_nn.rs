@@ -17,7 +17,7 @@ use crate::{ValidateContextError, FinalizedBlock};
 use crate::arbitrary::Prepare;
 
 const CHAIN_A_BLOCK_HASH_WITH_NOTA: &str = "00e5a0b985d58cd3be4c6b580f30de57d041a56589d61e98b85a0fe20f76383f";
-const CHAIN_A_BLOCK_HASH_TO_FAIL: &str = "00065fd6734d951e25db612fb6ec4a93567b5545f218de24142f075fd12eee1c";
+const CHAIN_A_BLOCK_HASH_TO_FAIL: &str = "009b7faa4fffb879db787dec6acafe02767297158a867361ad82a699c6c8839c";
 const NON_NOTARY_P2PK: &str = "2102c50c23b6578f6a688f9868efca41bddd33b4225583474bb6183ff3ddf593ae01ac";
 
 struct SampleChain<'a> {
