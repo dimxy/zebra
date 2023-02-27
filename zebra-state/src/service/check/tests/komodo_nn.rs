@@ -189,7 +189,10 @@ fn komodo_valid_fork_from_below_last_notarised_height() {
         SAMPLE_CHAIN_B,
         |_| {}, 
         |_prepared, commit_result| {
-
+            if commit_result.is_err()   {
+                println!("commit_result1={}", commit_result.as_ref().unwrap_err());
+                //println!("commit_result2={:?}", commit_result.as_ref().unwrap_err());
+            }
             assert_eq!( 
                 *commit_result, 
                 Ok(()) 
