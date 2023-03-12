@@ -677,7 +677,9 @@ where
     let mut attempts: usize = 0;
 
     // choose an arbitrary spendable UTXO, in hash set order
-    while let Some((candidate_outpoint, candidate_utxo)) = utxos.iter().next() {
+    let mut utxos_iter = utxos.iter();
+    while let Some((candidate_outpoint, candidate_utxo)) = utxos_iter.next() {
+    
         attempts += 1;
 
         // Avoid O(n^2) algorithmic complexity by giving up early,
