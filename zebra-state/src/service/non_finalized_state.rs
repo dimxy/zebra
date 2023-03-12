@@ -17,7 +17,8 @@ use zebra_chain::{
     sapling, sprout, transparent::{self, outputs_from_utxos, utxos_from_ordered_utxos},
 };
 
-use crate::komodo_notaries::{BackNotarisationData, komodo_block_has_notarisation_tx};
+use zebra_chain::komodo_nota::BackNotarisationData;
+use crate::komodo_notaries::komodo_block_has_notarisation_tx;
 
 use crate::{
     request::ContextuallyValidBlock,
