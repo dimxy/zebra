@@ -33,6 +33,7 @@ use zebra_chain::{
     },
     transparent::{self, CoinbaseData, Input, Output},
 };
+use zebra_state::HashOrHeight;
 
 use super::{check, Request, Verifier};
 
@@ -76,6 +77,29 @@ async fn fake_state_handler(request: zebra_state::Request) -> Result<zebra_state
                     };
                     let fake_block = Arc::new( Block { header: fake_header.into(), transactions: vec![] } );
                     return Ok(zebra_state::Response::Block(Some(fake_block)));
+                }
+                Ok(zebra_state::Response::Block(None))
+            };
+            return async move { rsp }.await;
+        },
+
+        zebra_state::Request::Block(h_or_ht) => {
+            let rsp = {
+                if let HashOrHeight::Hash(block_hash) = h_or_ht {
+                    if block_hash == FAKE_PREV_BLOCK_HASH    {
+                        let fake_header = block::Header { 
+                            version: 4,
+                            time: datetime_full().new_tree(&mut runner).unwrap().current(), // Utc::now(),  
+                            previous_block_hash: FAKE_PREV_BLOCK_HASH, 
+                            merkle_root: any::<block::merkle::Root>().new_tree(&mut runner).unwrap().current(), //Root([0x3f; 32]),
+                            commitment_bytes: any::<[u8; 32]>().new_tree(&mut runner).unwrap().current(), //[0x4f; 32],
+                            difficulty_threshold: zebra_chain::work::difficulty::ExpandedDifficulty::from(zebra_chain::work::difficulty::U256::MAX).into(),
+                            nonce: any::<[u8; 32]>().new_tree(&mut runner).unwrap().current(), // [0x6f; 32],
+                            solution: any::<zebra_chain::work::equihash::Solution>().new_tree(&mut runner).unwrap().current() // ([0x11u8; 1344])
+                        };
+                        let fake_block = Arc::new( Block { header: fake_header.into(), transactions: vec![] } );
+                        return Ok(zebra_state::Response::Block(Some(fake_block)));
+                    }
                 }
                 Ok(zebra_state::Response::Block(None))
             };
