@@ -9,3 +9,6 @@ mod preallocate;
 mod prop;
 #[cfg(test)]
 mod vectors;
+
+#[cfg(any(test, feature = "bench", feature = "proptest-impl"))]
+pub mod komodo_generate;
