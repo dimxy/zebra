@@ -636,7 +636,7 @@ impl NonFinalizedState {
 
                             best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not be built without notas in it
                             fork.0 < &last_nota.notarised_height {  
-                            return Err(ValidateContextError::KomodoInvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), chain_with_new_block.non_finalized_root().1, last_nota.notarised_height));
+                            return Err(ValidateContextError::KomodoInvalidNotarisedChain(chain_with_new_block.non_finalized_tip_hash(), *fork.0, last_nota.notarised_height));
                         }
                     }
                     else {
