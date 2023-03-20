@@ -49,7 +49,11 @@ pub struct NonFinalizedState {
     // Note: this field is currently unused, but it's useful for debugging.
     pub network: Network,
 
+    /// notarisation object pointing to the last notarised height
     pub last_nota: Option<BackNotarisationData>,
+
+    /// block hash where the last nota is located
+    pub last_nota_block_hash: Option<block::Hash>,
 }
 
 impl NonFinalizedState {
@@ -59,6 +63,7 @@ impl NonFinalizedState {
             chain_set: Default::default(),
             network,
             last_nota: None,
+            last_nota_block_hash: None,
         }
     }
 
@@ -265,7 +270,7 @@ impl NonFinalizedState {
 
         let result = Self::validate_and_update_parallel(new_chain, contextual, sprout_final_treestates);
 
-        // komodo checks related to notarization:
+        // komodo checks related to notarisation:
         if let Ok(new_chain) = result.as_ref()   {
             self.komodo_checkpoint(&prepared)?;     // prevent new blocks to be added from below last notarised height
             self.komodo_check_fork_is_valid(new_chain)?;    // prevent existing branches without nota to grow 
@@ -456,8 +461,28 @@ impl NonFinalizedState {
     }
 
     /// Return the non-finalized portion of the current best chain.
+    /// Modified by Komodo to return the best chain which has the last nota
+    /// if no last nota in any chain the first best chain is returned
     pub(crate) fn best_chain(&self) -> Option<&Arc<Chain>> {
-        self.chain_set.iter().next_back()
+        let mut iter = self.chain_set.iter();
+        let mut next_chain = iter.next_back();
+        let chain_0 = next_chain;
+        let mut has_last_nota = false;
+        if let Some(last_nota_block_hash) = self.last_nota_block_hash {
+            while let Some(chain) = next_chain {
+                if let Some(_height) = chain.height_by_hash.get(&last_nota_block_hash) { // chain has nota
+                    has_last_nota = true;
+                    break;
+                }  
+                next_chain = iter.next();
+            }
+        }
+        
+        if has_last_nota {
+            next_chain
+        } else {
+            chain_0
+        }
     }
 
     /// Return the chain whose tip block hash is `parent_hash`.
@@ -545,11 +570,13 @@ impl NonFinalizedState {
                 if last_nota.notarised_height < found_nota.notarised_height {
                     debug!("komodo found update nota at height={:?}, last notarised height={:?}", height, found_nota.notarised_height);
                     self.last_nota = Some(found_nota);
+                    self.last_nota_block_hash = Some(block.hash());
                 }
             },
             (Some(found_nota), None) =>  {
                 debug!("komodo found new nota at height={:?}, last notarised height={:?}", height, found_nota.notarised_height);
                 self.last_nota = Some(found_nota);
+                self.last_nota_block_hash = Some(block.hash());
             },
             (None, _) => (),
         }
@@ -563,7 +590,7 @@ impl NonFinalizedState {
             debug!("komodo_check_fork_is_valid chain_new height={:?} hash={:?} last_nota.height={:?}", chain_with_new_block.non_finalized_tip_height(), chain_with_new_block.non_finalized_tip_hash(), last_nota.notarised_height);
             if let Some(best_chain) = self.best_chain() {
                 
-                if let Some(chain_with_nota) = self.chain_set.iter().rev().find(|chain| chain.height_by_hash.contains_key(&last_nota.block_hash))  {
+                if let Some(chain_with_nota) = self.chain_set.iter().rev().find(|chain| chain.height_by_hash.contains_key(&last_nota.notarised_block_hash))  {
 
                     trace!("komodo_check_fork_is_valid best_chain.tip={:?} hash={:?}", best_chain.non_finalized_tip_height(), best_chain.non_finalized_tip_hash());
                     // find the fork point
@@ -578,7 +605,7 @@ impl NonFinalizedState {
                             .collect::<Vec<_>>();
                         trace!("komodo_check_fork_is_valid block_hashes_truncated={:?}", block_hashes_truncated);
 
-                        let new_has_nota = block_hashes_truncated.iter().find(|pair| pair.1 == last_nota.block_hash).is_some();
+                        let new_has_nota = block_hashes_truncated.iter().find(|pair| pair.1 == last_nota.notarised_block_hash).is_some();
                         
                         /*
                         // suggested new algo change:
@@ -589,7 +616,7 @@ impl NonFinalizedState {
                             if best_chain.blocks.iter()
                                 .skip_while(|e| e.1 != fork.1)
                                 .skip(1)
-                                .find(|pair| pair.1.hash == last_nota.block_hash).is_some()    {
+                                .find(|pair| pair.1.hash == last_nota.notarised_block_hash).is_some()    {
                                 info!("best chain does not contain nota, marking it as bad");
 
                                 let modified_chain = Arc::try_unwrap(new_chain)
@@ -608,7 +635,7 @@ impl NonFinalizedState {
                         debug!(
                             chain_with_new_block_non_fin_height = chain_with_new_block.non_finalized_tip_height().0,
                             best_chain_non_fin_height = best_chain.non_finalized_tip_height().0,
-                            new_chain_has_last_nota = chain_with_new_block.height_by_hash.contains_key(&last_nota.block_hash),
+                            new_chain_has_last_nota = chain_with_new_block.height_by_hash.contains_key(&last_nota.notarised_block_hash),
                             blocks_truncated_has_last_nota = new_has_nota,
                             best_chain_tip_height_over_notarised_height = best_chain.non_finalized_tip_height() > last_nota.notarised_height,
                             is_fork_below_notarised_height = fork.0 < &last_nota.notarised_height,
@@ -628,11 +655,11 @@ impl NonFinalizedState {
 
                         if chain_with_new_block > best_chain &&  // new chain has more work
 
-                            // There is no such check in ActivateBestChainStep() because there notas are processed only when the chain is activated,
+                            // There is no a similar check in ActivateBestChainStep() because in there notas are processed only when the chain is activated,
                             // so it is guaranteed that the known 'latest' nota is in the active chain.
-                            // In zebra we cannot do this and notas are processed in any added block 
-                            // and if the latest nota is in the new chain it should be considered as valid  
-                            !new_has_nota  && // no error if the new chain contains the last nota 
+                            // Since the current fix in zebra the best_chain also always has the last nota 
+                            // so this is practically impossible if a new chain has the last nota and is different from the best chain:
+                            // !new_has_nota  && // no error if the new chain contains the last nota 
 
                             best_chain.non_finalized_tip_height() > last_nota.notarised_height && // not sure why this condition is needed as assumed best chain could not be built without notas in it
                             fork.0 < &last_nota.notarised_height {  
@@ -651,22 +678,22 @@ impl NonFinalizedState {
         Ok(())
     }
 
-    /// komodo notarization checks: new block height must be >= the last notarised height
+    /// komodo notarisation checks: new block height must be >= the last notarised height
     pub fn komodo_checkpoint(&self, prepared: &PreparedBlock) -> Result<(), ValidateContextError> {
         if let Some(last_nota) = &self.last_nota {
-            tracing::debug!("komodo_checkpoint prepared.height={:?}, last_nota_height={:?}, last_nota_block_hash={:?}", prepared.height, last_nota.notarised_height, last_nota.block_hash);
-            // verify that the block info returned from komodo_notarizeddata matches the actual block
-            if let Some(last_nota_ht) = self.best_height_by_hash(last_nota.block_hash) {
-                if last_nota_ht == last_nota.notarised_height { // if notarized_hash not in chain, reorg
+            tracing::debug!("komodo_checkpoint prepared.height={:?}, last_nota_height={:?}, last_nota_block_hash={:?}", prepared.height, last_nota.notarised_height, last_nota.notarised_block_hash);
+            // verify that the block info returned from komodo_notariseddata matches the actual block
+            if let Some(last_nota_ht) = self.best_height_by_hash(last_nota.notarised_block_hash) {
+                if last_nota_ht == last_nota.notarised_height { // if notarised_hash not in chain, reorg
                     if prepared.height < last_nota.notarised_height {
-                        // forked chain %d older than last notarized (height %d) vs %d" case
+                        // forked chain %d older than last notarised (height %d) vs %d" case
                         return Err(ValidateContextError::KomodoInvalidNotarisedChain(
                             prepared.hash,
                             (prepared.height - 1).unwrap_or(block::Height(0)), // fork point is the latest common block
                             last_nota.notarised_height
                         ));
-                    } else if prepared.height == last_nota.notarised_height && prepared.hash != last_nota.block_hash {
-                        // [%s] nHeight.%d == NOTARIZED_HEIGHT.%d, diff hash case
+                    } else if prepared.height == last_nota.notarised_height && prepared.hash != last_nota.notarised_block_hash {
+                        // [%s] nHeight.%d == notarised_HEIGHT.%d, diff hash case
                         return Err(ValidateContextError::KomodoInvalidNotarisedChain(
                             prepared.hash,
                             (prepared.height - 1).unwrap_or(block::Height(0)),

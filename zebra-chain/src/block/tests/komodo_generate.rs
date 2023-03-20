@@ -65,7 +65,7 @@ F: Fn(
             None
         };
 
-        // find block 2 blocks below to claim it is notarized
+        // find block 2 blocks below to claim it is notarised
         let previous_block_2 = if i > 1 {
             Some(vec[i-2].1.clone())
         } else {
@@ -100,7 +100,7 @@ F: Fn(
             }
 
             if tx_index_in_block >= 2 {
-                // fix nota inputs and last notarized height:
+                // fix nota inputs and last notarised height:
                 if let Some(last) = tx.outputs().last() {
                     if let Ok(mut nota) = BackNotarisationData::zcash_deserialize(last.lock_script.as_raw_bytes()) {
 
@@ -108,7 +108,7 @@ F: Fn(
                         let mut new_opret = Vec::new();
                         if let Some(previous_block_off_2) = previous_block_2.clone() { // nota points to ht-2 
                             nota.notarised_height = Height(height - 2);
-                            nota.block_hash = previous_block_off_2.hash();
+                            nota.notarised_block_hash = previous_block_off_2.hash();
                             nota.zcash_serialize(&mut new_opret).expect("nota serialization okay");
                             new_last.lock_script = Script::new(&new_opret);
                             *tx.outputs_mut().last_mut().unwrap() = new_last;

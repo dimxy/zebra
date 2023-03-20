@@ -1,8 +1,8 @@
-//! komodo back notarization
+//! komodo back sation
 
 use std::ops::Shl;
 use std::io::Write;
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, WriteBytesExt};
 use zcash_primitives::legacy;
 
 use crate::{block::{Height, self}, transaction, serialization::{ZcashSerialize, SerializationError, ZcashDeserialize}};
@@ -34,16 +34,16 @@ enum OpCode {
 /// Note: no support for asset chains yet
 #[derive(Debug, Clone)]
 pub struct BackNotarisationData {
-    /// last notarized block
-    pub block_hash: block::Hash,
+    /// last notarised block
+    pub notarised_block_hash: block::Hash,
 
-    /// last notarized height
+    /// last notarised height
     pub notarised_height: Height,
 
     /// LTC transaction hash with MoM
     pub tx_hash: transaction::Hash,
 
-    /// notarized chain name (KMD or asset chain)
+    /// notarised chain name (KMD or asset chain)
     pub symbol: String,
 
     // assets chains data:
@@ -54,10 +54,10 @@ pub struct BackNotarisationData {
 }
 
 impl BackNotarisationData {
-    /// Create new notarization
+    /// Create new notarisation
     pub fn new() -> Self {
         Self {     
-            block_hash: block::Hash([0; 32]),
+            notarised_block_hash: block::Hash([0; 32]),
             notarised_height: Height(0),
             tx_hash: transaction::Hash([0; 32]),
             symbol: String::default(),
@@ -71,7 +71,7 @@ impl ZcashSerialize for BackNotarisationData {
 
         // serialize nota to bytes
         let mut nota_data = Vec::<u8>::new();
-        nota_data.write_all(&self.block_hash.0)?;
+        nota_data.write_all(&self.notarised_block_hash.0)?;
         nota_data.write_u32::<LittleEndian>(self.notarised_height.0)?;
         nota_data.write_all(&self.tx_hash.0)?;
         nota_data.write_all(&[self.symbol.as_bytes(), &[0u8]].concat()[..])?; // add trailing 0 as it is required in komodo
@@ -118,7 +118,7 @@ impl ZcashDeserialize for BackNotarisationData {
     
         if off + 32 >= bytes.len() { return Err(SerializationError::Parse("premature eof")); }
         let hash_bytes: [u8;32] = bytes[off..off+32].try_into().unwrap();
-        nota.block_hash = block::Hash::from(hash_bytes);
+        nota.notarised_block_hash = block::Hash::from(hash_bytes);
         off += 32;
     
         if off + 4 >= bytes.len() { return Err(SerializationError::Parse("premature eof")); }
@@ -149,7 +149,7 @@ impl ZcashDeserialize for BackNotarisationData {
     }
 }
 
-/// komodo read write KMD back notarization
+/// komodo read write KMD back notarisation
 #[test]
 fn komodo_parse_nota_test() {
     // tx aea56dbf923fee5ebd4193156cfe1ab0f8a770e513b86a6b4da8702b815883a2
@@ -157,11 +157,11 @@ fn komodo_parse_nota_test() {
 
     let nota = BackNotarisationData::zcash_deserialize(&opreturn_bytes[..]).expect("nota parsed okay");
 
-    // println!("{:?} {:?} {:?} {:?}", nota.notarised_height, nota.block_hash, nota.tx_hash, nota.symbol);
+    // println!("{:?} {:?} {:?} {:?}", nota.notarised_height, nota.notarised_block_hash, nota.tx_hash, nota.symbol);
 
     assert_eq!(nota.notarised_height, Height(2999990));
     assert_eq!(
-        format!("{}", nota.block_hash),
+        format!("{}", nota.notarised_block_hash),
         "0305cb2923edcf4636d7befcdaaa09b3211bd1e6a9d85aa3cb0a52f0d4f7c9aa"
     );
     assert_eq!(

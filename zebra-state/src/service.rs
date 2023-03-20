@@ -617,7 +617,8 @@ impl StateService {
 
                         if let Some(nota) = komodo_block_has_notarisation_tx(self.network, &block, &spent_outputs, &height) {
                             self.mem.last_nota = Some(nota.clone());
-                            info!("komodo found last nota at height {:?}, last notarized height={:?}", height, nota.notarised_height);
+                            self.mem.last_nota_block_hash = Some(block.hash());
+                            info!("komodo found last nota at height {:?}, last notarised height={:?}", height, nota.notarised_height);
                             break;
                         }
                     } else {
