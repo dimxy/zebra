@@ -11,6 +11,8 @@ use zebra_chain::block::{self, Block, Height};
 use zebra_chain::transparent::OutPoint;
 use zebra_chain::amount::Amount;
 
+use crate::request::ContextuallyValidBlock;
+use crate::service::non_finalized_state::Chain;
 use crate::{Config, CommitBlockError, PreparedBlock};
 use crate::service::StateService;
 use crate::{ValidateContextError, FinalizedBlock};
@@ -322,111 +324,233 @@ enum TCD {
     /// make a fork from the height n blocks down from the tip. Note that operation 'fork' does not add new blocks
     F(i32, &'static str),
 
-    /// make a block with a nota pointing to ht-2 as the last notarized height
+    /// make a block with a nota pointing to ht-2 as the last notarised height
     N,
 }
 
 /// komodo test forks in a chain with notas
-/// invalid fork below last notarized height
+/// cannot create a new fork below the last notarised height
 #[test]
-fn komodo_forked_notarized_chains_1() {
+fn komodo_forked_notarised_chains_1() {
     zebra_test::init();
 
     // chain description: (<branch_num>, TCD-op)
     let chain_desc = [ 
-        ("0", TCD::A(5)),
-        ("0", TCD::N),
-        ("0", TCD::F(-3, "1")), // create fork at height 2
-        ("0", TCD::A(2)),
-        ("1", TCD::A(3)),
+        ("0", TCD::A(5)), // advance 5 blocks (including 0 genesis) to ht 4
+        ("0", TCD::N),  // create a block with a nota (pointing to ht-2 as the last notarised height)
+        ("0", TCD::F(-3, "1")), // create fork at height 2, make branch with id "1"
+        ("0", TCD::A(2)),   // advance branch "0" by 3 blocks
+        ("1", TCD::A(3)),   // advance branch "1" by 3 blocks
     ];
-    komodo_run_forked_nn_chain_test(&chain_desc, |branch_id, prepared_block, result| {        
+
+    // create a chain for chain_desc and execute result checkers
+    komodo_run_forked_nn_chain_test(&chain_desc, |_, _, branch_id, prepared_block, result| {        
         if branch_id == "1" && prepared_block.height == Height(3) {
             assert_eq!( 
                 *result, 
                 Err(
                     ValidateContextError::KomodoInvalidNotarisedChain(
-                        prepared_block.hash, Height(2), Height(3)   // fork height and last notarized height 
+                        prepared_block.hash, Height(2), Height(3)   // fork height and last notarised height 
                     )
                     .into()
                 ) 
             );
-            println!("{:?} received for fork height < last notarized height", result.as_ref().err().unwrap());
+            // println!("{:?} received for fork height < last notarised height", result.as_ref().err().unwrap());
             return false;
         } else {
             assert_eq!(*result, Ok(()));
         }
         return true;
-    });
+    },
+    |_,_|{});   // empty checker
 }
 
 /// komodo test forks in a chain with notas
 /// valid fork
 #[test]
-fn komodo_forked_notarized_chains_2() {
+fn komodo_forked_notarised_chains_2() {
         zebra_test::init();
 
     let chain_desc = [ 
-        ("0", TCD::A(5)),
-        ("0", TCD::N),
+        ("0", TCD::A(5)),  // to ht 4 (including 0 genesis)
+        ("0", TCD::N), // create block with nota at ht 5 (last notarised ht = 3)
         ("0", TCD::F(-2, "1")), // fork at height 3
         ("0", TCD::A(2)),
         ("1", TCD::A(3)),
         ("0", TCD::N),
 
     ];
-    komodo_run_forked_nn_chain_test(&chain_desc, |branch_id, prepared_block, result| {
+    komodo_run_forked_nn_chain_test(&chain_desc, |_, _, _branch_id, _prepared_block, result| {
         assert_eq!(*result, Ok(()));
         return true;
-    });
+    },
+    |_,_|{});
 }
 
 /// komodo test forks in a chain with notas
-/// try grow already forked chain if a nota is added another branch
+/// try to grow an already forked chain if the nota is added into another branch
 #[test]
-fn komodo_forked_notarized_chains_3() {
+fn komodo_forked_notarised_chains_3() {
     zebra_test::init();
 
-    // chain description: (<branch_num>, TCD-op)
     let chain_desc = [ 
-        ("0", TCD::A(5)),
-        ("0", TCD::N),
+        ("0", TCD::A(5)),   // advance to ht 4 (0 is genesis)
+        ("0", TCD::N),  // create block with nota at ht 5 (last notarised ht = 3)
+        ("0", TCD::F(0, "1")), // fork at ht 5
+        ("1", TCD::A(3)), // advance to ht 8
+        ("0", TCD::A(3)), // advance to ht 8
+        ("0", TCD::N),  // create block with nota at ht 9 (last notarised ht = 7)
+        ("1", TCD::A(2)), // try add to ht 9
+    ];
+    komodo_run_forked_nn_chain_test(&chain_desc, 
+        |state, tips, branch_id, prepared_block, result| {        
+            // println!("branch_id {:?} prepared_block.height {:?}", branch_id, prepared_block.height);
+            if branch_id == "1" && prepared_block.height >= Height(9) { // chain "1" may have more work since ht 9
+                let mut non_fin_state = state.mem.clone();
+                let chain_1 = non_fin_state.find_chain(|chain| chain.height_by_hash(tips.get("1").expect("branch tip exists").1).is_some() ).expect("chain not empty");
+                let mut non_fin_state = state.mem.clone();
+                let chain_0 = non_fin_state.find_chain(|chain| chain.height_by_hash(tips.get("0").expect("branch tip exists").1).is_some() ).expect("chain not empty");
+
+                if &komodo_test_chain_add_block(chain_1.clone(), prepared_block) > chain_0 {  // check if chain 1 has more work than best_chain
+                    assert_eq!( 
+                        *result, 
+                        Err(
+                            ValidateContextError::KomodoInvalidNotarisedChain(
+                                prepared_block.hash, Height(5), Height(7)
+                            )
+                            .into()
+                        ) 
+                    );
+                    // println!("result {:?} received for fork height < last notarised height", result.as_ref().err().unwrap());
+                    return false;
+                }
+            } else {
+                assert_eq!(*result, Ok(()));
+            }
+            return true;
+        },
+    |_,_|{});
+}
+
+/// komodo test forks in a chain with notas
+/// try to grow an already forked chain if the nota is added into another branch, use more branches
+#[test]
+fn komodo_forked_notarised_chains_4() {
+    zebra_test::init();
+
+    let chain_desc = [ 
+        ("0", TCD::A(5)), // advance to ht 4 (inluding genesis 0)
+        ("0", TCD::N), // nota at ht 5 (last notarised ht = 3)
         ("0", TCD::F(0, "1")), // fork at ht 5
         ("1", TCD::A(3)),
-        ("0", TCD::A(3)),
-        ("0", TCD::N),
-        ("1", TCD::A(2)),
+        ("1", TCD::F(0, "2")), // another fork at ht 8
+        ("1", TCD::A(2)), // advance to ht 10
+        ("2", TCD::A(3)), // advance to ht 11
+        ("0", TCD::A(3)), // advance to ht 8
+        ("0", TCD::N),    // add block with nota at ht 9 (last notarised ht = 7)
+        ("1", TCD::A(1)), // try add at ht 11
     ];
-    komodo_run_forked_nn_chain_test(&chain_desc, |branch_id, prepared_block, result| {        
-        // new block is tried to add in branch "1" at ht 10 after nota was created in branch "0" at height 9 which notarized ht 7
-        if branch_id == "1" && prepared_block.height == Height(10) {
-            assert_eq!( 
-                *result, 
-                Err(
-                    ValidateContextError::KomodoInvalidNotarisedChain(
-                        prepared_block.hash, Height(5), Height(7)
-                    )
-                    .into()
-                ) 
-            );
-            println!("{:?} received for fork height < last notarized height", result.as_ref().err().unwrap());
-            return false;
-        } else {
-            assert_eq!(*result, Ok(()));
-        }
+    komodo_run_forked_nn_chain_test(&chain_desc, 
+        |state, tips, branch_id, prepared_block, result| {        
+            // println!("branch_id {:?} prepared_block.height {:?}", branch_id, prepared_block.height);
+            if branch_id == "1" && prepared_block.height >= Height(11) { 
+                let mut non_fin_state = state.mem.clone();
+                let chain_1 = non_fin_state.find_chain(|chain| chain.height_by_hash(tips.get("1").expect("branch tip exists").1).is_some() ).expect("chain not empty");
+                let mut non_fin_state = state.mem.clone();
+                let chain_0 = non_fin_state.find_chain(|chain| chain.height_by_hash(tips.get("0").expect("branch tip exists").1).is_some() ).expect("chain not empty");
+                if &komodo_test_chain_add_block(chain_1.clone(), prepared_block) > chain_0 {  // check if chain 1 has more work than best_chain
+                    assert_eq!( 
+                        *result, 
+                        Err(
+                            ValidateContextError::KomodoInvalidNotarisedChain(
+                                prepared_block.hash, Height(5), Height(7)
+                            )
+                            .into()
+                        ) 
+                    );
+                    // println!("result {:?} received for fork height < last notarised height", result.as_ref().err().unwrap());
+                    return false;
+                }
+            } else {
+                assert_eq!(*result, Ok(()));
+            }
+            return true;
+        },
+    |_,_|{});
+}
+
+/// komodo test notarised best chain
+/// should return best chain with nota
+#[test]
+fn komodo_best_notarised_chain_1() {
+    zebra_test::init();
+
+    let chain_desc_1 = [ 
+        ("0", TCD::A(5)),
+        ("0", TCD::N),
+        ("0", TCD::F(0, "1")), // fork at ht 5, creates branch with id "1"
+        ("0", TCD::F(0, "2")), // fork at ht 5, creates branch with id "2"
+        ("2", TCD::A(3)),
+        ("1", TCD::A(3)),
+        ("0", TCD::A(3)),
+        ("1", TCD::A(3)),   // make "1" longer than "0" 
+        ("2", TCD::A(4)),   // make "2" longer than "1" 
+        ("0", TCD::N),      // added nota in "0"
+        ("0", TCD::A(1)),   // add a block after nota in "0"
+    ];
+    komodo_run_forked_nn_chain_test(&chain_desc_1, |_, _, _branch_id, _prepared_block, result| {        
+        // println!("branch {} hash {:?} height {:?}", _branch_id, _prepared_block.hash, _prepared_block.height);
+        assert_eq!(*result, Ok(()));
         return true;
+    }, 
+    |state, tips|{
+        // branch "0" with nota must be the best
+        assert_eq!(state.mem.best_tip().expect("valid best tip").1, tips.get("0").expect("valid tip for branch").1);
     });
 }
 
-/// this test helper allows to create a test chain with parameters: forks and notas
-fn komodo_run_forked_nn_chain_test<C>(chain_desc: &[(&str, TCD)], check_result: C)
+/// komodo test notarised best chain
+/// with no nota should return longest best chain 
+#[test]
+fn komodo_best_notarised_chain_2() {
+    zebra_test::init();
+
+    let chain_desc_2 = [ 
+        ("0", TCD::A(5)),
+        ("0", TCD::N),
+        ("0", TCD::F(0, "1")), // fork at ht 5, creates branch with id "1"
+        ("0", TCD::F(0, "2")), // fork at ht 5, creates branch with id "2"
+        ("0", TCD::A(3)),
+        ("1", TCD::A(3)),
+        ("2", TCD::A(3)),
+        ("0", TCD::A(1)),   // advance ht+1
+        ("1", TCD::A(2)),   // make "1" longer than "0"
+        ("2", TCD::A(3)),   // make "2" longer than "1"
+    ];
+    komodo_run_forked_nn_chain_test(&chain_desc_2, |_, _, _branch_id, _prepared_block, result| {        
+        // println!("branch {} hash {:?} height {:?}", _branch_id, _prepared_block.hash, _prepared_block.height);
+        assert_eq!(*result, Ok(()));
+        return true;
+    }, 
+    |state, tips|{
+        // longest branch "2" must be the best
+        assert_eq!(state.mem.best_tip().expect("valid best tip").1, tips.get("2").expect("valid tip for branch").1);
+    });
+}
+
+/// this test helper allows to create a configurable test chain (blocks, forks and notas) and run checker functions.
+/// Params: 
+/// chain_desc chain description, what blocks, notas and forks to create
+/// check_result - block commit result checker
+/// check_state - checker is executed when the chain is created to validate its whole consistence
+fn komodo_run_forked_nn_chain_test<C1, C2>(chain_desc: &[(&str, TCD)], check_result: C1, check_state: C2)
     where
-        C: Fn(&str, &PreparedBlock, &Result<(), CommitBlockError>)->bool,  // return true to continue test
+        C1: Fn(&mut StateService, &HashMap<&str, (Height, block::Hash)>, &str, &PreparedBlock, &Result<(), CommitBlockError>)->bool,  // return true to continue test
+        C2: Fn(&StateService, &HashMap<&str, (Height, block::Hash)>),  
 {
     // create with inital branch 0
     let mut branch_tips = HashMap::new();
-    branch_tips.insert("0", (GENESIS_PREVIOUS_BLOCK_HASH, Height(0) ));  // prev block and next height
-
+    branch_tips.insert("0", (Height(0), GENESIS_PREVIOUS_BLOCK_HASH));  // (next height, prev block hash)
 
     let (mut state_service, _read_state, _latest_chain_tip, _chain_tip_change) =
         StateService::new(Config::ephemeral(), Network::Testnet);
@@ -436,11 +560,11 @@ fn komodo_run_forked_nn_chain_test<C>(chain_desc: &[(&str, TCD)], check_result: 
         let new_chunk;
         let branch_next_tip = branch_tips.get(tcd_step.0).expect("branch id must exist");
 
-        let relevant_chain = state_service.any_ancestor_blocks(branch_next_tip.0);
+        let relevant_chain = state_service.any_ancestor_blocks(branch_next_tip.1);
         let mut prev_blocks = relevant_chain.collect::<Vec<_>>();
         prev_blocks.reverse();
 
-        let this_chain = state_service.mem.find_chain(|chain| chain.non_finalized_tip_hash() == branch_next_tip.0);
+        let this_chain = state_service.mem.find_chain(|chain| chain.non_finalized_tip_hash() == branch_next_tip.1);
         let (value_pools, utxos) = if let Some(this_chain) = this_chain {
             (this_chain.chain_value_pools, this_chain.unspent_utxos())
         } else {
@@ -453,7 +577,7 @@ fn komodo_run_forked_nn_chain_test<C>(chain_desc: &[(&str, TCD)], check_result: 
                     &prev_blocks,
                     value_pools,
                     utxos,
-                    branch_next_tip.1, 
+                    branch_next_tip.0, 
                     n, 
                     false, 
                     crate::service::check::utxo::transparent_coinbase_spend, // allow_all_transparent_coinbase_spends,
@@ -465,7 +589,7 @@ fn komodo_run_forked_nn_chain_test<C>(chain_desc: &[(&str, TCD)], check_result: 
                     &prev_blocks,
                     value_pools,
                     utxos,
-                    branch_next_tip.1, 
+                    branch_next_tip.0, 
                     1, 
                     true, 
                     crate::service::check::utxo::transparent_coinbase_spend, // allow_all_transparent_coinbase_spends,
@@ -475,7 +599,7 @@ fn komodo_run_forked_nn_chain_test<C>(chain_desc: &[(&str, TCD)], check_result: 
                 assert!(n <= 0);
                 assert!(branch_tips.get(new_branch_id).is_none(), "new branch already exists");
                     
-                let fork_ht = (branch_next_tip.1 + (-1 + n)).expect("fork offset valid"); // substract 1 more as this is the next height, not tip height
+                let fork_ht = (branch_next_tip.0 + (-1 + n)).expect("fork offset valid"); // substract 1 more as this is the next height, not tip height
                 let this_chain = this_chain
                     .expect("non-finalized chain must exist for branch tip");
                 let fork_hash = this_chain.hash_by_height(fork_ht).expect("fork tip found");
@@ -489,7 +613,7 @@ fn komodo_run_forked_nn_chain_test<C>(chain_desc: &[(&str, TCD)], check_result: 
                     )
                     .expect("fork works")
                     .expect("hash is present");
-                branch_tips.insert(new_branch_id, (fork_hash, (fork_ht+1).unwrap())); // add new branch
+                branch_tips.insert(new_branch_id, ((fork_ht+1).unwrap(),fork_hash)); // add new branch
                 // println!("fork created at ht={:?} block_hash {:?}", fork_ht, fork_hash);
                 continue;
             },
@@ -498,13 +622,11 @@ fn komodo_run_forked_nn_chain_test<C>(chain_desc: &[(&str, TCD)], check_result: 
         let mut to_skip = 0_usize;
         if new_chunk[0].coinbase_height().expect("valid coinbase height") == Height(0) {
             // println!("to finalize ht={:?}", new_chunk[0].coinbase_height());
-
             let result = state_service.disk.commit_finalized_direct(new_chunk[0].clone().into(), "test");
             assert!(
                 result.is_ok(),
                 "komodo_create_partial_chain should generate a valid genesis block"
             );
-            //assert!(state.eq_internal_state(&state));
             to_skip = 1;
         }
 
@@ -513,11 +635,30 @@ fn komodo_run_forked_nn_chain_test<C>(chain_desc: &[(&str, TCD)], check_result: 
             let prepared = block.clone().prepare();
             // println!("to commit branch '{}' ht={:?} hash={:?}", tcd_step.0, prepared.clone().height, prepared.clone().hash);
             let result = state_service.validate_and_commit(prepared.clone());
-            //println!("result {:?} last_nota {:?}", result, state_service.mem.last_nota);
-            if !check_result(tcd_step.0, &prepared, &result) {
+            // println!("result {:?} last_nota {:?}", result, state_service.mem.last_nota);
+            if !check_result(&mut state_service, &branch_tips, tcd_step.0, &prepared, &result) {
                 return;
             }
-            branch_tips.insert(tcd_step.0, (prepared.clone().hash, (prepared.clone().height + 1).unwrap()));
+            branch_tips.insert(tcd_step.0, ((prepared.clone().height + 1).unwrap(), prepared.clone().hash));
         }
     } 
+    check_state(&state_service, &branch_tips);
+}
+
+fn komodo_test_chain_add_block(chain: Arc<Chain>, prepared_block: &PreparedBlock) -> Arc<Chain> {
+    if chain.blocks.values().last().expect("non empty chain").hash == prepared_block.hash {
+        chain.clone()
+    } else {
+        let contextual_block = ContextuallyValidBlock::with_block_and_spent_utxos(
+            chain.network(),
+            prepared_block.clone(),
+            None,
+            chain.unspent_utxos()        
+        ).expect("ContextuallyValidBlock created");
+
+        let new_chain = (*chain).clone();
+        let new_chain = new_chain.push(contextual_block).expect("add test block okay");
+
+        Arc::new(new_chain)
+    }
 }
