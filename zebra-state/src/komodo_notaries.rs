@@ -82,6 +82,7 @@ fn komodo_check_last_65_blocks_for_dups<C>(network: Network, height: &Height, re
     Ok(())
 }
 
+/// check the block time rule for easy mined blocks
 fn komodo_check_notary_blocktime<C>(network: Network, height: &Height, relevant_chain: &Vec<Block>, block: &Block) -> Result<(), NotaryValidateContextError> 
 {
     let tip_block = relevant_chain
@@ -124,6 +125,7 @@ fn is_second_block_allowed(notary_id: NotaryId, blocktime: DateTime<Utc>, thresh
     Ok(false)
 }
 
+/// returns true if there is a long gap between mined blocks, to enable to create an extra easy mined block 
 fn komodo_check_if_second_block_allowed<C>(network: Network, notary_id: NotaryId, height: &Height, relevant_chain: &Vec<Block>, block: &Block) -> Result<(), NotaryValidateContextError> 
 {
     let mut v_priority_list: Vec<u32> = (0..64).collect();
@@ -209,19 +211,7 @@ where
     Ok(false)  // not a special notary block
 }
 
-
-
-/// Notarisation transaction validation errors
-/*#[allow(dead_code, missing_docs)]
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum NotarisationTxError {
-
-    #[error("notarisation transaction invalid")]
-    NotarisationTxInvalid,
-}*/
-
-
-
+/// check if block hash a valid notarisation transaction (signed with min number of notaries and with a nota in opreturn)
 pub fn komodo_block_has_notarisation_tx(network: Network, block: &Block, spent_outputs: &HashMap<transparent::OutPoint, transparent::Output>, height: &Height) -> Option<BackNotarisationData> 
 {
     for tx in &block.transactions {
