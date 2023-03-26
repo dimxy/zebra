@@ -1246,7 +1246,7 @@ fn komodo_miner_fee_valid_for_mempool(min_relay_txfee: FeeRate, tx: &Transaction
     
     if check_low_fee && tx_fee < min_relay_txfee.get_fee(tx_size)  {
         if let Ok(mut limiter) = TX_RATE_LIMITER.lock()  {
-            if limiter.check_rate_limit(tx, Utc::now()) {
+            if !limiter.check_rate_limit(tx, Utc::now()) {
                 return Err(TransactionError::KomodoLowFeeLimit(tx.hash(), String::from("low txfee limit reached")));
             }
         }
