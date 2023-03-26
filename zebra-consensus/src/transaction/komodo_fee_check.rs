@@ -2,15 +2,9 @@
  
 use chrono::{DateTime, Utc, NaiveDateTime};
 use zebra_chain::{amount::{Amount, NegativeAllowed}, transaction::{Transaction}, serialization::{ZcashSerialize}};
-use lazy_static::lazy_static;
-use std::sync::{Mutex};
 
+/// komodo default minimum tx fee for transaction relay
 pub const DEFAULT_MIN_RELAY_TX_FEE: u64 = 100;
-
-lazy_static! {
-    /// load low fee tx rate limiter
-    pub static ref TX_RATE_LIMITER: Mutex<FeeRateLimiter> = Mutex::new(FeeRateLimiter::new());   
-}
 
 /// min tx fee calculator
 #[derive(Debug, Clone)]
@@ -67,7 +61,8 @@ impl FeeRateLimiter {
         }
     }
 
-    /// check if rate limit is not over and update the new limit value
+    /// check if rate limit is not over and update the new limit value.
+    /// Returns false if limit reached
     pub fn check_rate_limit(&mut self, tx: &Transaction, now: DateTime<Utc>) -> bool {
 
         if let Ok(tx_size) = tx.zcash_serialized_size() {
