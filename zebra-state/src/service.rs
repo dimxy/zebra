@@ -493,14 +493,14 @@ impl StateService {
                 if last_nota_ht == last_nota.notarised_height { // if notarized_hash not in chain, reorg
                     if prepared.height < last_nota.notarised_height {
                         // forked chain %d older than last notarized (height %d) vs %d" case
-                        return Err(ValidateContextError::InvalidNotarisedChain(
+                        return Err(ValidateContextError::KomodoInvalidNotarisedChain(
                             prepared.hash,
                             prepared.height,
                             last_nota.notarised_height
                         ));
                     } else if prepared.height == last_nota.notarised_height && prepared.hash != last_nota.block_hash {
                         // [%s] nHeight.%d == NOTARIZED_HEIGHT.%d, diff hash case
-                        return Err(ValidateContextError::InvalidNotarisedChain(
+                        return Err(ValidateContextError::KomodoInvalidNotarisedChain(
                             prepared.hash,
                             prepared.height,
                             last_nota.notarised_height
