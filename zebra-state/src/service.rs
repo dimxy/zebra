@@ -24,7 +24,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, Utc, NaiveDateTime, Timelike};
 use futures::future::FutureExt;
 use tokio::sync::{oneshot, watch};
 use tower::{util::BoxService, Service};
@@ -36,7 +35,7 @@ use tower::buffer::Buffer;
 use zebra_chain::{
     block::{self, CountedHeader},
     diagnostic::CodeTimer,
-    parameters::{Network, NetworkUpgrade, POW_AVERAGING_WINDOW},
+    parameters::{Network, NetworkUpgrade},
     transparent,
     komodo_hardfork::NN,
 };
@@ -48,7 +47,7 @@ use crate::{
         non_finalized_state::{Chain, NonFinalizedState, QueuedBlocks},
         pending_utxos::PendingUtxos, pending_blocks::PendingBlocks,
         komodo_transparent::komodo_transparent_spend_finalized,
-        watch_receiver::WatchReceiver, check::difficulty::{POW_MEDIAN_BLOCK_SPAN, AdjustedDifficulty},
+        watch_receiver::WatchReceiver,
     },
     BoxError, CloneError, CommitBlockError, Config, FinalizedBlock, PreparedBlock, ReadRequest,
     ReadResponse, Request, Response, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx,
@@ -484,6 +483,31 @@ impl StateService {
         prepared: &PreparedBlock,
     ) -> Result<(), ValidateContextError> {
         let relevant_chain = self.any_ancestor_blocks(prepared.block.header.previous_block_hash);
+
+        // komodo_checkpoint check before other checks
+        if let Some(last_nota) = &self.mem.last_nota {
+            tracing::debug!("prepared.height={:?}, last_nota_height={:?}, last_nota_block_hash={:?}", prepared.height, last_nota.notarised_height, last_nota.block_hash);
+            // verify that the block info returned from komodo_notarizeddata matches the actual block
+            if let Some(last_nota_ht) = self.best_height_by_hash(last_nota.block_hash) {
+                if last_nota_ht == last_nota.notarised_height { // if notarized_hash not in chain, reorg
+                    if prepared.height < last_nota.notarised_height {
+                        // forked chain %d older than last notarized (height %d) vs %d" case
+                        return Err(ValidateContextError::KomodoInvalidNotarisedChain(
+                            prepared.hash,
+                            prepared.height,
+                            last_nota.notarised_height
+                        ));
+                    } else if prepared.height == last_nota.notarised_height && prepared.hash != last_nota.block_hash {
+                        // [%s] nHeight.%d == NOTARIZED_HEIGHT.%d, diff hash case
+                        return Err(ValidateContextError::KomodoInvalidNotarisedChain(
+                            prepared.hash,
+                            prepared.height,
+                            last_nota.notarised_height
+                        ));
+                    }
+                }
+            }
+        }
 
         // Security: check proof of work before any other checks
         check::block_is_valid_for_recent_chain(
@@ -1078,6 +1102,41 @@ impl Service<Request> for StateService {
 
                 async move { rsp }.boxed()
             }
+
+            Request::UnspentBestChainUtxo(outpoint) => {
+                metrics::counter!(
+                    "state.requests",
+                    1,
+                    "service" => "read_state",
+                    "type" => "unspent_best_chain_utxo",
+                );
+
+                //let state = self.clone();
+                
+                let timer = CodeTimer::start();
+
+                let best_chain = self.mem.best_chain().cloned();
+                let db = self.disk.db().clone();
+
+                let span = Span::current();
+                tokio::task::spawn_blocking(move || {
+                    span.in_scope(move || {
+                        let utxo = read::unspent_utxo(
+                            best_chain,
+                            &db,
+                            outpoint
+                        );
+
+                        // The work is done in the future.
+                        timer.finish(module_path!(), line!(), "Request::UnspentBestChainUtxo");
+
+                        Ok(Response::UnspentBestChainUtxo(utxo))
+                    })
+                })
+                .map(|join_result| join_result.expect("panic in Request::UnspentBestChainUtxo"))
+                .boxed()
+            }
+
         }
     }
 }
@@ -1120,10 +1179,10 @@ impl Service<ReadRequest> for ReadStateService {
 
                         // The work is done in the future.
                         timer.finish(module_path!(), line!(), "ReadRequest::Block");
-                        match &block  {
-                            Some(b) => println!("block {}", b),
-                            None => println!("block not found"), 
-                        }
+                        // match &block  {
+                        //     Some(b) => println!("block {}", b),
+                        //     None => println!("block not found"),
+                        // }
                         Ok(ReadResponse::Block(block))
                     })
                 })

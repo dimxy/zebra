@@ -363,6 +363,15 @@ pub enum Request {
     /// * [`Response::Transaction(None)`](Response::Transaction) otherwise.
     Transaction(transaction::Hash),
 
+    /// Looks up a UTXO identified by the given [`OutPoint`](transparent::OutPoint),
+    /// returning `None` immediately if it is unknown.
+    ///
+    /// Checks verified blocks in the finalized chain and the _best_ non-finalized chain.
+    ///
+    /// This request is purely informational, there is no guarantee that
+    /// the UTXO remains unspent in the best chain.
+    UnspentBestChainUtxo(transparent::OutPoint),
+
     /// Looks up a block by hash or height in the current best chain.
     ///
     /// Returns

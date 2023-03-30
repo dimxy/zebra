@@ -112,9 +112,14 @@ lazy_static! {
         <Vec<u8>>::from_hex(include_str!("block-kmdmain-0-000-010.txt").trim())
         .expect("Block bytes are in valid hex representation");
    
-    // Before overwinter:
+    // Some block before overwinter:
     pub static ref BLOCK_KMDMAINNET_899012_BYTES: Vec<u8> =
         <Vec<u8>>::from_hex(include_str!("block-kmdmain-0-899-012.txt").trim())
+        .expect("Block bytes are in valid hex representation");
+
+    // Block just before overwinter/sapling
+    pub static ref BLOCK_KMDMAINNET_1140408_BYTES: Vec<u8> =
+        <Vec<u8>>::from_hex(include_str!("block-kmdmain-1-140-408.txt").trim())
         .expect("Block bytes are in valid hex representation");
 
     // Overwinter, Sapling

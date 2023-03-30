@@ -40,6 +40,9 @@ pub enum Response {
     /// Response to [`Request::Transaction`] with the specified transaction.
     Transaction(Option<Arc<Transaction>>),
 
+    /// Response to [`Request::UnspentBestChainUtxo`] with the UTXO
+    UnspentBestChainUtxo(Option<transparent::Utxo>),
+
     /// Response to [`Request::Block`] with the specified block.
     Block(Option<Arc<Block>>),
 
