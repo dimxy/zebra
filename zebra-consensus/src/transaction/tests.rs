@@ -2795,3 +2795,83 @@ async fn komodo_mempool_request_with_present_input_is_accepted() {
         "expected successful verification, got: {verifier_response:?}"
     );
 }
+
+/// check komodo mempool low fee rate limiter
+#[tokio::test]
+async fn komodo_mempool_rate_limiter() {
+    let state: MockService<_, _, _, _> = MockService::build().for_prop_tests();
+    let verifier = Verifier::new(Network::Mainnet, state.clone());
+
+    let height = NetworkUpgrade::Sapling
+        .activation_height(Network::Mainnet)
+        .expect("Sapling activation height is specified");
+    let fund_height = (height - 1).expect("fake source fund block height is too small");
+
+    let mut rate_err_correct = false;
+    for count in 0..100000 {
+        let (input, output, known_utxos) = mock_transparent_transfer(fund_height, true, 0);
+
+        // Create a non-coinbase V4 tx with the last valid expiry height.
+        let tx = Transaction::V4 {
+            inputs: vec![input],
+            outputs: vec![output],
+            lock_time: LockTime::unlocked(),
+            expiry_height: height,
+            joinsplit_data: None,
+            sapling_shielded_data: None,
+        };
+
+        let input_outpoint = match tx.inputs()[0] {
+            transparent::Input::PrevOut { outpoint, .. } => outpoint,
+            transparent::Input::Coinbase { .. } => panic!("requires a non-coinbase transaction"),
+        };
+
+        let prev_height = fund_height;
+        let prev_block: Arc<Block> = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1140408_BYTES.zcash_deserialize_into().expect("valid pre-sapling block to deserialize");
+
+        let mut state = state.clone();
+        let verifier = verifier.clone();
+
+        tokio::spawn(async move {
+
+            state
+                .expect_request(zebra_state::Request::GetMedianTimePast(None))
+                .await
+                .expect("verifier should call mock state service with correct request")
+                .respond(zebra_state::Response::MedianTimePast(Some(prev_block.header.time))); // mock MTP by block time
+
+            state
+                .expect_request(zebra_state::Request::Block(zebra_state::HashOrHeight::Height(prev_height)))
+                .await
+                .expect("verifier should call mock state service with correct request")
+                .respond(zebra_state::Response::Block(Some(prev_block)));
+
+            state
+                .expect_request(zebra_state::Request::UnspentBestChainUtxo(input_outpoint))
+                .await
+                .expect("verifier should call mock state service with correct request")
+                .respond(zebra_state::Response::UnspentBestChainUtxo(
+                    known_utxos
+                        .get(&input_outpoint)
+                        .map(|utxo| utxo.utxo.clone()),
+                ));
+        });
+
+        let verifier_response = verifier
+            .oneshot(Request::Mempool {
+                transaction: tx.into(),
+                height,
+                check_low_fee: true, // use rate limiter
+                reject_absurd_fee: false,
+            })
+            .await;
+
+        if let Err(TransactionError::KomodoLowFeeLimit(..)) = verifier_response {
+            if count > 1000 {
+                rate_err_correct = true;
+            }
+            break;
+        }
+    }
+    assert!(rate_err_correct, "expected komodo tx rate limiter error after 1000 txns with low fee");
+}
