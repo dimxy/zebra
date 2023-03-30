@@ -486,9 +486,9 @@ impl StateService {
 
         // komodo_checkpoint check before other checks
         if let Some(last_nota) = &self.mem.last_nota {
-            tracing::debug!("prepared.height={:?}, last_nota_height={:?}, last_nota_block_hash={:?}", prepared.height, last_nota.notarised_height, last_nota.block_hash);
+            tracing::debug!("prepared.height={:?}, last_nota_height={:?}, last_nota_block_hash={:?}", prepared.height, last_nota.notarised_height, last_nota.notarised_block_hash);
             // verify that the block info returned from komodo_notarizeddata matches the actual block
-            if let Some(last_nota_ht) = self.best_height_by_hash(last_nota.block_hash) {
+            if let Some(last_nota_ht) = self.best_height_by_hash(last_nota.notarised_block_hash) {
                 if last_nota_ht == last_nota.notarised_height { // if notarized_hash not in chain, reorg
                     if prepared.height < last_nota.notarised_height {
                         // forked chain %d older than last notarized (height %d) vs %d" case
@@ -497,7 +497,7 @@ impl StateService {
                             prepared.height,
                             last_nota.notarised_height
                         ));
-                    } else if prepared.height == last_nota.notarised_height && prepared.hash != last_nota.block_hash {
+                    } else if prepared.height == last_nota.notarised_height && prepared.hash != last_nota.notarised_block_hash {
                         // [%s] nHeight.%d == NOTARIZED_HEIGHT.%d, diff hash case
                         return Err(ValidateContextError::KomodoInvalidNotarisedChain(
                             prepared.hash,
