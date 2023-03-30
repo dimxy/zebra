@@ -1,20 +1,16 @@
 //! Komodo notarisation utilities for special block contextual validation
  
 use std::borrow::Borrow;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 
 use chrono::{Utc, DateTime, NaiveDateTime, Duration};
-use zebra_chain::parameters::{Network, NetworkUpgrade, MAINNET_MAX_FUTURE_BLOCK_TIME, MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA};
-use zebra_chain::transparent::Script;
-use zebra_chain::{
-    transparent, 
-    //primitives::transparent_output_address,
+use zebra_chain:: {
+    komodo_nota::BackNotarisationData,
+    parameters::{Network, MAINNET_MAX_FUTURE_BLOCK_TIME, MAINNET_HF22_NOTARIES_PRIORITY_ROTATE_DELTA},
+    serialization::ZcashDeserialize,
+    transparent,
+    block::{self, Block, Height},
 };
-//use crate::ValidateContextError;
-//use zebra_chain::block::Height;
-use zebra_chain::block::{Block, Height};
-use zebra_chain::block;
-use zebra_chain::transaction;
 
 use zebra_chain::komodo_hardfork::*;
 use zebra_chain::komodo_utils::*;
@@ -24,29 +20,6 @@ use thiserror::Error;
 
 /// max depth to check for duplicate notary miners
 pub const NN_DUP_CHECK_DEPTH: usize = 65;
-
-/// temp minimal opcodes list for parsing nota in opreturn
-/// hope we will have the complete opcode list in dedicated script source
-enum OpCode {
-    // push value
-    PushData1 = 0x4c,
-    // PushData2 = 0x4d,
-    // PushData4 = 0x4e,
-
-    // stack ops
-    //Dup = 0x76,
-
-    // bit logic
-    // Equal = 0x87,
-    // EqualVerify = 0x88,
-
-    // crypto
-    // Hash160 = 0xa9,
-    // CheckSig = 0xac,
-
-    // exit
-    OpReturn = 0x6a,
-}
 
 /// Special, notary node generated block errors
 #[allow(dead_code, missing_docs)]
@@ -109,6 +82,7 @@ fn komodo_check_last_65_blocks_for_dups<C>(network: Network, height: &Height, re
     Ok(())
 }
 
+/// check the block time rule for easy mined blocks
 fn komodo_check_notary_blocktime<C>(network: Network, height: &Height, relevant_chain: &Vec<Block>, block: &Block) -> Result<(), NotaryValidateContextError> 
 {
     let tip_block = relevant_chain
@@ -151,6 +125,7 @@ fn is_second_block_allowed(notary_id: NotaryId, blocktime: DateTime<Utc>, thresh
     Ok(false)
 }
 
+/// returns true if there is a long gap between mined blocks, to enable to create an extra easy mined block 
 fn komodo_check_if_second_block_allowed<C>(network: Network, notary_id: NotaryId, height: &Height, relevant_chain: &Vec<Block>, block: &Block) -> Result<(), NotaryValidateContextError> 
 {
     let mut v_priority_list: Vec<u32> = (0..64).collect();
@@ -178,7 +153,6 @@ fn komodo_check_if_second_block_allowed<C>(network: Network, notary_id: NotaryId
     error!("komodo invalid second block generated for notary_id={} block.header={:?}", notary_id, block.header);
     Err(NotaryValidateContextError::NotaryBlockInvalid(*height, block.hash(), String::from("invalid second block after gap")))
 }
-
 
 /// check if block is notary special and valid for notary new rules for ht >= 84000 for KMD mainnet, 
 /// if the block is special and valid then returns true
@@ -237,47 +211,13 @@ where
     Ok(false)  // not a special notary block
 }
 
-
-
-/// Notarisation transaction validation errors
-/*#[allow(dead_code, missing_docs)]
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum NotarisationTxError {
-
-    #[error("notarisation transaction invalid")]
-    NotarisationTxInvalid,
-}*/
-
-/// kmd back notarisation data 
-#[derive(Debug, Clone)]
-pub struct BackNotarisationData {
-    pub block_hash: block::Hash,
-    pub notarised_height: Height,
-    pub tx_hash: transaction::Hash,
-    pub symbol: String,
-
-    // assets chains data:
-    // mom: block::Root,
-    // momom: block::Root,
-    // ccid: u16,
-    // mom_depth: u32,
-}
-
-impl BackNotarisationData {
-    pub fn new() -> Self {
-        Self {     
-            block_hash: block::Hash([0; 32]),
-            notarised_height: Height(0),
-            tx_hash: transaction::Hash([0; 32]),
-            symbol: String::default(),
-        }
-    }
-}
-
+/// check if block hash a valid notarisation transaction (signed with min number of notaries and with a nota in opreturn)
 pub fn komodo_block_has_notarisation_tx(network: Network, block: &Block, spent_outputs: &HashMap<transparent::OutPoint, transparent::Output>, height: &Height) -> Option<BackNotarisationData> 
 {
     for tx in &block.transactions {
         
+        //println!("looking at {:?} for nota in tx output {:?}", height, tx.clone().outputs().last());
+
         let mut signedmask: u64 = 0;
         signedmask |= if *height < Height(91400) { 1 } else { 0 };
         for input in tx.inputs() {
@@ -300,75 +240,19 @@ pub fn komodo_block_has_notarisation_tx(network: Network, block: &Block, spent_o
             }
             n
         };
+        //println!("komodo signed notary numbits={} height={:?}", numbits, height);
         trace!("komodo signed notary numbits={} height={:?}", numbits, height);
 
         if numbits >= komodo_minratify(network, height) {
             // several notas are possible in the same nota tx
+            //println!("looking nota in outputs..");
             for output in tx.outputs() {
-                if let Some(nota) = parse_kmd_back_notarisation_tx_opreturn(&output.lock_script) {
+                if let Ok(nota) = BackNotarisationData::zcash_deserialize(output.lock_script.as_raw_bytes()) {  // ignore parse errors
+                    //println!("nota found {:?}", nota);
                     return Some(nota);
                 }
             }
         }
     }
     None
-}
-
-/// parse notarisation tx opreturn with data which height is notarisation 
-fn parse_kmd_back_notarisation_tx_opreturn(script: &Script) -> Option<BackNotarisationData> {
-
-    let bytes = script.as_raw_bytes();
-
-    if bytes.len() < 1 { return None; }
-
-    if bytes[0] != OpCode::OpReturn as u8 { return None; }
-
-    let mut off: usize;
-    if bytes.len() > 3 && bytes[1] < OpCode::PushData1 as u8 { off = 2; }
-    else if bytes.len() > 5 && bytes[1] == OpCode::PushData1 as u8 { off = 4; }
-    else { return None; }
-
-    // check if this is kmd back nota:
-    let mut is_kmd_back = false;
-    if off + 72 <= bytes.len() {
-        const KMD_NAME: [u8;4] = [0x4b, 0x4d, 0x44, 0x00];
-        if bytes[off+68..off+72] == KMD_NAME {  // exact comparison including trailing 0
-            is_kmd_back = true;
-        }
-    } 
-
-    if !is_kmd_back { return None; } // TODO: parse notas for other chains
-
-    let mut nota = BackNotarisationData::new();
-
-    if off + 32 >= bytes.len() { return None; }
-    let hash_bytes: [u8;32] = bytes[off..off+32].try_into().unwrap();
-    nota.block_hash = block::Hash::from(hash_bytes);
-    off += 32;
-
-    if off + 4 >= bytes.len() { return None; }
-    let u32_bytes: [u8;4] = bytes[off..off+4].try_into().unwrap();
-    let ht = u32::from_le_bytes(u32_bytes);
-    nota.notarised_height = Height(ht);
-    off += 4;
-
-    if off + 32 >= bytes.len() { return None; }
-    let hash_bytes: [u8;32] = bytes[off..off+32].try_into().unwrap();
-    nota.tx_hash = transaction::Hash::from(hash_bytes);
-    off += 32;
-
-    if off >= bytes.len() { return None; }
-    // find network name end pos: it is either 0x0's pos or the next pos after the last sym 
-    // (we need to exclude trailing 0 bcz String::from_utf8 does not recognize it as a stop sym)
-    let end = if let Some(pos0) = bytes.iter().skip(off).position(|&b| b == 0 as u8) { off+pos0 } else { bytes.len() };
-    if let Ok(symbol) = String::from_utf8(bytes[off..end].to_vec()) { 
-        nota.symbol = symbol;
-    }
-    else {
-        return None;
-    }
-    if nota.symbol != String::from("KMD") { return None; }
-
-    trace!("komodo found nota {:?}", nota);
-    Some(nota)
 }

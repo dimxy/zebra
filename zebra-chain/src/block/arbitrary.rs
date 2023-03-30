@@ -374,6 +374,7 @@ impl Arbitrary for Block {
 /// Skip checking transparent coinbase spends in [`Block::partial_chain_strategy`].
 #[allow(clippy::result_unit_err)]
 pub fn allow_all_transparent_coinbase_spends(
+    _: Network,
     _: transparent::OutPoint,
     _: transparent::CoinbaseSpendRestriction,
     _: transparent::OrderedUtxo,
@@ -401,6 +402,7 @@ impl Block {
     ) -> BoxedStrategy<SummaryDebug<Vec<Arc<Self>>>>
     where
         F: Fn(
+                Network,
                 transparent::OutPoint,
                 transparent::CoinbaseSpendRestriction,
                 transparent::OrderedUtxo,
@@ -578,6 +580,7 @@ pub fn fix_generated_transaction<F, T, E>(
 ) -> Option<Transaction>
 where
     F: Fn(
+            Network,
             transparent::OutPoint,
             transparent::CoinbaseSpendRestriction,
             transparent::OrderedUtxo,
@@ -596,6 +599,7 @@ where
             // the transparent chain value pool is the sum of unspent UTXOs,
             // so we don't need to check it separately, because we only spend unspent UTXOs
             if let Some(selected_outpoint) = find_valid_utxo_for_spend(
+                network,
                 &mut transaction,
                 &mut spend_restriction,
                 height,
@@ -651,6 +655,7 @@ where
 ///
 /// If there is no valid output, or many search attempts have failed, returns `None`.
 pub fn find_valid_utxo_for_spend<F, T, E>(
+    network: Network,
     transaction: &mut Transaction,
     spend_restriction: &mut CoinbaseSpendRestriction,
     spend_height: Height,
@@ -659,6 +664,7 @@ pub fn find_valid_utxo_for_spend<F, T, E>(
 ) -> Option<transparent::OutPoint>
 where
     F: Fn(
+            Network,
             transparent::OutPoint,
             transparent::CoinbaseSpendRestriction,
             transparent::OrderedUtxo,
@@ -671,7 +677,9 @@ where
     let mut attempts: usize = 0;
 
     // choose an arbitrary spendable UTXO, in hash set order
-    while let Some((candidate_outpoint, candidate_utxo)) = utxos.iter().next() {
+    let mut utxos_iter = utxos.iter();
+    while let Some((candidate_outpoint, candidate_utxo)) = utxos_iter.next() {
+    
         attempts += 1;
 
         // Avoid O(n^2) algorithmic complexity by giving up early,
@@ -682,6 +690,7 @@ where
 
         // try the utxo as-is, then try it with deleted transparent outputs
         if check_transparent_coinbase_spend(
+            network,
             *candidate_outpoint,
             *spend_restriction,
             candidate_utxo.clone(),
@@ -691,6 +700,7 @@ where
             return Some(*candidate_outpoint);
         } else if has_shielded_outputs
             && check_transparent_coinbase_spend(
+                network,
                 *candidate_outpoint,
                 delete_transparent_outputs,
                 candidate_utxo.clone(),

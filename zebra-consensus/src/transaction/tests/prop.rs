@@ -14,7 +14,7 @@ use zebra_chain::{
     transparent, work::difficulty::INVALID_COMPACT_DIFFICULTY,
 };
 
-use super::mock_transparent_transfer;
+use super::{mock_transparent_transfer, FAKE_PREV_BLOCK_HASH};
 use crate::{error::TransactionError, transaction};
 
 /// The maximum number of transparent inputs to include in a mock transaction.
@@ -55,7 +55,7 @@ proptest! {
     }
 
     /// Test if having [`u32::MAX`] as the sequence number of all inputs disables the lock time.
-    #[ignore]  // Not supported in Komodo due to state_service not returning the previous block time. TODO: return a fake previous blokck and MTP to fix
+    #[ignore]  // Not supported in Komodo due to state_service not returning the previous block time. TODO: return a fake previous block and MTP to fix
     #[test]
     fn lock_time_is_ignored_because_of_sequence_numbers(
         (network, block_height) in sapling_onwards_strategy(),
@@ -91,8 +91,7 @@ proptest! {
     }
 
     /// Test if a transaction locked at a certain block height is rejected.
-    #[ignore]  // Not supported in Komodo due to state_service not returning the previous block time. TODO: return a fake previous blokck and MTP to fix
-    #[test]
+    #[test] // fixed for komodo
     fn transaction_is_rejected_based_on_lock_height(
         (network, block_height) in sapling_onwards_strategy(),
         block_time in datetime_full(),
@@ -447,8 +446,10 @@ fn validate(
 ) -> Result<transaction::Response, TransactionError> {
     zebra_test::MULTI_THREADED_RUNTIME.block_on(async {
         // Initialize the verifier
+        //let state_service =
+        //    tower::service_fn(|_| async { unreachable!("State service should not be called") });
         let state_service =
-            tower::service_fn(|_| async { unreachable!("State service should not be called") });
+            tower::service_fn(super::fake_state_handler);
         let verifier = transaction::Verifier::new(network, state_service);
 
         // Test the transaction verifier
@@ -459,7 +460,7 @@ fn validate(
                 known_utxos: Arc::new(known_utxos),
                 height,
                 time: block_time,
-                previous_hash: block::Hash([0xff; 32]), // unused
+                previous_hash: FAKE_PREV_BLOCK_HASH, // unused
                 last_tx_verify_data: None, // unused
             })
             .await

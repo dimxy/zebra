@@ -9,12 +9,12 @@ use zebra_chain::block::Block;
 // Load komodo sample net blocks helper fn for other tests
 pub fn komodo_load_testnet_a_node_1() -> Vec<Arc<Block>> {
     
-    let genesis_bin = Vec::from_hex(include_str!("./service/check/tests/testnet_a_genesis.hex").trim()).expect("invalid genesis hex");
+    let genesis_bin = Vec::from_hex(include_str!("./service/non_finalized_state/tests/testnet_a_genesis.hex").trim()).expect("invalid genesis hex");
     let genesis = genesis_bin.zcash_deserialize_into::<Arc<Block>>()
         .expect("block should deserialize");
     let mut blocks: Vec<Arc<Block>> = vec![genesis.clone()];
 
-    let blocks_node1_hex = include_str!("./service/check/tests/testnet_a_node_1.hex").split("\n").collect::<Vec<_>>();
+    let blocks_node1_hex = include_str!("./service/non_finalized_state/tests/testnet_a_node_1.hex").split("\n").collect::<Vec<_>>();
 
     // add valid branch to disk before one down before the notarised height
     for block_hex in blocks_node1_hex.iter().take(126)   {   

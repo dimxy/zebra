@@ -129,14 +129,28 @@ lazy_static! {
         <Vec<u8>>::from_hex(include_str!("block-kmdmain-1-140-500.txt").trim())
         .expect("Block bytes are in valid hex representation");
 
-    // coinbase only
+    // pow block, coinbase only
     pub static ref BLOCK_KMDMAINNET_1140507_BYTES: Vec<u8> =
         <Vec<u8>>::from_hex(include_str!("block-kmdmain-1-140-507.txt").trim())
+        .expect("Block bytes are in valid hex representation");
+
+    // block with nota (asset chain) TODO delete
+    pub static ref BLOCK_KMDMAINNET_3140508_BYTES: Vec<u8> =
+        <Vec<u8>>::from_hex(include_str!("block-kmdmain-3-140-508.txt").trim())
         .expect("Block bytes are in valid hex representation");
 
     // RICK sample blocks:
     pub static ref BLOCK_RICK_899012_BYTES: Vec<u8> =
         <Vec<u8>>::from_hex(include_str!("block-rick-0-899-012.txt").trim())
+        .expect("Block bytes are in valid hex representation");
+
+    pub static ref BLOCK_KMDTESTNET_0000126_BYTES: Vec<u8> =
+        <Vec<u8>>::from_hex(include_str!("block-kmdtest-0-000-126.txt").trim())
+        .expect("Block bytes are in valid hex representation");
+
+    // block with nota
+    pub static ref BLOCK_KMDTESTNET_0000127_BYTES: Vec<u8> =
+        <Vec<u8>>::from_hex(include_str!("block-kmdtest-0-000-127.txt").trim())
         .expect("Block bytes are in valid hex representation");
  
 }

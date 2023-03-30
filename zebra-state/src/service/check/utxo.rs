@@ -9,7 +9,7 @@ use zebra_chain::{
 };
 
 use crate::{
-    constants::MIN_TRANSPARENT_COINBASE_MATURITY,
+    constants::MIN_TRANSPARENT_COINBASE_MATURITY, constants::KOMODO_MIN_TESTNET_TRANSPARENT_COINBASE_MATURITY,
     service::finalized_state::ZebraDb,
     PreparedBlock,
     ValidateContextError::{
@@ -74,7 +74,7 @@ pub fn transparent_spend(
             // so we check transparent coinbase maturity and shielding
             // using known valid UTXOs during non-finalized chain validation.
             let spend_restriction = transaction.coinbase_spend_restriction(prepared.height);
-            let utxo = transparent_coinbase_spend(spend, spend_restriction, utxo)?;
+            let utxo = transparent_coinbase_spend(network, spend, spend_restriction, utxo)?;
 
             // We don't delete the UTXOs until the block is committed,
             // so we  need to check for duplicate spends within the same block.
@@ -192,6 +192,7 @@ fn transparent_spend_chain_order(
 ///
 /// <https://zips.z.cash/protocol/protocol.pdf#txnconsensus>
 pub fn transparent_coinbase_spend(
+    network: Network,
     outpoint: transparent::OutPoint,
     spend_restriction: transparent::CoinbaseSpendRestriction,
     utxo: transparent::OrderedUtxo,
@@ -202,7 +203,7 @@ pub fn transparent_coinbase_spend(
     }
 
     let min_spend_height =
-                utxo.utxo.height + block::Height(MIN_TRANSPARENT_COINBASE_MATURITY);
+                utxo.utxo.height + block::Height(komodo_get_min_coinbase_maturity(network));
     let min_spend_height =
         min_spend_height.expect("valid UTXOs have coinbase heights far below Height::MAX");
 
@@ -298,4 +299,12 @@ pub fn remaining_transaction_value(
     }
 
     Ok(())
+}
+
+/// return transparent coinbase maturity for network
+fn komodo_get_min_coinbase_maturity(network: Network) -> u32 {
+    match network {
+        Network::Mainnet => MIN_TRANSPARENT_COINBASE_MATURITY,
+        Network::Testnet => KOMODO_MIN_TESTNET_TRANSPARENT_COINBASE_MATURITY,
+    }
 }

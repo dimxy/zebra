@@ -39,6 +39,7 @@ pub mod work;
 pub mod komodo_hardfork;
 pub mod komodo_utils;
 pub mod interest;
+pub mod komodo_nota;
 
 #[cfg(any(test, feature = "proptest-impl"))]
 pub use block::LedgerState;
