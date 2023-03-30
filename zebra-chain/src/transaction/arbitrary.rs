@@ -997,6 +997,23 @@ pub fn fake_v5_transactions_for_network<'b>(
     })
 }
 
+
+/// Generate an iterator over ([`block::Height`], [`Arc<Transaction>`], block::Hash).
+pub fn komodo_transactions_from_blocks<'a>(
+    blocks: impl DoubleEndedIterator<Item = (&'a u32, &'a &'static [u8])> + 'a,
+) -> impl DoubleEndedIterator<Item = (block::Height, Arc<Transaction>, block::Hash)> + 'a {
+    blocks.flat_map(|(&block_height, &block_bytes)| {
+        let block = block_bytes
+            .zcash_deserialize_into::<block::Block>()
+            .expect("block is structurally valid");
+
+        block
+            .transactions
+            .into_iter()
+            .map(move |transaction| (block::Height(block_height), transaction, block.header.previous_block_hash))
+    })
+}
+
 /// Modify a V5 transaction to insert fake Orchard shielded data.
 ///
 /// Creates a fake instance of [`orchard::ShieldedData`] with one fake action. Note that both the

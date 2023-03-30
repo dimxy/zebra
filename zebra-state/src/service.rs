@@ -24,7 +24,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use chrono::{DateTime, Utc, NaiveDateTime, Timelike};
 use futures::future::FutureExt;
 use tokio::sync::{oneshot, watch};
 use tower::{util::BoxService, Service};
@@ -36,7 +35,7 @@ use tower::buffer::Buffer;
 use zebra_chain::{
     block::{self, CountedHeader},
     diagnostic::CodeTimer,
-    parameters::{Network, NetworkUpgrade, POW_AVERAGING_WINDOW},
+    parameters::{Network, NetworkUpgrade},
     transparent,
     komodo_hardfork::NN,
 };
@@ -48,7 +47,7 @@ use crate::{
         non_finalized_state::{Chain, NonFinalizedState, QueuedBlocks},
         pending_utxos::PendingUtxos, pending_blocks::PendingBlocks,
         komodo_transparent::komodo_transparent_spend_finalized,
-        watch_receiver::WatchReceiver, check::difficulty::{POW_MEDIAN_BLOCK_SPAN, AdjustedDifficulty},
+        watch_receiver::WatchReceiver,
     },
     BoxError, CloneError, CommitBlockError, Config, FinalizedBlock, PreparedBlock, ReadRequest,
     ReadResponse, Request, Response, ValidateContextError, komodo_notaries::komodo_block_has_notarisation_tx,
@@ -1102,6 +1101,41 @@ impl Service<Request> for StateService {
 
                 async move { rsp }.boxed()
             }
+
+            Request::UnspentBestChainUtxo(outpoint) => {
+                metrics::counter!(
+                    "state.requests",
+                    1,
+                    "service" => "read_state",
+                    "type" => "unspent_best_chain_utxo",
+                );
+
+                //let state = self.clone();
+                
+                let timer = CodeTimer::start();
+
+                let best_chain = self.mem.best_chain().cloned();
+                let db = self.disk.db().clone();
+
+                let span = Span::current();
+                tokio::task::spawn_blocking(move || {
+                    span.in_scope(move || {
+                        let utxo = read::unspent_utxo(
+                            best_chain,
+                            &db,
+                            outpoint
+                        );
+
+                        // The work is done in the future.
+                        timer.finish(module_path!(), line!(), "Request::UnspentBestChainUtxo");
+
+                        Ok(Response::UnspentBestChainUtxo(utxo))
+                    })
+                })
+                .map(|join_result| join_result.expect("panic in Request::UnspentBestChainUtxo"))
+                .boxed()
+            }
+
         }
     }
 }

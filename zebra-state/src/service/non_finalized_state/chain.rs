@@ -590,6 +590,18 @@ impl Chain {
         self.blocks.len()
     }
 
+    /// Returns the [`transparent::Utxo`] pointed to by the given
+    /// [`transparent::OutPoint`] if it was created by this chain.
+    ///
+    /// UTXOs are returned regardless of whether they have been spent.
+    pub fn created_utxo(&self, outpoint: &transparent::OutPoint) -> Option<transparent::Utxo> {
+        if let Some(utxo) = self.created_utxos.get(outpoint) {
+            return Some(utxo.utxo.clone());
+        }
+
+        None
+    }
+
     /// Returns the unspent transaction outputs (UTXOs) in this non-finalized chain.
     ///
     /// Callers should also check the finalized state for available UTXOs.

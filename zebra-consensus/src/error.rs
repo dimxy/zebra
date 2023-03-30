@@ -238,6 +238,9 @@ pub enum TransactionError {
 
     #[error("komodo transaction {0:?} has absurd fee {1:?}")]
     KomodoAbsurdFee(zebra_chain::transaction::Hash, Amount),
+    
+    #[error("could not find an input UTXO in best chain")]
+    TransparentInputNotFound,
 }
 
 impl From<BoxError> for TransactionError {
