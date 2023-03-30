@@ -30,6 +30,7 @@ impl AddressBookUpdater {
     ///
     /// Returns handles for:
     /// - the address book,
+    /// - the inbound connection list (added by komodo team)
     /// - the transmission channel for address book update events,
     /// - a watch channel for address book metrics, and
     /// - the address book updater task join handle.
