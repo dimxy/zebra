@@ -19,6 +19,7 @@ use jsonrpc_derive::rpc;
 use tokio::{sync::broadcast::Sender, task::JoinHandle};
 use tower::{buffer::Buffer, Service, ServiceExt};
 use tracing::Instrument;
+use zebra_chain::block::merkle::Root;
 use zebra_network::AddressBook;
 
 use zebra_chain::{
@@ -248,6 +249,11 @@ pub trait Rpc {
         &self,
         address_string: String,
     ) -> Result<String>;
+
+    /// Komodo method used by dPoW software
+    /// Returns merkle root of block headers merkle roots starting from height for the mom_depth length
+    #[rpc(name = "calc_MoM")]
+    fn calc_mom(&self, height: String, mom_depth: usize) -> BoxFuture<Result<MoMInfo>>;
 }
 
 /// RPC method implementations.
@@ -1061,6 +1067,57 @@ where
         Ok(String::from(format!("added {}", added)))
     }
 
+    #[allow(clippy::unwrap_in_result)]
+    fn calc_mom(&self, height: String, mom_depth: usize) -> BoxFuture<Result<MoMInfo>> {
+        // let network = self.network;
+
+        let mut state = self.state.clone();
+
+        async move {
+            let height = Some( 
+                height.parse().map_err(|error: SerializationError| Error {
+                    code: ErrorCode::ServerError(0),
+                    message: error.to_string(),
+                    data: None,
+                })? 
+            );
+
+            if height.is_none() {
+                return Err(Error {
+                    code: ErrorCode::ServerError(0), // reserved for future error codes
+                    message: String::from("Valid height is required"),
+                    data: None,
+                });
+            }
+            let height = height.unwrap();
+
+            // get blocks
+            let request = zebra_state::ReadRequest::BestChainBlocks(Some(height), mom_depth);
+            let response = state
+                .ready()
+                .and_then(|service| service.call(request))
+                .await
+                .map_err(|error| Error {
+                    code: ErrorCode::ServerError(0), // reserved for future error codes
+                    message: error.to_string(),
+                    data: None,
+                })?;
+            let blocks = match response {
+                zebra_state::ReadResponse::BestChainBlocks(blocks) => blocks,
+                _ => unreachable!("unmatched response to a BestChainBlocks request"),
+            };
+
+            let mom = blocks.iter().map(|b| b.hash()).collect::<Root>();
+            Ok(MoMInfo {
+                coin: String::from("KMD"),
+                height: height.0,
+                MoM: hex::encode(mom.0),
+                MoMdepth: mom_depth,
+            })
+        }.boxed()
+
+    }
+
 }
 
 /// Response to a `getinfo` RPC request.
@@ -1393,7 +1450,7 @@ fn check_height_range(start: Height, end: Height, chain_height: Height) -> Resul
     Ok(())
 }
 
-/// Response to a `getpeerinfo` RPC request (dimxy).
+/// Response to a `getpeerinfo` RPC request (komodo).
 ///
 /// See the notes for the [`Rpc::get_peer_info` method].
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
@@ -1404,3 +1461,22 @@ pub struct GetPeerInfo {
     is_inbound: bool,
 }
 
+/// Komodo info struct returned by calcMoM rpc
+/// 
+/// See the notes for the [`Rpc::calcMoM` method].
+#[allow(non_snake_case)]
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+pub struct MoMInfo {
+
+    /// this coin name
+    pub coin: String,
+
+    /// starting height to calc MoM
+    pub height: u32,
+
+    /// MoM value
+    pub MoM: String,
+
+    /// MoM depth
+    pub MoMdepth: usize,
+}
