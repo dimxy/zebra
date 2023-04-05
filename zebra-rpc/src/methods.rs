@@ -1111,7 +1111,7 @@ where
             Ok(MoMInfo {
                 coin: String::from("KMD"),
                 height: height.0,
-                MoM: hex::encode(mom.0),
+                MoM: mom.encode_hex::<String>(),
                 MoMdepth: mom_depth,
             })
         }.boxed()
