@@ -1363,6 +1363,44 @@ impl Service<ReadRequest> for ReadStateService {
                 .map(|join_result| join_result.expect("panic in ReadRequest::UtxosByAddresses"))
                 .boxed()
             }
+
+            // Used by the cacl_MoM rpc
+            ReadRequest::BestChainBlocks(start_height, depth) => {
+                metrics::counter!(
+                    "state.requests",
+                    1,
+                    "service" => "read_state",
+                    "type" => "best_chain_blocks",
+                );
+
+                let timer = CodeTimer::start();
+                let state = self.clone();
+
+                let span = Span::current();
+                // # Performance
+                //
+                // Allow other async tasks to make progress while concurrently reading blocks from disk.
+                tokio::task::spawn_blocking(move || {
+                    span.in_scope(move || {
+                        let non_finalized_state = state.latest_non_finalized_state();
+                        let blocks =
+                            read::read_best_chain_blocks(&non_finalized_state, &state.db, start_height, depth);
+
+                        // The work is done in the future.
+                        timer.finish(
+                            module_path!(),
+                            line!(),
+                            "ReadRequest::BestChainBlocks",
+                        );
+
+                        Ok(ReadResponse::BestChainBlocks(blocks?))
+                    })
+                })
+                .map(|join_result| {
+                    join_result.expect("panic in ReadRequest::BestChainBlocks")
+                })
+                .boxed()
+            }
         }
     }
 }
