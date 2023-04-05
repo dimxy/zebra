@@ -438,9 +438,9 @@ fn komodo_best_relevant_chain(
         .into_iter()
         .take(depth)
         .collect();
-    let best_relevant_chain = best_relevant_chain.try_into().map_err(|_error| {
-        "Zebra's state only has a few blocks, wait until it syncs to the chain tip"
-    })?;
+    if best_relevant_chain.len() < depth {
+        return Err(BoxError::from("Zebra's state does not contain requested number of blocks"));
+    }
 
     let state_tip_after_queries =
         read::best_tip(non_finalized_state, db).expect("already checked for an empty tip");
