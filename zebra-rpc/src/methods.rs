@@ -976,26 +976,24 @@ where
     ) -> Result<Vec<GetPeerInfo>> {
         let mut response_peer_info = vec![];
 
+        let chrono_now = Utc::now();
 
-        // get peers
-        let peers = self.address_book.lock().unwrap().clone();
-        let peers_live = peers.peers();
-        let peers_live = peers_live.into_iter().collect::<Vec<_>>();
+        // get live peers
+        let address_book = self.address_book.lock().unwrap().clone();
+        let peers_live = address_book.peers()
+            .into_iter()
+            .filter(|peer| peer.was_recently_live(chrono_now) )
+            .collect::<Vec<_>>();
+
         tracing::debug!("found live peers()={}", peers_live.len());
 
         for peer_info in peers_live {
             let addr = peer_info.addr();
+
             let last_attempt = match peer_info.last_attempt() {
                 Some(val) => val.elapsed().as_secs(),
                 None => 0 as u64,
             };
-
-            // if we use DateTime instead of seconds 
-            //let last_attempt: chrono::DateTime<Utc> = last_attempt;
-            // Create a NaiveDateTime from the timestamp
-            //let naive = chrono::NaiveDateTime::from_timestamp(last_attempt.try_into().unwrap(), 0);
-            // Create a normal DateTime from the NaiveDateTime
-            //let last_attempt: chrono::DateTime<Utc> = chrono::DateTime::from_utc(naive, Utc);
 
             let entry = GetPeerInfo {
                 addr,
