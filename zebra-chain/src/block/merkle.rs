@@ -10,6 +10,7 @@ use proptest_derive::Arbitrary;
 
 use crate::serialization::sha256d;
 use crate::transaction::{self, Transaction};
+use crate::block;
 
 /// The root of the Bitcoin-inherited transaction Merkle tree, binding the
 /// block header to the transactions in the block.
@@ -120,6 +121,27 @@ impl std::iter::FromIterator<transaction::Hash> for Root {
     fn from_iter<I>(hashes: I) -> Self
     where
         I: IntoIterator<Item = transaction::Hash>,
+    {
+        let mut hashes = hashes.into_iter().map(|hash| hash.0).collect::<Vec<_>>();
+        while hashes.len() > 1 {
+            hashes = hashes
+                .chunks(2)
+                .map(|chunk| match chunk {
+                    [h1, h2] => hash(h1, h2),
+                    [h1] => hash(h1, h1),
+                    _ => unreachable!("chunks(2)"),
+                })
+                .collect();
+        }
+        Self(hashes[0])
+    }
+}
+
+/// Added by Komodo to calc MoM
+impl std::iter::FromIterator<block::Hash> for Root {
+    fn from_iter<I>(hashes: I) -> Self
+    where
+        I: IntoIterator<Item = block::Hash>,
     {
         let mut hashes = hashes.into_iter().map(|hash| hash.0).collect::<Vec<_>>();
         while hashes.len() > 1 {
