@@ -1085,7 +1085,14 @@ where
             if height.is_none() {
                 return Err(Error {
                     code: ErrorCode::ServerError(0), // reserved for future error codes
-                    message: String::from("Valid height is required"),
+                    message: String::from("illegal height"),
+                    data: None,
+                });
+            }
+            if mom_depth < 1 || mom_depth > 1440 {
+                return Err(Error {
+                    code: ErrorCode::ServerError(0), // reserved for future error codes
+                    message: String::from("illegal mom depth"),
                     data: None,
                 });
             }
