@@ -1107,7 +1107,7 @@ where
                 _ => unreachable!("unmatched response to a BestChainBlocks request"),
             };
 
-            let mom = blocks.iter().map(|b| b.hash()).collect::<Root>();
+            let mom = blocks.iter().map(|b| b.header.merkle_root).collect::<Root>();
             Ok(MoMInfo {
                 coin: String::from("KMD"),
                 height: height.0,
