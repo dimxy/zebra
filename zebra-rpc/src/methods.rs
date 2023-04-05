@@ -7,7 +7,6 @@
 //! So this implementation follows the `zcashd` server and `lightwalletd` client implementations.
 
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::str::FromStr;
 use std::{collections::HashSet, io, sync::Arc};
 
 use chrono::Utc;
@@ -20,6 +19,7 @@ use tokio::{sync::broadcast::Sender, task::JoinHandle};
 use tower::{buffer::Buffer, Service, ServiceExt};
 use tracing::Instrument;
 use zebra_chain::block::merkle::Root;
+use zebra_chain::komodo_hardfork::KOMODO_MAINNET_COIN;
 use zebra_network::AddressBook;
 
 use zebra_chain::{
@@ -1109,7 +1109,7 @@ where
 
             let mom = blocks.iter().map(|b| b.header.merkle_root).collect::<Root>();
             Ok(MoMInfo {
-                coin: String::from("KMD"),
+                coin: String::from(KOMODO_MAINNET_COIN),
                 height: height.0,
                 MoM: mom.encode_hex::<String>(),
                 MoMdepth: mom_depth,
