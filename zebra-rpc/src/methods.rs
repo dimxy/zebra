@@ -990,6 +990,7 @@ where
                 msgssent: None, 
                 msgsrecv: None, 
                 pingtime: None,
+                inflight: 0,
             };
             // if we subscribed on metrics data
             if peer_info.net_stat.metrics_used {
@@ -1005,6 +1006,7 @@ where
                     },
                     (_,_) => {},
                 }
+                entry.inflight = peer_info.net_stat.in_flight;
             }
             response_peer_info.push(entry);
         }
@@ -1381,5 +1383,6 @@ pub struct GetPeerInfo {
     msgssent: Option<u64>,
     msgsrecv: Option<u64>,
     pingtime: Option<String>,
+    inflight: u64,
 }
 
