@@ -7,7 +7,6 @@
 //! So this implementation follows the `zcashd` server and `lightwalletd` client implementations.
 
 use std::net::{SocketAddr, ToSocketAddrs};
-use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::HashSet, io, sync::Arc};
 
@@ -979,34 +978,34 @@ where
     ) -> Result<Vec<GetPeerInfo>> {
         let mut response_peer_info = vec![];
 
-        let peer_stats = self.peer_stats.lock().unwrap().clone();
+        let peer_stats = self.peer_stats.lock().unwrap().clone();  // TODO: clone or just get guard? cloning seems to hold lock for lesser time 
         for peer_info in peer_stats.peers() {   // only live peers exist in PeerStats
-            // let addr = peer_info.meta_addr.addr();
-            /*let last_attempt = match peer_info.last_attempt() {
-                Some(val) => val.elapsed().as_secs(),
-                None => 0 as u64,
-            };*/
-
-            // let last_attempt = 0 as u64;
-            //let last_attempt: chrono::DateTime<Utc> = last_attempt;
-            
-            // Create a NaiveDateTime from the timestamp
-            //let naive = chrono::NaiveDateTime::from_timestamp(last_attempt.try_into().unwrap(), 0);
-                
-            // Create a normal DateTime from the NaiveDateTime
-            //let last_attempt: chrono::DateTime<Utc> = chrono::DateTime::from_utc(naive, Utc);
-            /*let last_attempt = if let Some(last_attempt) = peer_info.meta_addr.last_attempt() { 
-                last_attempt.duration_since(SystemTime::UNIX_EPOCH).as_secs() as u32 
-            } else { 
-                0_u32 
-            };*/
-
-            let entry = GetPeerInfo {
+            let mut entry = GetPeerInfo {
                 addr: peer_info.meta_addr.addr(),
                 conntime: peer_info.net_stat.connection_time.duration_since(UNIX_EPOCH).unwrap_or_default().as_secs() as u32,
                 last_attempt: peer_info.net_stat.connection_time.elapsed().unwrap_or_default().as_secs() as u32,
                 inbound: peer_info.is_inbound,
+                bytessent: None, 
+                bytesrecv: None, 
+                msgssent: None, 
+                msgsrecv: None, 
+                pingtime: None,
             };
+            // if we subscribed on metrics data
+            if peer_info.net_stat.metrics_used {
+                entry.bytessent = Some(peer_info.net_stat.out_bytes_total);
+                entry.bytesrecv = Some(peer_info.net_stat.in_bytes_total);
+                entry.msgssent = Some(peer_info.net_stat.out_messages);
+                entry.msgsrecv = Some(peer_info.net_stat.in_messages);
+
+                match (peer_info.net_stat.last_ping_time, peer_info.net_stat.last_pong_time) {
+                    (Some(last_ping_elapsed), Some(last_pong_elapsed)) => {
+                        let dur = last_pong_elapsed.duration_since(last_ping_elapsed);
+                        entry.pingtime = Some( dur.as_secs_f32().to_string() );
+                    },
+                    (_,_) => {},
+                }
+            }
             response_peer_info.push(entry);
         }
 
@@ -1375,5 +1374,12 @@ pub struct GetPeerInfo {
     conntime: u32,
     last_attempt: u32, // TODO change to lastsend/lastrecv
     inbound: bool,
+
+    /// metrics data, optional, updated if PeerStats subscription on metrics data is not off
+    bytessent: Option<u64>,
+    bytesrecv: Option<u64>,
+    msgssent: Option<u64>,
+    msgsrecv: Option<u64>,
+    pingtime: Option<String>,
 }
 

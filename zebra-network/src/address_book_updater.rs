@@ -45,6 +45,7 @@ impl AddressBookUpdater {
         mpsc::Sender<MetaAddrChange>,
         watch::Receiver<AddressMetrics>,
         JoinHandle<Result<(), BoxError>>,
+        // JoinHandle<Result<(), BoxError>>,
     ) {
         use tracing::Level;
 
@@ -60,10 +61,9 @@ impl AddressBookUpdater {
         let address_metrics = address_book.address_metrics_watcher();
         let address_book = Arc::new(std::sync::Mutex::new(address_book));
 
-        let peer_stats = PeerStats::new(
-            config.network,
-        );
-        let peer_stats = Arc::new(std::sync::Mutex::new(peer_stats));
+        // let (peer_stats, peer_stats_updater_handle) = PeerStats::new(config);
+        let peer_stats = PeerStats::new(config);
+        // let peer_stats = Arc::new(std::sync::Mutex::new(peer_stats));
 
         let worker_address_book = address_book.clone();
         let worker_peer_stats = peer_stats.clone();
@@ -107,6 +107,7 @@ impl AddressBookUpdater {
             worker_tx,
             address_metrics,
             address_book_updater_task_handle,
+            // peer_stats_updater_handle,
         )
     }
 }

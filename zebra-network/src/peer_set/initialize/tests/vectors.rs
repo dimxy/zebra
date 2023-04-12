@@ -1489,7 +1489,7 @@ where
 
     let (peerset_tx, peerset_rx) = mpsc::channel::<DiscoveredPeer>(peer_count + 1);
 
-    let (_address_book, _peer_stats, address_book_updater, _address_metrics, address_book_updater_guard) =
+    let (_address_book, _peer_stats, address_book_updater, _address_metrics, address_book_updater_guard /*, _peer_stat_updater_guard*/) =
         AddressBookUpdater::spawn(&config, unused_v4);
 
     let add_fut = add_initial_peers(config, outbound_connector, peerset_tx, address_book_updater);
