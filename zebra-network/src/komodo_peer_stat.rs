@@ -1,6 +1,5 @@
 //! Komodo added impl for Peer Statistics (for getpeerinfo rpc)
 
-
 use std::{net::SocketAddr, collections::HashMap, time::{SystemTime, Instant}, sync::{Arc, Mutex}};
 
 use crate::{meta_addr::{MetaAddr, MetaAddrChange}, PeerAddrState};
@@ -92,8 +91,6 @@ pub struct PeerStats {
 
     /// The configured Zcash network.
     network: Network,
-
-    // pub metrics_forwarder: Option<Arc<Box<ForwardRecorder>>>, // if channel used
 }
 
 impl PeerStats {
@@ -101,16 +98,14 @@ impl PeerStats {
     /// create holding peers statistics object
     pub fn new(config: &Config) -> 
         Arc<Mutex<PeerStats>>
-        // JoinHandle<Result<(), BoxError>>,
     {
         let peer_stats = PeerStats {
             by_addr: HashMap::new(),
             network: config.network,
-            // metrics_forwarder: None,
         };
         let peer_stats = Arc::new(std::sync::Mutex::new(peer_stats));
 
-        // The code below is commented this because I decided not to use channel to forward metrics data to PeerStats (to diminish metrics processing delay)
+        // I decided not to use channel to forward metrics data to PeerStats (for diminishing possible metrics processing delay)
         // With the channel use there was an issue with shutdown:
         // To shutdown properly we need to stop the worker thread which normally is waiting for the worker_metrics_rx.blocking_recv() call
         // to stop that call we must drop all sending part of the channel. 
@@ -118,46 +113,13 @@ impl PeerStats {
         // But this does not happen in the metrics code where the forwarder is passed with metrics::set_boxed_recorder()
         // so the worker thread never ends gracefully and just cancelled with some delay on shutdown, this does not look good.
         // I think we are doing metrics processing pretty fast in update_with_metrics() fn and may not use a channel
-        // -----
-        // Create a channel to receive peer stat data from metrics
-        // let (worker_metrics_tx, mut worker_metrics_rx) = mpsc::unbounded_channel(); // config.peerset_total_connection_limit());
-        // let worker_peer_stats = peer_stats.clone();
-        /*
-        // create thread worker proc to run the metrics-data-to-channel forwarder 
-        let worker = move || {
-            info!("starting the komodo peer stat metrics data forwarder");
-
-            while let Some(metrics) = worker_metrics_rx.blocking_recv() {
-                trace!(?metrics, "got metrics data");
-
-                // use same channel to update peer stat too
-                worker_peer_stats
-                    .lock()
-                    .expect("mutex should be unpoisoned")
-                    .update_with_metrics(metrics);
-            }
-
-            let error = Err(PeerStatForwardSenderClosed.into());
-            info!(?error, "stopping the komodo peer stat metrics data forwarder");
-            error
-        };
-        let span = Span::current();
-        let peer_stat_forwarder_task_handle =
-            tokio::task::spawn_blocking(move || span.in_scope(worker)); 
-        */
         
         if !config.dont_use_metrics_for_getpeerinfo {
-            // let metrics_forwarder = Arc::new(Box::new(ForwardRecorder{ metrics_tx: worker_metrics_tx })); // if channel used
             let metrics_forwarder = Arc::new(Box::new(ForwardRecorder{ peer_stats: peer_stats.clone() }));
             if metrics::set_boxed_recorder(metrics_forwarder.as_ref().to_owned()).is_err() {
                 info!("could not set komodo peer stat metrics recorder, probably used by other monitoring software")
             };
         }
-
-        // if channel used
-        // store metrics_forwarder
-        // peer_stats.lock().unwrap().metrics_forwarder = Some(metrics_forwarder.clone());
-        // (peer_stats, peer_stat_forwarder_task_handle)
 
         peer_stats
     }
@@ -276,21 +238,17 @@ struct ForwardHandle {
     /// metrics data key
     key: Key,
 
-    /// channel sender to forward metrics data
-    // metrics_tx: UnboundedSender<MetricEvent>,
-
+    /// peer stats object to update it with metrics data
     peer_stats: Arc<Mutex<PeerStats>>,
 }
 
 #[allow(unused)]
 impl CounterFn for ForwardHandle {
     fn increment(&self, value: u64) {
-        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::IncrementCounter(value))); // if channel used
         self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::IncrementCounter(value)));
     }
 
     fn absolute(&self, value: u64) {
-        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::SetCounter(value))); // if channel used
         self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::SetCounter(value)));
     }
 }
@@ -298,17 +256,14 @@ impl CounterFn for ForwardHandle {
 #[allow(unused)]
 impl GaugeFn for ForwardHandle {
     fn increment(&self, value: f64) {
-        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::IncrementGauge(value))); // if channel used
         self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::IncrementGauge(value)));
     }
 
     fn decrement(&self, value: f64) {
-        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::DecrementGauge(value))); // if channel used
         self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::DecrementGauge(value)));
     }
 
     fn set(&self, value: f64) {
-        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::SetGauge(value))); // if channel used
         self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::SetGauge(value)));
     }
 }
@@ -324,7 +279,6 @@ impl HistogramFn for ForwardHandle {
 #[allow(unused)]
 #[derive(Debug, Clone)]
 pub struct ForwardRecorder {
-    // pub metrics_tx: UnboundedSender<MetricEvent>,
     peer_stats: Arc<Mutex<PeerStats>>,
 }
 
@@ -336,17 +290,14 @@ impl Recorder for ForwardRecorder {
     fn describe_histogram(&self, _key_name: KeyName, _unit: Option<Unit>, _description: &'static str) {}
 
     fn register_counter(&self, key: &Key) -> Counter {
-        // Counter::from_arc(Arc::new(ForwardHandle{ metrics_tx: self.metrics_tx.clone(), key: key.clone() }))
         Counter::from_arc(Arc::new(ForwardHandle{ peer_stats: self.peer_stats.clone(), key: key.clone() }))
     }
 
     fn register_gauge(&self, key: &Key) -> Gauge {
-        // Gauge::from_arc(Arc::new(ForwardHandle{ metrics_tx: self.metrics_tx.clone(), key: key.clone() }))
         Gauge::from_arc(Arc::new(ForwardHandle{ peer_stats: self.peer_stats.clone(), key: key.clone() }))
     }
 
     fn register_histogram(&self, key: &Key) -> Histogram {
-        // Histogram::from_arc(Arc::new(ForwardHandle{ metrics_tx: self.metrics_tx.clone(), key: key.clone() }))
         Histogram::from_arc(Arc::new(ForwardHandle{ peer_stats: self.peer_stats.clone(), key: key.clone() }))
     }
 }
