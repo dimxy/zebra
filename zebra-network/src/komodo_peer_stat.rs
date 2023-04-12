@@ -46,6 +46,7 @@ pub struct PeerNetStat {
     pub in_messages: u64, 
     pub last_ping_time: Option<Instant>,
     pub last_pong_time: Option<Instant>,
+    pub in_flight: u64,
 
     /// initially false, is set to true if metrics data were ever received
     pub metrics_used: bool,
@@ -64,6 +65,7 @@ impl PeerNetStat {
             in_messages: 0,
             last_ping_time: None,
             last_pong_time: None,
+            in_flight: 0,
             metrics_used: false,
         }
     } 
@@ -198,22 +200,29 @@ impl PeerStats {
                                 // get pong time
                                 updated.net_stat.last_pong_time = Some(Instant::now());
                             } 
-                            updated.net_stat.in_messages += v
+                            updated.net_stat.in_messages += v;
                         },
                         ("zcash.net.out.messages", MetricOperation::IncrementCounter(v)) => {
                             if let Some(_ping) = change.0.labels().find(|l| l.key() == "command" && l.value() == "ping") {
                                 // get ping time
                                 updated.net_stat.last_ping_time = Some(Instant::now());
                             }                            
-                            updated.net_stat.out_messages += v
+                            updated.net_stat.out_messages += v;
                         },
-
-                        _ => {},
+                        ("zebra.net.out.requests", MetricOperation::IncrementCounter(v)) => {
+                            if let Some(_pong) = change.0.labels().find(|l| l.key() == "command" && l.value() == "BlocksByHash" ) {
+                                updated.net_stat.in_flight = updated.net_stat.in_flight.saturating_add(v); // increment inflight
+                            } 
+                        },
+                        ("zebra.net.in.responses", MetricOperation::IncrementCounter(v)) => {
+                            if let Some(_pong) = change.0.labels().find(|l| l.key() == "command" && l.value() == "Blocks" ) {
+                                updated.net_stat.in_flight = updated.net_stat.in_flight.saturating_sub(v); // decrement inflight
+                            } 
+                        },
+                        (_,_) => {},
                     }
                     updated.net_stat.metrics_used = true;
-
-                    // insert back updated or unchanged peer stat data
-                    self.by_addr.insert(
+                    self.by_addr.insert(  // insert back updated or unchanged peer stat data
                         addr, 
                         updated,
                     );
@@ -271,7 +280,7 @@ impl GaugeFn for ForwardHandle {
 #[allow(unused)]
 impl HistogramFn for ForwardHandle {
     fn record(&self, value: f64) {
-        // not interested
+        // we are not interested in this for now
     }
 }
 
