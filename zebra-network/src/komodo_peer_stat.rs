@@ -1,26 +1,56 @@
 //! Komodo added impl for Peer Statistics (for getpeerinfo rpc)
 
-use std::{net::SocketAddr, collections::HashMap, time::SystemTime, sync::Arc};
+
+use std::{net::SocketAddr, collections::HashMap, time::{SystemTime, Instant}, sync::{Arc, Mutex}};
 
 use crate::{meta_addr::{MetaAddr, MetaAddrChange}, PeerAddrState};
 use zebra_chain::parameters::Network;
 use thiserror::Error;
-use tokio::{
-    sync::{mpsc, watch},
-    task::JoinHandle,
-};
 
 use crate::{
-    BoxError, Config,
+    Config,
 };
 
-/// Peer stat data collected from network requests
+use metrics::{Counter, CounterFn, Gauge, GaugeFn, Histogram, HistogramFn, Key, Recorder, Unit, KeyName};
+
+#[allow(unused)]
+#[derive(Debug)]
+enum MetricOperation {
+    IncrementCounter(u64),
+    SetCounter(u64),
+    IncrementGauge(f64),
+    DecrementGauge(f64),
+    SetGauge(f64),
+    RecordHistogram(f64),
+}
+
+/// Event with metrics data to pass into peer stats
+#[derive(Debug)]
+pub struct MetricEvent(Key, MetricOperation);
+
+/// Error to notify peer stats forwarder closed
+#[derive(Copy, Clone, Debug, Error, Eq, PartialEq, Hash)]
+#[error("peer stats metrics data forwarder is closed")]
+pub struct PeerStatForwardSenderClosed;
+
+
+/// Peer stat data collected from network requests 
+#[allow(missing_docs)]
 #[derive(Copy, Debug, Clone)]
 pub struct PeerNetStat {
-
+    /// See analoguous fields in the GetPeerInfo struct    
     pub connection_time: SystemTime,
-
     pub last_attempt_time: SystemTime,
+    pub out_bytes_total: u64, 
+    pub in_bytes_total: u64, 
+    pub out_messages: u64, 
+    pub in_messages: u64, 
+    pub last_ping_time: Option<Instant>,
+    pub last_pong_time: Option<Instant>,
+
+    /// initially false, is set to true if metrics data were ever received
+    pub metrics_used: bool,
+
 }
 
 impl PeerNetStat {
@@ -29,6 +59,13 @@ impl PeerNetStat {
         Self {
             connection_time: now,
             last_attempt_time: now,
+            out_bytes_total: 0,
+            in_bytes_total: 0,
+            out_messages: 0,
+            in_messages: 0,
+            last_ping_time: None,
+            last_pong_time: None,
+            metrics_used: false,
         }
     } 
 }
@@ -55,20 +92,77 @@ pub struct PeerStats {
 
     /// The configured Zcash network.
     network: Network,
+
+    // pub metrics_forwarder: Option<Arc<Box<ForwardRecorder>>>, // if channel used
 }
 
 impl PeerStats {
+    
     /// create holding peers statistics object
-    pub fn new(network: Network) -> PeerStats {
-        let new_list = PeerStats {
+    pub fn new(config: &Config) -> 
+        Arc<Mutex<PeerStats>>
+        // JoinHandle<Result<(), BoxError>>,
+    {
+        let peer_stats = PeerStats {
             by_addr: HashMap::new(),
-            network,
+            network: config.network,
+            // metrics_forwarder: None,
         };
+        let peer_stats = Arc::new(std::sync::Mutex::new(peer_stats));
 
-        new_list
+        // The code below is commented this because I decided not to use channel to forward metrics data to PeerStats (to diminish metrics processing delay)
+        // With the channel use there was an issue with shutdown:
+        // To shutdown properly we need to stop the worker thread which normally is waiting for the worker_metrics_rx.blocking_recv() call
+        // to stop that call we must drop all sending part of the channel. 
+        // And for that metrics_forwarder (which holds the worker_metrics_tx clone) must be dropped too
+        // But this does not happen in the metrics code where the forwarder is passed with metrics::set_boxed_recorder()
+        // so the worker thread never ends gracefully and just cancelled with some delay on shutdown, this does not look good.
+        // I think we are doing metrics processing pretty fast in update_with_metrics() fn and may not use a channel
+        // -----
+        // Create a channel to receive peer stat data from metrics
+        // let (worker_metrics_tx, mut worker_metrics_rx) = mpsc::unbounded_channel(); // config.peerset_total_connection_limit());
+        // let worker_peer_stats = peer_stats.clone();
+        /*
+        // create thread worker proc to run the metrics-data-to-channel forwarder 
+        let worker = move || {
+            info!("starting the komodo peer stat metrics data forwarder");
+
+            while let Some(metrics) = worker_metrics_rx.blocking_recv() {
+                trace!(?metrics, "got metrics data");
+
+                // use same channel to update peer stat too
+                worker_peer_stats
+                    .lock()
+                    .expect("mutex should be unpoisoned")
+                    .update_with_metrics(metrics);
+            }
+
+            let error = Err(PeerStatForwardSenderClosed.into());
+            info!(?error, "stopping the komodo peer stat metrics data forwarder");
+            error
+        };
+        let span = Span::current();
+        let peer_stat_forwarder_task_handle =
+            tokio::task::spawn_blocking(move || span.in_scope(worker)); 
+        */
+        
+        if !config.dont_use_metrics_for_getpeerinfo {
+            // let metrics_forwarder = Arc::new(Box::new(ForwardRecorder{ metrics_tx: worker_metrics_tx })); // if channel used
+            let metrics_forwarder = Arc::new(Box::new(ForwardRecorder{ peer_stats: peer_stats.clone() }));
+            if metrics::set_boxed_recorder(metrics_forwarder.as_ref().to_owned()).is_err() {
+                info!("could not set komodo peer stat metrics recorder, probably used by other monitoring software")
+            };
+        }
+
+        // if channel used
+        // store metrics_forwarder
+        // peer_stats.lock().unwrap().metrics_forwarder = Some(metrics_forwarder.clone());
+        // (peer_stats, peer_stat_forwarder_task_handle)
+
+        peer_stats
     }
 
-    /// update inbound conns with change
+    /// update peer stats with address change
     #[allow(clippy::unwrap_in_result)]
     pub fn update(&mut self, change: MetaAddrChange) -> Option<PeerStatData> {
         let previous = self.by_addr.remove(&change.addr());
@@ -84,8 +178,6 @@ impl PeerStats {
             total_peers = self.by_addr.len(),
             "calculated updated PeerStats entry",
         );
-
-        println!("got updated_meta_addr={:?}", updated_meta_addr);
 
         if let Some(updated_meta_addr) = updated_meta_addr {
 
@@ -119,8 +211,6 @@ impl PeerStats {
                     total_peers = self.by_addr.len(),
                     "updated PeerStats entry",
                 );
-
-                println!("added updated_meta_addr={:?}", updated_meta_addr);
                 return Some(updated);
             }
         }
@@ -128,14 +218,49 @@ impl PeerStats {
         None
     }
 
-    /// Look up `addr` in the peer stats, and return its [`PeerStatData`].
-    ///
-    /// Converts `addr` to a canonical address before looking it up.
-    /*pub fn get(&mut self, addr: &SocketAddr) -> Option<PeerStatData> {
-        let addr = canonical_socket_addr(*addr);
+    /// Update peer stats with metrics data change
+    /// Returns updated PeerStatData or none if nothing was updated
+    #[allow(clippy::unwrap_in_result)]
+    pub fn update_with_metrics(&mut self, change: MetricEvent) -> Option<PeerStatData> {
 
-        self.by_addr.get(&addr).copied()
-    }*/
+        if let Some(addr) = change.0.labels().find(|l| l.key() == "addr") {
+            if let Ok(addr) = addr.value().parse() {
+                if let Some(mut updated) = self.by_addr.remove(&addr) {
+
+                    match (change.0.name(), change.1) {
+
+                        ("zcash.net.in.bytes.total", MetricOperation::IncrementCounter(v)) => updated.net_stat.in_bytes_total += v,
+                        ("zcash.net.out.bytes.total", MetricOperation::IncrementCounter(v)) => updated.net_stat.out_bytes_total += v,
+                        ("zcash.net.in.messages", MetricOperation::IncrementCounter(v)) => {
+                            if let Some(_pong) = change.0.labels().find(|l| l.key() == "command" && l.value() == "pong" ) {
+                                // get pong time
+                                updated.net_stat.last_pong_time = Some(Instant::now());
+                            } 
+                            updated.net_stat.in_messages += v
+                        },
+                        ("zcash.net.out.messages", MetricOperation::IncrementCounter(v)) => {
+                            if let Some(_ping) = change.0.labels().find(|l| l.key() == "command" && l.value() == "ping") {
+                                // get ping time
+                                updated.net_stat.last_ping_time = Some(Instant::now());
+                            }                            
+                            updated.net_stat.out_messages += v
+                        },
+
+                        _ => {},
+                    }
+                    updated.net_stat.metrics_used = true;
+
+                    // insert back updated or unchanged peer stat data
+                    self.by_addr.insert(
+                        addr, 
+                        updated,
+                    );
+                    return Some(updated);
+                }
+            }
+        }
+        None
+    }
 
     /// Return an iterator over peers stats.
     ///
@@ -144,5 +269,85 @@ impl PeerStats {
         self.by_addr.values().cloned()
     }
 
+}
+
+/// handle of metrics data forwarder to peer stat 
+struct ForwardHandle {
+    /// metrics data key
+    key: Key,
+
+    /// channel sender to forward metrics data
+    // metrics_tx: UnboundedSender<MetricEvent>,
+
+    peer_stats: Arc<Mutex<PeerStats>>,
+}
+
+#[allow(unused)]
+impl CounterFn for ForwardHandle {
+    fn increment(&self, value: u64) {
+        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::IncrementCounter(value))); // if channel used
+        self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::IncrementCounter(value)));
+    }
+
+    fn absolute(&self, value: u64) {
+        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::SetCounter(value))); // if channel used
+        self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::SetCounter(value)));
+    }
+}
+
+#[allow(unused)]
+impl GaugeFn for ForwardHandle {
+    fn increment(&self, value: f64) {
+        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::IncrementGauge(value))); // if channel used
+        self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::IncrementGauge(value)));
+    }
+
+    fn decrement(&self, value: f64) {
+        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::DecrementGauge(value))); // if channel used
+        self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::DecrementGauge(value)));
+    }
+
+    fn set(&self, value: f64) {
+        // self.metrics_tx.send(MetricEvent(self.key.clone(), MetricOperation::SetGauge(value))); // if channel used
+        self.peer_stats.lock().unwrap().update_with_metrics(MetricEvent(self.key.clone(), MetricOperation::SetGauge(value)));
+    }
+}
+
+#[allow(unused)]
+impl HistogramFn for ForwardHandle {
+    fn record(&self, value: f64) {
+        // not interested
+    }
+}
+
+/// forwarder of metrics data to peer stats
+#[allow(unused)]
+#[derive(Debug, Clone)]
+pub struct ForwardRecorder {
+    // pub metrics_tx: UnboundedSender<MetricEvent>,
+    peer_stats: Arc<Mutex<PeerStats>>,
+}
+
+impl Recorder for ForwardRecorder {
+    fn describe_counter(&self, _key_name: KeyName, _unit: Option<Unit>, _description: &'static str) {}
+
+    fn describe_gauge(&self, _key_name: KeyName, _unit: Option<Unit>, _description: &'static str) {}
+
+    fn describe_histogram(&self, _key_name: KeyName, _unit: Option<Unit>, _description: &'static str) {}
+
+    fn register_counter(&self, key: &Key) -> Counter {
+        // Counter::from_arc(Arc::new(ForwardHandle{ metrics_tx: self.metrics_tx.clone(), key: key.clone() }))
+        Counter::from_arc(Arc::new(ForwardHandle{ peer_stats: self.peer_stats.clone(), key: key.clone() }))
+    }
+
+    fn register_gauge(&self, key: &Key) -> Gauge {
+        // Gauge::from_arc(Arc::new(ForwardHandle{ metrics_tx: self.metrics_tx.clone(), key: key.clone() }))
+        Gauge::from_arc(Arc::new(ForwardHandle{ peer_stats: self.peer_stats.clone(), key: key.clone() }))
+    }
+
+    fn register_histogram(&self, key: &Key) -> Histogram {
+        // Histogram::from_arc(Arc::new(ForwardHandle{ metrics_tx: self.metrics_tx.clone(), key: key.clone() }))
+        Histogram::from_arc(Arc::new(ForwardHandle{ peer_stats: self.peer_stats.clone(), key: key.clone() }))
+    }
 }
 

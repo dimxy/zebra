@@ -103,7 +103,7 @@ where
 
     let (tcp_listener, listen_addr) = open_listener(&config.clone()).await;
 
-    let (address_book, peer_stats, address_book_updater, address_metrics, address_book_updater_guard) =
+    let (address_book, peer_stats, address_book_updater, address_metrics, address_book_updater_guard /*, peer_stat_updater_guard*/) =
         AddressBookUpdater::spawn(&config, listen_addr);
 
     // Create a broadcast channel for peer inventory advertisements.
@@ -232,7 +232,7 @@ where
     let crawl_guard = tokio::spawn(crawl_fut.in_current_span());
 
     handle_tx
-        .send(vec![listen_guard, crawl_guard, address_book_updater_guard])
+        .send(vec![listen_guard, crawl_guard, address_book_updater_guard /*, peer_stat_updater_guard*/]) // add 'peer_stat_updater_guard' if channel used
         .unwrap();
 
     (peer_set, address_book, peer_stats)
