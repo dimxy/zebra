@@ -1,0 +1,27 @@
+---
+source: zebra-rpc/src/methods/tests/snapshot.rs
+assertion_line: 191
+expression: info
+---
+{
+  "chain": "main",
+  "blocks": 10,
+  "bestblockhash": "0ababff4ad0e74c0fb50f6d7d58e1918d1a00fd8dd7a2f87e4d008bb8075cb94",
+  "estimatedheight": "[Height]",
+  "upgrades": {
+    "76b809bb": {
+      "name": "Sapling",
+      "activationheight": 1140409,
+      "status": "pending"
+    },
+    "c2d6d0b4": {
+      "name": "Nu5",
+      "activationheight": 2147483647,
+      "status": "pending"
+    }
+  },
+  "consensus": {
+    "chaintip": "00000000",
+    "nextblock": "00000000"
+  }
+}

@@ -1,0 +1,11 @@
+---
+source: zebra-rpc/src/methods/tests/snapshot.rs
+assertion_line: 270
+expression: mom_info
+---
+{
+  "coin": "KMD",
+  "height": 10,
+  "MoM": "f91392a59313dedc882e4c9942a6aa03495e20e176a281900e5a54c7529fec5a",
+  "MoMdepth": 9
+}

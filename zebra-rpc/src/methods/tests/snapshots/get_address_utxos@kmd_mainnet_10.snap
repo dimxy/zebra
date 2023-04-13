@@ -1,0 +1,15 @@
+---
+source: zebra-rpc/src/methods/tests/snapshot.rs
+assertion_line: 257
+expression: utxos
+---
+[
+  {
+    "address": "RFpYbieWuKm2ZsTaKeWkrrEdeSkVzhqX8x",
+    "txid": "e417050fb7fb1415497fa394eba97dc41b49688afc565c49bedca2abcbae912a",
+    "outputIndex": 0,
+    "script": "210260b255850cfd4a20f5f97eafbbd05df9b56203f7d480744dd1c8aec8d17cdc01ac",
+    "satoshis": 10000000000000000,
+    "height": 1
+  }
+]

@@ -17,20 +17,20 @@ use zebra_test::mock_service::MockService;
 use super::super::*;
 
 /// Snapshot test for RPC methods responses.
-#[ignore] // TODO Fix for Komodo
+/// Fixed for Komodo blocks
 #[tokio::test(flavor = "multi_thread")]
-async fn test_rpc_response_data() {
+async fn komodo_test_rpc_response_data() {
     zebra_test::init();
 
     test_rpc_response_data_for_network(Mainnet).await;
-    test_rpc_response_data_for_network(Testnet).await;
+    //test_rpc_response_data_for_network(Testnet).await;
 }
 
 async fn test_rpc_response_data_for_network(network: Network) {
     // Create a continuous chain of mainnet and testnet blocks from genesis
     let block_data = match network {
-        Mainnet => &*zebra_test::vectors::CONTINUOUS_MAINNET_BLOCKS,
-        Testnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
+        Mainnet => &*zebra_test::komodo_vectors::CONTINUOUS_KMDMAINNET_BLOCKS,
+        Testnet => unreachable!("rpc tests are not implemented for testnet"),
     };
 
     let blocks: Vec<Arc<Block>> = block_data
@@ -56,7 +56,7 @@ async fn test_rpc_response_data_for_network(network: Network) {
 
     // Start snapshots of RPC responses.
     let mut settings = insta::Settings::clone_current();
-    settings.set_snapshot_suffix(format!("{}_{}", network_string(network), blocks.len() - 1));
+    settings.set_snapshot_suffix(format!("{}_{}_{}", "kmd", network_string(network), blocks.len() - 1));
 
     // `getinfo`
     let get_info = rpc.get_info().expect("We should have a GetInfo struct");
@@ -69,10 +69,10 @@ async fn test_rpc_response_data_for_network(network: Network) {
     snapshot_rpc_getblockchaininfo(get_blockchain_info, &settings);
 
     // get the first transaction of the first block which is not the genesis
-    let first_block_first_transaction = &blocks[1].transactions[0];
+    let first_block_transaction_0 = &blocks[1].transactions[0];
 
     // build addresses
-    let address = &first_block_first_transaction.outputs()[1]
+    let address = &first_block_transaction_0.outputs()[0]
         .address(network)
         .unwrap();
     let addresses = vec![address.to_string()];
@@ -146,7 +146,7 @@ async fn test_rpc_response_data_for_network(network: Network) {
 
     // make the api call
     let get_raw_transaction =
-        rpc.get_raw_transaction(first_block_first_transaction.hash().encode_hex(), 0u8);
+        rpc.get_raw_transaction(first_block_transaction_0.hash().encode_hex(), 0u8);
     let (response, _) = futures::join!(get_raw_transaction, mempool_req);
     let get_raw_transaction = response.expect("We should have a GetRawTransaction struct");
 
@@ -169,6 +169,14 @@ async fn test_rpc_response_data_for_network(network: Network) {
         .await
         .expect("We should have a vector of strings");
     snapshot_rpc_getaddressutxos(get_address_utxos, &settings);
+
+    // `calc_MoM`
+    let mom_info = rpc
+        .calc_mom("10".to_owned(), 9)
+        .await
+        .expect("We should have a vector of strings");
+    snapshot_rpc_calc_mom(mom_info, &settings);
+
 }
 
 /// Snapshot `getinfo` response, using `cargo insta` and JSON serialization.
@@ -255,6 +263,11 @@ fn snapshot_rpc_getaddresstxids(transactions: Vec<String>, settings: &insta::Set
 /// Snapshot `getaddressutxos` response, using `cargo insta` and JSON serialization.
 fn snapshot_rpc_getaddressutxos(utxos: Vec<GetAddressUtxos>, settings: &insta::Settings) {
     settings.bind(|| insta::assert_json_snapshot!("get_address_utxos", utxos));
+}
+
+/// Snapshot `calc_MoM` response, using `cargo insta` and JSON serialization.
+fn snapshot_rpc_calc_mom(mom_info: MoMInfo, settings: &insta::Settings) {
+    settings.bind(|| insta::assert_json_snapshot!("calc_mom", mom_info));
 }
 
 /// Utility function to convert a `Network` to a lowercase string.

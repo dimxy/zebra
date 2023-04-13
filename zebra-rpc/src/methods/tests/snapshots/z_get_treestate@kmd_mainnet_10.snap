@@ -1,0 +1,10 @@
+---
+source: zebra-rpc/src/methods/tests/snapshot.rs
+assertion_line: 242
+expression: tree_state
+---
+{
+  "hash": "0a47c1323f393650f7221c217d19d149d002d35444f47fde61be2dd90fbde8e6",
+  "height": 1,
+  "time": 1473793441
+}
