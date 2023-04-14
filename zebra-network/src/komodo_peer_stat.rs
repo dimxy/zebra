@@ -129,10 +129,9 @@ impl PeerStats {
     /// update peer stats with address change
     #[allow(clippy::unwrap_in_result)]
     pub fn update(&mut self, change: MetaAddrChange) -> Option<PeerStatData> {
-        let previous = self.by_addr.remove(&change.addr());
+        let previous = self.by_addr.get(&change.addr());
 
         let previous_meta_addr = if let Some(previous) = previous { Some(previous.meta_addr) } else { None };
-
         let updated_meta_addr = change.apply_to_meta_addr(previous_meta_addr);
 
         trace!(
@@ -149,19 +148,20 @@ impl PeerStats {
             if updated_meta_addr.last_connection_state == PeerAddrState::Responded ||
                 updated_meta_addr.last_connection_state == PeerAddrState::AttemptPending {
 
-                let mut updated_net_stat;
-                if let Some(previous) = previous {
-                    updated_net_stat = previous.net_stat;
-                    updated_net_stat.last_attempt_time = SystemTime::now();
-                } else {
-                    updated_net_stat = PeerNetStat::new();
-                }
-
-                let updated = PeerStatData { 
-                    meta_addr: updated_meta_addr, 
-                    net_stat: updated_net_stat,
-                    is_inbound: !updated_meta_addr.address_is_valid_for_outbound(self.network),
+                let mut updated = match previous {
+                    Some(updated) => updated.to_owned(),
+                    None => {
+                        PeerStatData { 
+                            meta_addr: updated_meta_addr, 
+                            net_stat: PeerNetStat::new(),
+                            is_inbound: !updated_meta_addr.address_is_valid_for_outbound(self.network),
+                        }
+                    },
                 };
+
+                if updated_meta_addr.last_connection_state == PeerAddrState::AttemptPending {
+                    updated.net_stat.last_attempt_time = SystemTime::now();
+                }
 
                 self.by_addr.insert(
                     updated_meta_addr.addr, 
@@ -171,11 +171,13 @@ impl PeerStats {
                 debug!(
                     ?change,
                     ?updated_meta_addr,
-                    ?previous,
+                    ?updated,
                     total_peers = self.by_addr.len(),
                     "updated PeerStats entry",
                 );
                 return Some(updated);
+            } else {
+                self.by_addr.remove(&change.addr()); // remove not live addr
             }
         }
 
@@ -189,7 +191,7 @@ impl PeerStats {
 
         if let Some(addr) = change.0.labels().find(|l| l.key() == "addr") {
             if let Ok(addr) = addr.value().parse() {
-                if let Some(mut updated) = self.by_addr.remove(&addr) {
+                if let Some(updated) = self.by_addr.get_mut(&addr) {
 
                     match (change.0.name(), change.1) {
 
@@ -222,11 +224,7 @@ impl PeerStats {
                         (_,_) => {},
                     }
                     updated.net_stat.metrics_used = true;
-                    self.by_addr.insert(  // insert back updated or unchanged peer stat data
-                        addr, 
-                        updated,
-                    );
-                    return Some(updated);
+                    return Some(*updated);
                 }
             }
         }
@@ -310,4 +308,3 @@ impl Recorder for ForwardRecorder {
         Histogram::from_arc(Arc::new(ForwardHandle{ peer_stats: self.peer_stats.clone(), key: key.clone() }))
     }
 }
-
