@@ -191,9 +191,6 @@ pub fn write_blocks_from_channels(
             continue;
         }
 
-        let ht = ordered_block.0.height;
-        let hash = ordered_block.0.hash;
-
         // Try committing the block
         match finalized_state.commit_finalized(ordered_block) {
             Ok(finalized) => {
