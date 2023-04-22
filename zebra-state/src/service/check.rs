@@ -15,7 +15,7 @@ use zebra_chain::{
 use crate::{constants, BoxError, PreparedBlock, ValidateContextError};
 
 // use self as check
-use super::check;
+use super::{check, finalized_state::ZebraDb, non_finalized_state::NonFinalizedState, block_iter::any_ancestor_blocks};
 use std::cmp::max;
 
 use crate::komodo_notaries::*;
@@ -328,15 +328,23 @@ fn difficulty_threshold_is_valid(
 }
 
 /// Check if zebra is following a legacy chain and return an error if so.
+///
+/// `nu5_activation_height` should be `NetworkUpgrade::Nu5.activation_height(network)`, and
+/// `max_legacy_chain_blocks` should be [`MAX_LEGACY_CHAIN_BLOCKS`](crate::constants::MAX_LEGACY_CHAIN_BLOCKS).
+/// They are only changed from the defaults for testing.
 pub(crate) fn legacy_chain<I>(
     nu5_activation_height: block::Height,
     ancestors: I,
     network: Network,
+    max_legacy_chain_blocks: usize,
 ) -> Result<(), BoxError>
 where
     I: Iterator<Item = Arc<Block>>,
 {
-    for (count, block) in ancestors.enumerate() {
+    let mut ancestors = ancestors.peekable();
+    let tip_height = ancestors.peek().and_then(|block| block.coinbase_height());
+
+    for (index, block) in ancestors.enumerate() {
         // Stop checking if the chain reaches Canopy. We won't find any more V5 transactions,
         // so the rest of our checks are useless.
         //
@@ -351,9 +359,14 @@ where
         }
 
         // If we are past our NU5 activation height, but there are no V5 transactions in recent blocks,
-        // the Zebra instance that verified those blocks had no NU5 activation height.
-        if count >= constants::MAX_LEGACY_CHAIN_BLOCKS {
-            return Err("giving up after checking too many blocks".into());
+        // the last Zebra instance that updated this cached state had no NU5 activation height.
+        if index >= max_legacy_chain_blocks {
+            return Err(format!(
+                "could not find any transactions in recent blocks: \
+                 checked {index} blocks back from {:?}",
+                tip_height.expect("database contains valid blocks"),
+            )
+            .into());
         }
 
         // If a transaction `network_upgrade` field is different from the network upgrade calculated
@@ -361,7 +374,9 @@ where
         // network upgrade heights.
         block
             .check_transaction_network_upgrade_consistency(network)
-            .map_err(|_| "inconsistent network upgrade found in transaction")?;
+            .map_err(|error| {
+                format!("inconsistent network upgrade found in transaction: {error:?}")
+            })?;
 
         // If we find at least one transaction with a valid `network_upgrade` field, the Zebra instance that
         // verified those blocks used the same network upgrade heights. (Up to this point in the chain.)
@@ -378,14 +393,42 @@ where
     Ok(())
 }
 
+/// Perform initial contextual validity checks for the configured network,
+/// based on the committed finalized and non-finalized state.
+///
+/// Additional contextual validity checks are performed by the non-finalized [`Chain`].
+pub(crate) fn initial_contextual_validity(
+    finalized_state: &ZebraDb,
+    non_finalized_state: &NonFinalizedState,
+    prepared: &PreparedBlock,
+) -> Result<(), ValidateContextError> {
+    let relevant_chain = any_ancestor_blocks(
+        non_finalized_state,
+        finalized_state,
+        prepared.block.header.previous_block_hash,
+    );
+
+    // Security: check proof of work before any other checks
+    check::block_is_valid_for_recent_chain(
+        prepared,
+        non_finalized_state.network,
+        finalized_state.finalized_tip_height(),
+        relevant_chain,
+    )?;
+
+    check::nullifier::no_duplicates_in_finalized_chain(prepared, finalized_state)?;
+
+    Ok(())
+}
+
+
 /// get median time past for a chain
-pub(crate) fn get_median_time_past_for_chain<C>(network: Network, relevant_chain: C) -> Option<DateTime<Utc>>
+pub(crate) fn komodo_get_median_time_past_for_chain<C>(network: Network, relevant_chain: C) -> Result<DateTime<Utc>, BoxError>
 where 
     C: IntoIterator,
     C::Item: Borrow<Block>,
     C::IntoIter: ExactSizeIterator,
 {
-
     let relevant_chain: Vec<_> = relevant_chain
                     .into_iter()
                     .take(POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN)
@@ -402,7 +445,7 @@ where
         let difficulty_adjustment =
             AdjustedDifficulty::new_from_block(tip_block, network, relevant_data);
 
-        return Some(difficulty_adjustment.median_time_past());
+        return Ok(difficulty_adjustment.median_time_past());
     }
-    None
+    Err(BoxError::from("Zebra's state is empty, wait until it syncs to the chain tip"))
 }
