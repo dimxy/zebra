@@ -23,10 +23,10 @@ pub use address::{
     tx_id::transparent_tx_ids,
     utxo::{transparent_utxos, AddressUtxos, ADDRESS_HEIGHTS_FULL_RANGE},
 };
-pub use block::{block, block_header, transaction, unspent_utxo};
+pub use block::{block, block_header, transaction, unspent_utxo, any_utxo};
 pub use find::{
-    chain_contains_hash, find_chain_hashes, find_chain_headers, hash_by_height, height_by_hash,
-    tip_height, read_best_chain_blocks, best_tip,
+    chain_contains_hash, find_chain_hashes, find_chain_headers, hash_by_height, height_by_hash, tip,
+    tip_height, read_best_chain_blocks, best_tip, depth, block_locator, komodo_next_median_time_past, komodo_init_last_nota,
 };
 pub use tree::{orchard_tree, sapling_tree};
 

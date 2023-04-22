@@ -142,18 +142,22 @@ where
 
     fn call(&mut self, block: Arc<Block>) -> Self::Future {
         match block.coinbase_height() {
-            Some(height) if height <= self.max_checkpoint_height => self
+            Some(height) if height <= self.max_checkpoint_height => {
+                self
                 .checkpoint
                 .call(block)
                 .map_err(VerifyChainError::Checkpoint)
-                .boxed(),
+                .boxed()
+            },
             // This also covers blocks with no height, which the block verifier
             // will reject immediately.
-            _ => self
+            _ => {
+                self
                 .block
                 .call(block)
                 .map_err(VerifyChainError::Block)
-                .boxed(),
+                .boxed()
+            },
         }
     }
 }
@@ -274,4 +278,21 @@ where
         groth16_download_handle,
         max_checkpoint_height,
     )
+}
+
+/// Parses the checkpoint list for `network` and `config`.
+/// Returns the checkpoint list and maximum checkpoint height.
+pub fn init_checkpoint_list(config: Config, network: Network) -> (CheckpointList, Height) {
+    // TODO: Zebra parses the checkpoint list three times at startup.
+    //       Instead, cache the checkpoint list for each `network`.
+    let list = CheckpointList::new(network);
+
+    let max_checkpoint_height = if config.checkpoint_sync {
+        list.max_height()
+    } else {
+        list.min_height_in_range(network.mandatory_checkpoint_height()..)
+            .expect("hardcoded checkpoint list extends past canopy activation")
+    };
+
+    (list, max_checkpoint_height)
 }

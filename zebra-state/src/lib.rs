@@ -23,7 +23,6 @@ mod error;
 mod request;
 mod response;
 mod service;
-mod util;
 
 #[allow(missing_docs)]
 pub mod komodo_notaries;
@@ -42,6 +41,7 @@ pub use response::{ReadResponse, Response};
 pub use service::{
     chain_tip::{ChainTipChange, LatestChainTip, TipAction},
     init, OutputIndex, OutputLocation, TransactionLocation,
+    spawn_init,
 };
 
 #[cfg(any(test, feature = "proptest-impl"))]

@@ -142,14 +142,14 @@ mod test {
         assert_eq!(
             4,
             halving_divisor(
-                (first_halving_height + POST_BLOSSOM_HALVING_INTERVAL).unwrap(),
+                (first_halving_height + POST_BLOSSOM_HALVING_INTERVAL.0 as i64).unwrap(),
                 network
             )
         );
         assert_eq!(
             8,
             halving_divisor(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 2)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 2)).unwrap(),
                 network
             )
         );
@@ -157,28 +157,28 @@ mod test {
         assert_eq!(
             1024,
             halving_divisor(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 9)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 9)).unwrap(),
                 network
             )
         );
         assert_eq!(
             1024 * 1024,
             halving_divisor(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 19)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 19)).unwrap(),
                 network
             )
         );
         assert_eq!(
             1024 * 1024 * 1024,
             halving_divisor(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 29)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 29)).unwrap(),
                 network
             )
         );
         assert_eq!(
             1024 * 1024 * 1024 * 1024,
             halving_divisor(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 39)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 39)).unwrap(),
                 network
             )
         );
@@ -187,7 +187,7 @@ mod test {
         assert_eq!(
             1 << 63,
             halving_divisor(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 62)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 62)).unwrap(),
                 network
             )
         );
@@ -240,7 +240,7 @@ mod test {
         assert_eq!(
             Amount::try_from(156_250_000),
             block_subsidy(
-                (first_halving_height + POST_BLOSSOM_HALVING_INTERVAL).unwrap(),
+                (first_halving_height + POST_BLOSSOM_HALVING_INTERVAL.0 as i64).unwrap(),
                 network
             )
         );
@@ -250,7 +250,7 @@ mod test {
         assert_eq!(
             Amount::try_from(4_882_812),
             block_subsidy(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 6)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 6)).unwrap(),
                 network
             )
         );
@@ -260,7 +260,7 @@ mod test {
         assert_eq!(
             Amount::try_from(1),
             block_subsidy(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 28)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 28)).unwrap(),
                 network
             )
         );
@@ -270,7 +270,7 @@ mod test {
         assert_eq!(
             Amount::try_from(0),
             block_subsidy(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 29)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 29)).unwrap(),
                 network
             )
         );
@@ -279,7 +279,7 @@ mod test {
         assert_eq!(
             Amount::try_from(0),
             block_subsidy(
-                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i32 * 62)).unwrap(),
+                (first_halving_height + (POST_BLOSSOM_HALVING_INTERVAL.0 as i64 * 62)).unwrap(),
                 network
             )
         );
