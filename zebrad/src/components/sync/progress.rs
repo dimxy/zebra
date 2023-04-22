@@ -6,7 +6,7 @@ use chrono::Utc;
 use num_integer::div_ceil;
 
 use zebra_chain::{
-    block::Height,
+    block::{Height, HeightDiff},
     chain_tip::ChainTip,
     fmt::humantime_seconds,
     parameters::{Network, NetworkUpgrade, POST_BLOSSOM_POW_TARGET_SPACING},
@@ -21,14 +21,14 @@ const LOG_INTERVAL: Duration = Duration::from_secs(60);
 /// The number of blocks we consider to be close to the tip.
 ///
 /// Most chain forks are 1-7 blocks long.
-const MAX_CLOSE_TO_TIP_BLOCKS: i32 = 1;
+const MAX_CLOSE_TO_TIP_BLOCKS: HeightDiff = 1;
 
 /// Skip slow sync warnings when we are this close to the tip.
 ///
 /// In testing, we've seen warnings around 30 blocks.
 ///
 /// TODO: replace with `MAX_CLOSE_TO_TIP_BLOCKS` after fixing slow syncing near tip (#3375)
-const MIN_SYNC_WARNING_BLOCKS: i32 = 60;
+const MIN_SYNC_WARNING_BLOCKS: HeightDiff = 60;
 
 /// The number of fractional digits in sync percentages.
 const SYNC_PERCENT_FRAC_DIGITS: usize = 3;
@@ -72,7 +72,7 @@ pub async fn show_block_chain_progress(
     // - the minimum number of blocks after the highest checkpoint.
     let after_checkpoint_height = CheckpointList::new(network)
         .max_height()
-        .add(min_after_checkpoint_blocks)
+        .add(min_after_checkpoint_blocks.into())
         .expect("hard-coded checkpoint height is far below Height::MAX");
 
     let target_block_spacing = NetworkUpgrade::target_spacing_for_height(network, Height::MAX);

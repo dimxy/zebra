@@ -16,7 +16,7 @@ members = [
 ]
 
 [profile.dev]
-panic = "abort"
+panic = "unwind"
 
 # Speed up tests by optimizing performance-critical crates
 

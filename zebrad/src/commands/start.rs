@@ -68,11 +68,13 @@
 //! Some of the diagnostic features are optional, and need to be enabled at compile-time.
 
 use abscissa_core::{config, Command, FrameworkError, Options, Runnable};
+use std::time::Duration;
 use color_eyre::eyre::{eyre, Report};
 use futures::FutureExt;
 use tokio::{pin, select, sync::oneshot};
-use tower::{builder::ServiceBuilder, util::BoxService};
+use tower::{builder::ServiceBuilder, util::BoxService, ServiceExt, Service};
 use tracing_futures::Instrument;
+use zebra_state::Request;
 use std::sync::Arc;
 
 use zebra_rpc::server::RpcServer;
@@ -82,7 +84,7 @@ use crate::{
     components::{
         inbound::{self, InboundSetupData},
         mempool::{self, Mempool},
-        sync::{self, show_block_chain_progress},
+        sync::{self, show_block_chain_progress, VERIFICATION_PIPELINE_SCALING_MULTIPLIER},
         tokio::{RuntimeRun, TokioComponent},
         ChainSync, Inbound,
     },
@@ -104,8 +106,22 @@ impl StartCmd {
         info!(?config);
 
         info!("initializing node state");
+        let (_, max_checkpoint_height) = zebra_consensus::chain::init_checkpoint_list(
+            config.consensus.clone(),
+            config.network.network,
+        );
+        info!(?max_checkpoint_height);
+        info!("opening database, this may take a few minutes");
         let (state_service, read_only_state_service, latest_chain_tip, chain_tip_change) =
-            zebra_state::init(config.state.clone(), config.network.network);
+            zebra_state::spawn_init(
+                config.state.clone(),
+                config.network.network,
+                max_checkpoint_height,
+                config.sync.checkpoint_verify_concurrency_limit
+                    * (VERIFICATION_PIPELINE_SCALING_MULTIPLIER + 1),
+            )
+            .await?;
+
         let state = ServiceBuilder::new()
             .buffer(Self::state_buffer_bound())
             .service(state_service);
@@ -179,7 +195,7 @@ impl StartCmd {
             block_download_peer_set: peer_set.clone(),
             block_verifier: chain_verifier,
             mempool: mempool.clone(),
-            state,
+            state: state.clone(),   // TODO: remove clone if state not used further
             latest_chain_tip: latest_chain_tip.clone(),
         };
         setup_tx

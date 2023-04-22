@@ -279,7 +279,7 @@ where
 
             let max_lookahead_height = if let Some(tip_height) = tip_height {
                 let lookahead = i32::try_from(full_verify_concurrency_limit).expect("fits in i32");
-                (tip_height + lookahead).expect("tip is much lower than Height::MAX")
+                (tip_height + lookahead.into()).expect("tip is much lower than Height::MAX")
             } else {
                 let genesis_lookahead =
                     u32::try_from(full_verify_concurrency_limit - 1).expect("fits in u32");
