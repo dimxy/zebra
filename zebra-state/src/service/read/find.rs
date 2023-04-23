@@ -525,7 +525,7 @@ fn komodo_best_relevant_chain(
     start_hash_or_height: Option<HashOrHeight>, 
     depth: usize,
 ) -> Result<Vec<Arc<Block>>, BoxError> {
-
+    info!("komodo_best_relevant_chain for start_hash_or_height {:?}", start_hash_or_height);
     if depth > 1440 { return Err(BoxError::from("Depth too large")); }
 
     let state_tip_before_queries = read::best_tip(non_finalized_state, db).ok_or_else(|| {
