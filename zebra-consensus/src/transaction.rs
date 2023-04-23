@@ -149,7 +149,9 @@ where
                     zebra_state::Request::AwaitBlock(
                         block_hash
                     ));
-                query.await?;
+                let r = query.await;
+                tracing::info!("Request::AwaitBlock {:?}", r);
+                r?;
 
                 let q = state_tmp.oneshot(
                     zebra_state::Request::Tip
