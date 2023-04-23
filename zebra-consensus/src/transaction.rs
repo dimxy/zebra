@@ -139,7 +139,7 @@ where
     fn get_median_time_past(state: &Timeout<ZS>, block_hash: Option<block::Hash>) -> impl Future<Output = Result<DateTime<Utc>, TransactionError>>   {
 
         let state = state.clone();
-        let state_tmp = state.clone();
+        //let state_tmp = state.clone();
     
         async move {
             if let Some(block_hash) = block_hash {
