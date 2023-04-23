@@ -151,14 +151,21 @@ where
                         block_hash
                     ));
                 let r = query.await;
-                tracing::info!("Request::AwaitBlock {:?}", r);
+                tracing::info!("calling Request::AwaitBlock for {:?} result={}", block_hash, r.is_ok());
+                if let Ok(rsp) = &r {
+                    if let zebra_state::Response::Block(b) = rsp { 
+                        if let Some(b) = b {
+                            tracing::info!("calling Request::AwaitBlock for {:?} result block={:?}", block_hash, b.hash());
+                        }
+                    }
+                }
                 r?;
 
-                let q = state_tmp.oneshot(
-                    zebra_state::Request::Tip
-                );
-                let tip = q.await;
-                tracing::info!("Request::Tip {:?}", tip);
+                //let q = state_tmp.oneshot(
+                //    zebra_state::Request::Tip
+                //);
+                //let tip = q.await;
+                //tracing::info!("Request::Tip {:?}", tip);
             
             }
             tracing::info!("calling Request::GetMedianTimePast for {:?}", block_hash);
