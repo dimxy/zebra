@@ -143,7 +143,7 @@ where
     
         async move {
             if let Some(block_hash) = block_hash {
-                info!("calling Request::AwaitBlock for {:?}", block_hash);
+                tracing::info!("calling Request::AwaitBlock for {:?}", block_hash);
                 let state = state.clone();
                 // wait for the block to be added in the chain
                 let query = state.oneshot(
@@ -161,7 +161,7 @@ where
                 tracing::info!("Request::Tip {:?}", tip);
             
             }
-            info!("calling Request::GetMedianTimePast for {:?}", block_hash);
+            tracing::info!("calling Request::GetMedianTimePast for {:?}", block_hash);
             let query = state.oneshot(zebra_state::Request::GetMedianTimePast(block_hash));
 
             match query.await? {
