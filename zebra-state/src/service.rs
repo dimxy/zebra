@@ -19,7 +19,7 @@ use std::{
     convert,
     future::Future,
     pin::Pin,
-    sync::Arc,
+    sync::{Arc, Mutex},
     task::{Context, Poll},
     time::{Duration, Instant}, collections::HashMap,
 };
@@ -187,7 +187,7 @@ pub(crate) struct StateService {
     max_queued_finalized_height: f64,
 
     /// The set of block hashes with pending requests for their associated Block for komodo interest calc
-    pending_blocks: PendingBlocks,
+    pending_blocks: Arc<Mutex<PendingBlocks>>,
 }
 
 /// A read-only service for accessing Zebra's cached blockchain state.
@@ -397,7 +397,7 @@ impl StateService {
             last_prune: Instant::now(),
             read_service: read_service.clone(),
             max_queued_finalized_height: f64::NAN,
-            pending_blocks, // komodo added
+            pending_blocks: Arc::new(Mutex::new(pending_blocks)), // komodo added
         };
         timer.finish(module_path!(), line!(), "initializing state service");
 
@@ -881,7 +881,7 @@ impl Service<Request> for StateService {
             let old_len = self.pending_utxos.len();
 
             self.pending_utxos.prune();
-            self.pending_blocks.prune();
+            self.pending_blocks.lock().expect("pending_blocks unlocked").prune();
             self.last_prune = now;
 
             let new_len = self.pending_utxos.len();
@@ -917,7 +917,9 @@ impl Service<Request> for StateService {
                 self.pending_utxos
                     .check_against_ordered(&prepared.new_outputs);
 
-                self.pending_blocks.respond(prepared.block.clone()); // komodo added
+                //self.pending_blocks.respond(prepared.block.clone()); // komodo added
+                let block = prepared.block.clone();
+                let pending_blocks = self.pending_blocks.clone();
 
                 // info!(?prepared.hash, "CommitBlock requested");
 
@@ -948,6 +950,10 @@ impl Service<Request> for StateService {
                         // TODO: replace with Result::flatten once it stabilises
                         // https://github.com/rust-lang/rust/issues/70142
                         .and_then(convert::identity)
+                        .and_then(|hash| {
+                            pending_blocks.lock().expect("pending_blocks unlocked").respond(block); // komodo added
+                            Ok(hash)
+                        })
                         .map(Response::Committed)
                         .map_err(Into::into)
                 }
@@ -956,7 +962,9 @@ impl Service<Request> for StateService {
             }
             Request::CommitFinalizedBlock(finalized) => {
                 self.pending_utxos.check_against(&finalized.new_outputs);
-                self.pending_blocks.respond(finalized.block.clone());
+                //self.pending_blocks.respond(finalized.block.clone());
+                let block = finalized.block.clone();
+                let pending_blocks = self.pending_blocks.clone();
 
                 // # Performance
                 //
@@ -983,6 +991,10 @@ impl Service<Request> for StateService {
                         // TODO: replace with Result::flatten once it stabilises
                         // https://github.com/rust-lang/rust/issues/70142
                         .and_then(convert::identity)
+                        .and_then(|hash| {
+                            pending_blocks.lock().expect("pending_blocks unlocked").respond(block); // komodo added
+                            Ok(hash)
+                        })
                         .map(Response::Committed)
                         .map_err(Into::into)
                 }
@@ -1067,10 +1079,10 @@ impl Service<Request> for StateService {
 
             Request::AwaitBlock(hash) => {
                 // TODO: move to ReadService
-                let fut = self.pending_blocks.queue(hash);
+                let fut = self.pending_blocks.lock().expect("pending_blocks unlocked").queue(hash);
 
                 if let Some(block) = block_iter::any_ancestor_blocks(&self.read_service.latest_non_finalized_state(), &self.read_service.db, hash).next() {
-                    self.pending_blocks.respond(block.clone());
+                    self.pending_blocks.lock().expect("pending_blocks unlocked").respond(block.clone());
                 }
 
                 // The future waits on a channel for a response.
@@ -1461,7 +1473,7 @@ impl Service<ReadRequest> for ReadStateService {
                 .boxed()
             }
 
-            // Used by the cacl_MoM rpc
+            // Used by the calc_MoM rpc
             ReadRequest::BestChainBlocks(start_height, depth) => {
                 let state = self.clone();
 
