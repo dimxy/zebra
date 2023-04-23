@@ -546,7 +546,7 @@ fn komodo_best_relevant_chain(
         .into_iter()
         .take(depth)
         .collect();
-    info!("best_relevant_chain.len() {} depth {} start_hash {:?}", best_relevant_chain.len(), depth, start_hash);
+    info!("best_relevant_chain.len() {} depth {} start_hash {:?} tip={:?}", best_relevant_chain.len(), depth, start_hash, state_tip_before_queries);
     if best_relevant_chain.len() < depth {
         return Err(BoxError::from("Zebra's state does not contain requested number of blocks"));
     }
