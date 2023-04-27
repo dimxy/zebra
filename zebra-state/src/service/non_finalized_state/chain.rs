@@ -1006,7 +1006,7 @@ impl Chain {
     ) -> Amount<NegativeAllowed> {
         let balance_change: Result<Amount<NegativeAllowed>, _> = self
             .partial_transparent_indexes(addresses)
-            .map(|transfers| transfers.balance())
+            .map(|transfers| transfers.balance().constrain::<NegativeAllowed>().expect("valid transparent balance within limits") )
             .sum();
 
         balance_change.expect(
