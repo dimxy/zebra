@@ -583,9 +583,9 @@ where
             async_checks.check().await?;
 
             // Get the `value_balance` to calculate the transaction fee.
-            let value_balance = tx.value_balance(network, &spent_utxos, req.height(), last_tip_blocktime);
+            let value_balance = tx.value_balance(network, &spent_utxos, Some(req.height()), last_tip_blocktime);
             // also get dedicated interest value for checking it
-            let value_interest = tx.komodo_interest_tx(network, &spent_utxos, req.height(), last_tip_blocktime);
+            let value_interest = tx.komodo_interest_tx(network, &spent_utxos, Some(req.height()), last_tip_blocktime);
 
             // Calculate the fee only for non-coinbase transactions.
             let mut miner_fee = None;
