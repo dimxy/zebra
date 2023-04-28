@@ -214,8 +214,7 @@ fn komodo_valid_fork_from_below_last_notarised_height() {
         |_| {}, 
         |_prepared, commit_result| {
             if commit_result.is_err()   {
-                println!("commit_result1={}", commit_result.as_ref().unwrap_err());
-                //println!("commit_result2={:?}", commit_result.as_ref().unwrap_err());
+                println!("komodo_load_testnet_both_branches error commit_result={}", commit_result.as_ref().unwrap_err());
             }
             assert_eq!( 
                 *commit_result, 
