@@ -980,7 +980,7 @@ impl Transaction {
         &self,
         network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
-        block_height: Height, 
+        block_height: Option<Height>, 
         last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
 
@@ -1031,7 +1031,7 @@ impl Transaction {
         &self,
         network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
-        block_height: Height, 
+        block_height: Option<Height>, 
         last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
         self.transparent_value_balance_from_outputs(network, utxos, block_height, last_block_time)
@@ -1400,7 +1400,7 @@ impl Transaction {
         &self,
         network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
-        block_height: Height, 
+        block_height: Option<Height>, 
         last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
         self.transparent_value_balance_from_outputs(network, utxos, block_height, last_block_time)?
@@ -1432,7 +1432,7 @@ impl Transaction {
         &self,
         network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
-        block_height: Height, 
+        block_height: Option<Height>, 
         last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
         self.value_balance_from_outputs(network, utxos, block_height, last_block_time)
@@ -1443,25 +1443,25 @@ impl Transaction {
     pub fn komodo_interest_input(network: Network,
         input: &transparent::Input,
         spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>, 
-        block_height: Height, 
+        block_height: Option<Height>, 
         last_block_time: Option<DateTime<Utc>>,
     ) -> Amount<NonNegative> {
 
         if let Some(outpoint) = input.outpoint()    {
             let utxo = spent_utxos
             .get(&outpoint)
-            .expect("provided Utxos don't have spent OutPoint");
+            .expect("for transaction input a spent output must be provided");
 
             let tx_height = utxo.height;
             let lock_time = utxo.lock_time;
 
             let mut interest = Amount::zero();
-            if NN::komodo_interest_calc_active(network, &block_height) {
+            if block_height.is_some() && NN::komodo_interest_calc_active(network, &block_height.unwrap()) {
                 if utxo.output.value() >= Amount::<NonNegative>::try_from(10 * COIN).unwrap()   {
                     interest = komodo_interest(tx_height, utxo.output.value(), lock_time, last_block_time);
+                    debug!("komodo_interest_input tx block_height={:?} block_time={:?} tx_height={:?} lock_time={:?} interest={:?} utxo value={:?}", block_height, if let Some(last_block_time) = last_block_time { last_block_time.timestamp() } else { 0i64 }, tx_height,  <lock_time::LockTime as TryInto<u32>>::try_into(lock_time), interest, utxo.output.value());
                 }
             }
-            //debug!("komodo_interest_tx tx block_height={:?} block_time={:?} tx_height={:?} lock_time={:?} interest={:?}", block_height, if let Some(last_block_time) = last_block_time { last_block_time.timestamp() } else { 0i64 }, tx_height,  <lock_time::LockTime as TryInto<u32>>::try_into(lock_time), interest);
             interest
         } else {
             Amount::zero()  // Coinbase. input (i) is Input::Coinbase (i.e. not Input::PrevOut),
@@ -1473,7 +1473,7 @@ impl Transaction {
     pub fn komodo_interest_tx(&self, 
         network: Network,
         spent_utxos: &HashMap<transparent::OutPoint, transparent::Utxo>, 
-        block_height: Height, 
+        block_height: Option<Height>, 
         last_block_time: Option<DateTime<Utc>>,
     ) -> Amount<NonNegative> {
 
