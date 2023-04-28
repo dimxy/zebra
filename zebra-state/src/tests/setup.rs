@@ -85,12 +85,37 @@ pub(crate) fn partial_nu5_chain_strategy(
 /// Also returns the finalized genesis block itself.
 pub(crate) fn new_state_with_mainnet_genesis() -> (FinalizedState, NonFinalizedState, FinalizedBlock)
 {
-    let genesis = zebra_test::vectors::BLOCK_MAINNET_GENESIS_BYTES
-        .zcash_deserialize_into::<Arc<Block>>()
-        .expect("block should deserialize");
+    new_state_with_genesis(Mainnet, false)
+}
+
+/// Same for komodo mainnet
+pub(crate) fn komodo_new_state_with_mainnet_genesis() -> (FinalizedState, NonFinalizedState, FinalizedBlock)
+{
+    new_state_with_genesis(Mainnet, true)
+}
+
+/// Same for komodo testnet
+pub(crate) fn komodo_new_state_with_testnet_genesis() -> (FinalizedState, NonFinalizedState, FinalizedBlock)
+{
+    new_state_with_genesis(Testnet, true)
+}
+
+fn new_state_with_genesis(network: Network, is_komodo: bool) -> (FinalizedState, NonFinalizedState, FinalizedBlock)
+{
+    let genesis = match (network, is_komodo) {
+        (Mainnet, false) => zebra_test::vectors::BLOCK_MAINNET_GENESIS_BYTES
+            .zcash_deserialize_into::<Arc<Block>>()
+            .expect("block should deserialize"),
+        (Mainnet, true) => zebra_test::komodo_vectors::BLOCK_KMDMAINNET_GENESIS_BYTES
+            .zcash_deserialize_into::<Arc<Block>>()
+            .expect("block should deserialize"),
+        (Testnet, true) => zebra_test::komodo_vectors::BLOCK_KMDTESTNET_GENESIS_BYTES
+            .zcash_deserialize_into::<Arc<Block>>()
+            .expect("block should deserialize"),
+        (_, _) => unimplemented!("not implemented for zcash testnet"),
+    };
 
     let config = Config::ephemeral();
-    let network = Mainnet;
 
     let mut finalized_state = FinalizedState::new(
         &config,
