@@ -197,7 +197,6 @@ impl ContextuallyValidBlock {
     pub fn with_block_and_spent_utxos(
         network: Network,
         prepared: PreparedBlock,
-        last_block_time: Option<DateTime<Utc>>,
         mut spent_outputs: HashMap<transparent::OutPoint, transparent::OrderedUtxo>,
     ) -> Result<Self, ValueBalanceError> {
         let PreparedBlock {
@@ -222,7 +221,7 @@ impl ContextuallyValidBlock {
             spent_outputs: spent_outputs.clone(),
             transaction_hashes,
             chain_value_pool_change: block
-                .chain_value_pool_change(network, &utxos_from_ordered_utxos(spent_outputs), height, last_block_time)?,
+                .chain_value_pool_change(network, &utxos_from_ordered_utxos(spent_outputs))?,
         })
     }
 }

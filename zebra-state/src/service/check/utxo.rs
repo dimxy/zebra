@@ -264,7 +264,7 @@ pub fn remaining_transaction_value(
         }
 
         // Check the remaining transparent value pool for this transaction
-        let value_balance = transaction.value_balance(network, &utxos_from_ordered_utxos(utxos.clone()), prepared.height, last_block_time);
+        let value_balance = transaction.value_balance(network, &utxos_from_ordered_utxos(utxos.clone()), Some(prepared.height), last_block_time);
         match value_balance {
             Ok(vb) => match vb.remaining_transaction_value() {
                 Ok(_) => Ok(()),

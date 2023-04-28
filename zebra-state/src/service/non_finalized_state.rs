@@ -279,7 +279,6 @@ impl NonFinalizedState {
         let contextual = ContextuallyValidBlock::with_block_and_spent_utxos(
             self.network,
             prepared.clone(),
-            last_block_time,
             spent_utxos.clone(),    // TODO: check, this is mutable
         )
         .map_err(|value_balance_error| {

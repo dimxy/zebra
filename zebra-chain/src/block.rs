@@ -206,13 +206,11 @@ impl Block {
         &self,
         network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
-        height: Height,
-        last_block_time: Option<DateTime<Utc>>,
     ) -> Result<ValueBalance<NegativeAllowed>, ValueBalanceError> {
         let transaction_value_balance_total = self
             .transactions
             .iter()
-            .flat_map(|t| t.value_balance(network, utxos, height, last_block_time))
+            .flat_map(|t| t.value_balance(network, utxos, None, None))
             .sum::<Result<ValueBalance<NegativeAllowed>, _>>()?;
 
         Ok(transaction_value_balance_total.neg())
