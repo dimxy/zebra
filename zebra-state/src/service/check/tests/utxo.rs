@@ -1,11 +1,12 @@
 //! Test vectors and randomised property tests for UTXO contextual validation
 
-use std::{env, sync::Arc};
+use std::{env, sync::Arc /*, intrinsics::unreachable*/};
 
+use chrono::{DateTime, Utc};
 use proptest::prelude::*;
 
 use zebra_chain::{
-    amount::Amount,
+    amount::{Amount, NonNegative},
     block::{Block, Height},
     fmt::TypeNameToDebug,
     serialization::ZcashDeserializeInto,
@@ -20,7 +21,7 @@ use crate::{
         check, finalized_state::FinalizedState, non_finalized_state::NonFinalizedState, read,
         write::validate_and_commit_non_finalized,
     },
-    tests::setup::{new_state_with_mainnet_genesis, transaction_v4_from_coinbase},
+    tests::setup::{komodo_new_state_with_mainnet_genesis, komodo_new_state_with_testnet_genesis, transaction_v4_from_coinbase},
     FinalizedBlock,
     ValidateContextError::{
         DuplicateTransparentSpend, EarlyTransparentSpend, ImmatureTransparentCoinbaseSpend,
@@ -149,7 +150,7 @@ proptest! {
     ) {
         let _init_guard = zebra_test::init();
 
-        let mut block1 = zebra_test::vectors::BLOCK_MAINNET_1_BYTES
+        let mut block1 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
@@ -175,7 +176,7 @@ proptest! {
             .transactions
             .extend([output_transaction.into(), spend_transaction.into()]);
 
-        let (mut finalized_state, mut non_finalized_state, _genesis) = new_state_with_mainnet_genesis();
+        let (mut finalized_state, mut non_finalized_state, _genesis) = komodo_new_state_with_mainnet_genesis();
         let previous_non_finalized_state = non_finalized_state.clone();
 
         // randomly choose to commit the block to the finalized or non-finalized state
@@ -242,7 +243,7 @@ proptest! {
             use_finalized_state_spend = false;
         }
 
-        let mut block2 = zebra_test::vectors::BLOCK_MAINNET_2_BYTES
+        let mut block2 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_2_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
@@ -333,7 +334,7 @@ proptest! {
     ) {
         let _init_guard = zebra_test::init();
 
-        let mut block1 = zebra_test::vectors::BLOCK_MAINNET_1_BYTES
+        let mut block1 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
@@ -359,7 +360,7 @@ proptest! {
             .transactions
             .extend([output_transaction.into(), spend_transaction.into()]);
 
-            let (finalized_state, mut non_finalized_state, genesis) = new_state_with_mainnet_genesis();
+            let (finalized_state, mut non_finalized_state, genesis) = komodo_new_state_with_mainnet_genesis();
             let previous_non_finalized_state = non_finalized_state.clone();
 
         let block1 = Arc::new(block1).prepare();
@@ -399,7 +400,7 @@ proptest! {
     ) {
         let _init_guard = zebra_test::init();
 
-        let mut block2 = zebra_test::vectors::BLOCK_MAINNET_2_BYTES
+        let mut block2 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_2_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
@@ -478,7 +479,7 @@ proptest! {
     ) {
         let _init_guard = zebra_test::init();
 
-        let mut block2 = zebra_test::vectors::BLOCK_MAINNET_2_BYTES
+        let mut block2 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_2_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
@@ -571,10 +572,10 @@ proptest! {
             use_finalized_state_spend = false;
         }
 
-        let mut block2 = zebra_test::vectors::BLOCK_MAINNET_2_BYTES
+        let mut block2 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_2_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
-        let mut block3 = zebra_test::vectors::BLOCK_MAINNET_3_BYTES
+        let mut block3 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_3_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
@@ -720,7 +721,7 @@ proptest! {
     ) {
         let _init_guard = zebra_test::init();
 
-        let mut block1 = zebra_test::vectors::BLOCK_MAINNET_1_BYTES
+        let mut block1 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
@@ -737,7 +738,7 @@ proptest! {
 
         block1.transactions.push(spend_transaction.into());
 
-        let (finalized_state, mut non_finalized_state, genesis) = new_state_with_mainnet_genesis();
+        let (finalized_state, mut non_finalized_state, genesis) = komodo_new_state_with_mainnet_genesis();
         let previous_non_finalized_state = non_finalized_state.clone();
 
         let block1 = Arc::new(block1).prepare();
@@ -777,7 +778,7 @@ proptest! {
     ) {
         let _init_guard = zebra_test::init();
 
-        let mut block1 = zebra_test::vectors::BLOCK_MAINNET_1_BYTES
+        let mut block1 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1_BYTES
             .zcash_deserialize_into::<Block>()
             .expect("block should deserialize");
 
@@ -804,7 +805,7 @@ proptest! {
             .transactions
             .extend([spend_transaction.into(), output_transaction.into()]);
 
-            let (finalized_state, mut non_finalized_state, genesis) = new_state_with_mainnet_genesis();
+            let (finalized_state, mut non_finalized_state, genesis) = komodo_new_state_with_mainnet_genesis();
             let previous_non_finalized_state = non_finalized_state.clone();
 
         let block1 = Arc::new(block1).prepare();
@@ -829,6 +830,135 @@ proptest! {
 
         // the finalized state does not have the UTXO
         prop_assert!(finalized_state.utxo(&expected_outpoint).is_none());
+    }
+
+    /// Komodo:
+    /// Ensure komodo interest is calulated and added to transaction input pool so it can be spent
+    /// Also ensure that the chain pool value includes the interest if it is added to the spending tx output
+    /// Try this both for finalized and non-finalized state
+    #[test]
+    fn komodo_value_pool_with_interest(
+        use_finalized_state_output in any::<bool>(),    // controls block1 placement
+        mut use_finalized_state_spend in any::<bool>(), // controls block3 placement 
+    ) {
+        let _init_guard = zebra_test::init();
+        const TEST_BLOCK_INTERVAL_MIN: u64 = 60; // for minimum interest age to have it non-null
+    
+        // if we use the non-finalized state for the first block,
+        // we have to use it for the second as well
+        if !use_finalized_state_output {
+            use_finalized_state_spend = false;
+        }
+
+        let mut block2 = zebra_test::komodo_vectors::BLOCK_KMDTESTNET_2_BYTES
+            .zcash_deserialize_into::<Block>()
+            .expect("block should deserialize");
+        let mut block3 = zebra_test::komodo_vectors::BLOCK_KMDTESTNET_3_BYTES
+            .zcash_deserialize_into::<Block>()
+            .expect("block should deserialize");
+
+        let TestState {
+            mut finalized_state, mut non_finalized_state, block1, ..
+        } = komodo_new_state_with_testnet_block1(use_finalized_state_output);
+        let previous_non_finalized_state = non_finalized_state.clone();
+
+        let nominator: u64 = (block1.transactions[0].outputs()[0].value() / 20u64).unwrap().try_into().unwrap();
+        let denominator = 365 * 24 * 60 / TEST_BLOCK_INTERVAL_MIN;
+        let testnet_interest = nominator / denominator;
+
+        let header_2 = Arc::get_mut(&mut block2.header).unwrap();
+        header_2.time = block1.header.time + chrono::Duration::seconds((TEST_BLOCK_INTERVAL_MIN*60).try_into().unwrap());
+
+        let header_3 = Arc::get_mut(&mut block3.header).unwrap();
+        header_3.time = block2.header.time + chrono::Duration::seconds((TEST_BLOCK_INTERVAL_MIN*60).try_into().unwrap());
+        header_3.previous_block_hash = block2.hash(); // update prev block hash
+
+        // convert the coinbase transactions to a version that the non-finalized state will accept
+        block2.transactions[0] = transaction_v4_from_coinbase(&block2.transactions[0]).into();
+        block3.transactions[0] = transaction_v4_from_coinbase(&block3.transactions[0]).into();
+
+        let expected_outpoint = transparent::OutPoint {
+            hash: block1.transactions[0].hash(),
+            index: 0,
+        };
+        let prevout_input = transparent::Input::PrevOut {
+            outpoint: expected_outpoint, 
+            unlock_script: transparent::Script::new(&[0]), 
+            sequence: std::u32::MAX, 
+        };
+
+        let utxo = transparent::Utxo { 
+            output: block1.transactions[0].outputs()[0].clone(), 
+            height: Height(1), 
+            from_coinbase: true, 
+            lock_time: LockTime::Time(block1.header.time) 
+        };
+
+        let mut next_utxo = transparent::Utxo { 
+            output: utxo.clone().output, 
+            height: Height(3), 
+            from_coinbase: false, 
+            lock_time: LockTime::Time(block3.header.time) 
+        };
+        // add the interest to the new tx output
+        next_utxo.output.value = (next_utxo.output.value + Amount::<NonNegative>::try_from(testnet_interest).unwrap()).unwrap();
+
+        // Note: remember that komodo_transaction_v4_with_transparent_data_testnet calls transaction.fix_remaining_value() which may zero tx outputs if it exceeds the input pool. This may affect tests
+        let spend_transaction = komodo_transaction_v4_with_transparent_data_testnet(
+            [prevout_input],
+            [(expected_outpoint, utxo.clone())],
+            [next_utxo.clone().output],
+            Height(3),
+            Some(block2.header.time)
+        );
+
+        block3.transactions.push(spend_transaction.into()); // add new tx to block3
+
+        let block2 = Arc::new(block2);
+        let block3 = Arc::new(block3);
+
+        if use_finalized_state_spend {
+            let block2 = FinalizedBlock::from(block2.clone());
+            let commit_result = finalized_state.commit_finalized_direct(block2.clone().into(), "test");
+            prop_assert!(commit_result.is_ok());
+        } else {
+            let block2 = block2.clone().prepare();
+            let commit_result = validate_and_commit_non_finalized(
+                &finalized_state.db,
+                &mut non_finalized_state,
+                block2.clone()
+            );
+        }
+
+        if use_finalized_state_spend {
+            let block3 = FinalizedBlock::from(block3.clone());
+            let commit_result = finalized_state.commit_finalized_direct(block3.clone().into(), "test");
+            prop_assert!(commit_result.is_ok());
+        } else {
+            let block3 = block3.clone().prepare();
+            let commit_result = validate_and_commit_non_finalized(
+                &finalized_state.db,
+                &mut non_finalized_state,
+                block3
+            );
+            prop_assert_eq!(commit_result, Ok(()));
+        }
+
+        let transparent_pool = if use_finalized_state_spend {
+            finalized_state.finalized_value_pool().transparent_amount()
+        } else {
+            let chain = non_finalized_state
+                .chain_set
+                .iter()
+                .next()
+                .unwrap();
+            chain.chain_value_pools.transparent_amount()
+        };
+
+        // Expected chain pool 2 blocks with 3 coin reward each plus spent block1 100 mln utxo with interest
+        let expected_pool = Amount::<NonNegative>::try_from(2 * 3_0000_0000 + 100_000_000_0000_0000 + testnet_interest).expect("expected transparent pool amount valid");
+        // println!("transparent_pool={:?} expected_pool={:?}", transparent_pool, expected_pool);
+        prop_assert!(transparent_pool == expected_pool);
     }
 }
 
@@ -857,10 +987,10 @@ fn komodo_new_state_with_mainnet_transparent_data(
     outputs: impl IntoIterator<Item = transparent::Output>,
     use_finalized_state: bool,
 ) -> TestState {
-    let (mut finalized_state, mut non_finalized_state, genesis) = new_state_with_mainnet_genesis();
+    let (mut finalized_state, mut non_finalized_state, genesis) = komodo_new_state_with_mainnet_genesis();
     let previous_non_finalized_state = non_finalized_state.clone();
 
-    let mut block1 = zebra_test::vectors::BLOCK_MAINNET_1_BYTES
+    let mut block1 = zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1_BYTES
         .zcash_deserialize_into::<Block>()
         .expect("block should deserialize");
 
@@ -953,6 +1083,75 @@ fn komodo_new_state_with_mainnet_transparent_data(
     }
 }
 
+/// Return a new `StateService` containing the komodo testnet genesis block.
+/// Adds block1 into the finalized or non-finalized state
+/// Fixes locktime in the block1 coinbase
+fn komodo_new_state_with_testnet_block1(
+    use_finalized_state: bool,
+) -> TestState {
+    let (mut finalized_state, mut non_finalized_state, genesis) = komodo_new_state_with_testnet_genesis();
+
+    let mut block1 = zebra_test::komodo_vectors::BLOCK_KMDTESTNET_1_BYTES
+        .zcash_deserialize_into::<Block>()
+        .expect("block should deserialize");
+
+    let coinbase: Transaction = transaction_v4_from_coinbase(&block1.transactions[0]).into();
+    // set locktime in coinbase output to block.time:
+    let coinbase = Transaction::V4 {
+        inputs: coinbase.inputs().to_vec(),
+        outputs: coinbase.outputs().to_vec(),
+        lock_time: LockTime::Time(block1.header.time),
+        expiry_height: coinbase.expiry_height().unwrap_or(Height(0)),
+        joinsplit_data: None,
+        sapling_shielded_data: None,
+    };
+
+    block1.transactions[0] = coinbase.into();
+    let block1 = Arc::new(block1);
+
+    if use_finalized_state {
+        let block1 = FinalizedBlock::from(block1.clone());
+        let commit_result = finalized_state.commit_finalized_direct(block1.clone().into(), "test");
+
+        // the block was committed
+        assert_eq!(
+            Some((Height(1), block1.hash)),
+            read::best_tip(&non_finalized_state, &finalized_state.db)
+        );
+        assert!(commit_result.is_ok());
+    } else {
+        let block1 = block1.clone().prepare();
+        let commit_result = validate_and_commit_non_finalized(
+            &finalized_state.db,
+            &mut non_finalized_state,
+            block1.clone(),
+        );
+
+        // the block was committed
+        assert_eq!(
+            commit_result,
+            Ok(()),
+            "unexpected invalid block 1, modified with generated transactions: \n\
+             converted coinbase: {:?} \n\
+             generated non-coinbase: {:?}",
+            block1.block.transactions[0],
+            block1.block.transactions[1],
+        );
+        assert_eq!(
+            Some((Height(1), block1.hash)),
+            read::best_tip(&non_finalized_state, &finalized_state.db)
+        );
+    }
+
+    TestState {
+        finalized_state,
+        non_finalized_state,
+        genesis,
+        block1,
+    }
+}
+
+
 /// Return a `Transaction::V4`, using transparent `inputs` and their `spent_outputs`,
 /// and newly created `outputs`.
 ///
@@ -976,7 +1175,34 @@ fn komodo_transaction_v4_with_transparent_data(
 
     // do required fixups, but ignore any errors,
     // because we're not checking all the consensus rules here
-    let _ = transaction.fix_remaining_value(Network::Mainnet, &spent_utxos.into_iter().collect(), Height(0), None);
+    // Komodo: there is no interest on low blocks
+    let _ = transaction.fix_remaining_value(Network::Mainnet, &spent_utxos.into_iter().collect(), None, None);
+
+    transaction
+}
+
+fn komodo_transaction_v4_with_transparent_data_testnet(
+    inputs: impl IntoIterator<Item = transparent::Input>,
+    spent_utxos: impl IntoIterator<Item = (transparent::OutPoint, transparent::Utxo)>,
+    outputs: impl IntoIterator<Item = transparent::Output>,
+    height: Height,
+    last_block_time: Option<DateTime<Utc>>,
+) -> Transaction {
+    let inputs: Vec<_> = inputs.into_iter().collect();
+    let outputs: Vec<_> = outputs.into_iter().collect();
+
+    let mut transaction = Transaction::V4 {
+        inputs,
+        outputs,
+        lock_time: LockTime::min_lock_time_timestamp(),
+        expiry_height: Height(0),
+        joinsplit_data: None,
+        sapling_shielded_data: None,
+    };
+
+    // do required fixups, but ignore any errors,
+    // because we're not checking all the consensus rules here
+    let _ = transaction.fix_remaining_value(Network::Testnet, &spent_utxos.into_iter().collect(), Some(height), last_block_time);
 
     transaction
 }
