@@ -262,18 +262,6 @@ impl NonFinalizedState {
             &new_chain,
             &prepared,
         ); 
-        // Reads from disk
-        /*check::anchors::sapling_orchard_anchors_refer_to_final_treestates(
-            finalized_state,
-            &new_chain,
-            &prepared,
-        )?;
-
-        // Reads from disk
-        let sprout_final_treestates =
-            check::anchors::fetch_sprout_final_treestates(finalized_state, &new_chain, &prepared);*/
-
-
 
         // Quick check that doesn't read from disk
         let contextual = ContextuallyValidBlock::with_block_and_spent_utxos(

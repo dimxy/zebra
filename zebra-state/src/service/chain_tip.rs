@@ -368,6 +368,7 @@ impl LatestChainTip {
         })
     }
 
+    /// gets MTP value from best chain_tip
     pub fn get_mtp_on_best_tip(&self) -> Option<DateTime<Utc>> {
         self.receiver.with_watch_data(|chain_tip_block| {
             chain_tip_block.as_ref().map(|ctb| {
