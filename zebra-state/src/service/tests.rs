@@ -28,10 +28,10 @@ use crate::{
 
 const LAST_BLOCK_HEIGHT: u32 = 10;
 
-async fn test_populated_state_responds_correctly(
+async fn komodo_test_populated_state_responds_correctly(
     mut state: Buffer<BoxService<Request, Response, BoxError>, Request>,
 ) -> Result<()> {
-    let blocks: Vec<Arc<Block>> = zebra_test::vectors::MAINNET_BLOCKS
+    let blocks: Vec<Arc<Block>> = zebra_test::komodo_vectors::KMDMAINNET_BLOCKS
         .range(0..=LAST_BLOCK_HEIGHT)
         .map(|(_, block_bytes)| block_bytes.zcash_deserialize_into().unwrap())
         .collect();
@@ -194,14 +194,14 @@ async fn test_populated_state_responds_correctly(
 }
 
 #[tokio::main]
-async fn populate_and_check(blocks: Vec<Arc<Block>>) -> Result<()> {
+async fn komodo_populate_and_check(blocks: Vec<Arc<Block>>) -> Result<()> {
     let (state, _, _, _) = populated_state(blocks, Network::Mainnet).await;
-    test_populated_state_responds_correctly(state).await?;
+    komodo_test_populated_state_responds_correctly(state).await?;
     Ok(())
 }
 
 fn out_of_order_committing_strategy() -> BoxedStrategy<Vec<Arc<Block>>> {
-    let blocks = zebra_test::vectors::MAINNET_BLOCKS
+    let blocks = zebra_test::komodo_vectors::KMDMAINNET_BLOCKS
         .range(0..=LAST_BLOCK_HEIGHT)
         .map(|(_, block_bytes)| block_bytes.zcash_deserialize_into::<Arc<Block>>().unwrap())
         .collect::<Vec<_>>();
@@ -210,11 +210,11 @@ fn out_of_order_committing_strategy() -> BoxedStrategy<Vec<Arc<Block>>> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn empty_state_still_responds_to_requests() -> Result<()> {
+async fn komodo_empty_state_still_responds_to_requests() -> Result<()> {
     let _init_guard = zebra_test::init();
 
     let block =
-        zebra_test::vectors::BLOCK_MAINNET_419200_BYTES.zcash_deserialize_into::<Arc<Block>>()?;
+        zebra_test::komodo_vectors::BLOCK_KMDMAINNET_1140408_BYTES.zcash_deserialize_into::<Arc<Block>>()?;
 
     let iter = vec![
         // No checks for CommitBlock or CommitFinalizedBlock because empty state
@@ -265,12 +265,12 @@ async fn empty_state_still_responds_to_requests() -> Result<()> {
 fn state_behaves_when_blocks_are_committed_in_order() -> Result<()> {
     let _init_guard = zebra_test::init();
 
-    let blocks = zebra_test::vectors::MAINNET_BLOCKS
+    let blocks = zebra_test::komodo_vectors::KMDMAINNET_BLOCKS
         .range(0..=LAST_BLOCK_HEIGHT)
         .map(|(_, block_bytes)| block_bytes.zcash_deserialize_into::<Arc<Block>>().unwrap())
         .collect();
 
-    populate_and_check(blocks)?;
+    komodo_populate_and_check(blocks)?;
 
     Ok(())
 }
@@ -299,7 +299,7 @@ proptest! {
     fn state_behaves_when_blocks_are_committed_out_of_order(blocks in out_of_order_committing_strategy()) {
         let _init_guard = zebra_test::init();
 
-        populate_and_check(blocks).unwrap();
+        komodo_populate_and_check(blocks).unwrap();
     }
 
     /// Test blocks that are less than the NU5 activation height.
@@ -401,7 +401,7 @@ proptest! {
     #[test]
     fn value_pool_is_updated(
         (network, finalized_blocks, non_finalized_blocks)
-            in continuous_empty_blocks_from_test_vectors(),
+            in komodo_continuous_empty_blocks_from_test_vectors(),
     ) {
         let _init_guard = zebra_test::init();
 
@@ -414,8 +414,13 @@ proptest! {
             ValueBalance::zero()
         );
 
-        // the slow start rate for the first few blocks, as in the spec
-        const SLOW_START_RATE: i64 = 62500;
+        // komodo mainnet values
+        const KMDMAINNET_TRANSPARENT_VALUE_POOLS_10: [i64; LAST_BLOCK_HEIGHT as usize + 1] = [5000000000, 10000000000000000, 300000000, 300000000, 300000000, 300000000, 300000000, 300000000, 300000000, 300000000, 300000000];
+        prop_assert_eq!(
+            finalized_blocks.len() + non_finalized_blocks.len(),
+            (LAST_BLOCK_HEIGHT as usize) + 1
+        );
+
         // the expected transparent pool value, calculated using the slow start rate
         let mut expected_transparent_pool = ValueBalance::zero();
 
@@ -425,7 +430,7 @@ proptest! {
             // which is not included in the UTXO set
             if block.height > block::Height(0) {
                 let utxos = &block.new_outputs;
-                let block_value_pool = &block.block.chain_value_pool_change(network, utxos, block::Height(0), None)?;
+                let block_value_pool = &block.block.chain_value_pool_change(network, utxos)?;
                 expected_finalized_value_pool += *block_value_pool;
             }
 
@@ -439,10 +444,13 @@ proptest! {
                 expected_finalized_value_pool.clone()?.constrain()?
             );
 
-            let transparent_value = SLOW_START_RATE * i64::from(block.height.0);
-            let transparent_value = transparent_value.try_into().unwrap();
-            let transparent_value = ValueBalance::from_transparent_amount(transparent_value);
-            expected_transparent_pool = (expected_transparent_pool + transparent_value).unwrap();
+            if block.height > block::Height(0) {
+                // Note: there is no komodo interest to account it at early blocks on mainnet
+                let transparent_value = KMDMAINNET_TRANSPARENT_VALUE_POOLS_10[block.height.0 as usize]; // SLOW_START_RATE * i64::from(block.height.0);
+                let transparent_value = transparent_value.try_into().unwrap();
+                let transparent_value = ValueBalance::from_transparent_amount(transparent_value);
+                expected_transparent_pool = (expected_transparent_pool + transparent_value).unwrap();
+            }
             prop_assert_eq!(
                 state_service.read_service.db.finalized_value_pool(),
                 expected_transparent_pool
@@ -452,7 +460,7 @@ proptest! {
         let mut expected_non_finalized_value_pool = Ok(expected_finalized_value_pool?);
         for block in non_finalized_blocks {
             let utxos = block.new_outputs.clone();
-            let block_value_pool = &block.block.chain_value_pool_change(network, &transparent::utxos_from_ordered_utxos(utxos), block::Height(0), None)?;
+            let block_value_pool = &block.block.chain_value_pool_change(network, &transparent::utxos_from_ordered_utxos(utxos))?;
             expected_non_finalized_value_pool += *block_value_pool;
 
             let result_receiver = state_service.queue_and_commit_non_finalized(block.clone());
@@ -465,7 +473,8 @@ proptest! {
                 expected_non_finalized_value_pool.clone()?.constrain()?
             );
 
-            let transparent_value = SLOW_START_RATE * i64::from(block.height.0);
+            // Note: there is no komodo interest to account it at early blocks on mainnet
+            let transparent_value = KMDMAINNET_TRANSPARENT_VALUE_POOLS_10[block.height.0 as usize];
             let transparent_value = transparent_value.try_into().unwrap();
             let transparent_value = ValueBalance::from_transparent_amount(transparent_value);
             expected_transparent_pool = (expected_transparent_pool + transparent_value).unwrap();
@@ -493,7 +502,7 @@ proptest! {
     #[test]
     fn chain_tip_sender_is_updated(
         (network, finalized_blocks, non_finalized_blocks)
-            in continuous_empty_blocks_from_test_vectors(),
+            in komodo_continuous_empty_blocks_from_test_vectors(),
     ) {
         let _init_guard = zebra_test::init();
 
@@ -557,7 +566,7 @@ proptest! {
 /// Selects either the mainnet or testnet chain test vector and randomly splits the chain in two
 /// lists of blocks. The first containing the blocks to be finalized (which always includes at
 /// least the genesis block) and the blocks to be stored in the non-finalized state.
-fn continuous_empty_blocks_from_test_vectors() -> impl Strategy<
+fn komodo_continuous_empty_blocks_from_test_vectors() -> impl Strategy<
     Value = (
         Network,
         SummaryDebug<Vec<FinalizedBlock>>,
@@ -568,8 +577,8 @@ fn continuous_empty_blocks_from_test_vectors() -> impl Strategy<
         .prop_flat_map(|network| {
             // Select the test vector based on the network
             let raw_blocks = match network {
-                Network::Mainnet => &*zebra_test::vectors::CONTINUOUS_MAINNET_BLOCKS,
-                Network::Testnet => &*zebra_test::vectors::CONTINUOUS_TESTNET_BLOCKS,
+                Network::Mainnet => &*zebra_test::komodo_vectors::CONTINUOUS_KMDMAINNET_BLOCKS,
+                Network::Testnet => &*zebra_test::komodo_vectors::CONTINUOUS_KMDTESTNET_BLOCKS, 
             };
 
             // Transform the test vector's block bytes into a vector of `PreparedBlock`s.
