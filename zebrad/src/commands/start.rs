@@ -139,7 +139,7 @@ impl StartCmd {
                 setup_rx,
             ));
 
-        let (peer_set, address_book, inbound_conns) =
+        let (peer_set, address_book, _inbound_conns) =
             zebra_network::init(config.network.clone(), inbound, latest_chain_tip.clone()).await;
 
         info!("initializing verifiers");
@@ -179,15 +179,20 @@ impl StartCmd {
             .service(mempool);
 
         // Launch RPC server
-        let (rpc_task_handle, rpc_tx_queue_task_handle) = RpcServer::spawn(
+        let (rpc_task_handle, rpc_tx_queue_task_handle, rpc_server) = RpcServer::spawn(
             config.rpc,
+            #[cfg(feature = "getblocktemplate-rpcs")]
+            config.mining,
+            #[cfg(not(feature = "getblocktemplate-rpcs"))]
+            (),
             app_version(),
             mempool.clone(),
             read_only_state_service,
+            chain_verifier.clone(),
+            sync_status.clone(),
+            address_book.clone(),
             latest_chain_tip.clone(),
             config.network.network,
-            Arc::clone(&address_book),
-            Arc::clone(&inbound_conns),
         );
 
         let setup_data = InboundSetupData {
@@ -355,6 +360,14 @@ impl StartCmd {
         // startup tasks
         groth16_download_handle.abort();
         old_databases_task_handle.abort();
+
+        // Wait until the RPC server shuts down.
+        // This can take around 150 seconds.
+        //
+        // Without this shutdown, Zebra's RPC unit tests sometimes crashed with memory errors.
+        if let Some(rpc_server) = rpc_server {
+            rpc_server.shutdown_blocking();
+        }
 
         exit_status
     }

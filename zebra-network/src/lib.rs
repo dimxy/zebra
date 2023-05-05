@@ -142,6 +142,7 @@ extern crate bitflags;
 pub type BoxError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 pub mod address_book;
+pub mod address_book_peers;
 mod address_book_updater;
 mod config;
 pub mod constants;
@@ -165,6 +166,7 @@ pub use crate::isolated::{
 
 pub use crate::{
     address_book::AddressBook,
+    address_book_peers::AddressBookPeers,
     config::Config,
     isolated::{connect_isolated, connect_isolated_tcp_direct},
     meta_addr::PeerAddrState,

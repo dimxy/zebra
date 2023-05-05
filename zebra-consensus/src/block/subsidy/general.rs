@@ -287,3 +287,11 @@ mod test {
         Ok(())
     }
 }
+
+/// `MinerSubsidy(height)` as described in [protocol specification §7.8][7.8]
+///
+/// [7.8]: https://zips.z.cash/protocol/protocol.pdf#subsidies
+/// Modifier for komodo (no founder rewards)
+pub fn komodo_miner_subsidy(height: Height, network: Network) -> Result<Amount<NonNegative>, Error> {
+    Ok(block_subsidy(height, network)?)
+}

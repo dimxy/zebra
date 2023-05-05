@@ -104,7 +104,7 @@ async fn test_rpc_response_data_for_network(network: Network) {
     // `getbestblockhash`
     let get_best_block_hash = rpc
         .get_best_block_hash()
-        .expect("We should have a GetBestBlockHash struct");
+        .expect("We should have a GetBlockHash struct");
     snapshot_rpc_getbestblockhash(get_best_block_hash, &settings);
 
     // `getrawmempool`

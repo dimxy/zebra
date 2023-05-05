@@ -12,10 +12,27 @@ use zebra_chain::{
     work::difficulty::CompactDifficulty, transparent, amount::{Amount, NonNegative}, transaction::{LockTime, Transaction}, interest::KOMODO_MAXMEMPOOLTIME,
 };
 
-use crate::{constants, BoxError, PreparedBlock, ValidateContextError};
+use crate::{
+    service::{
+        block_iter::any_ancestor_blocks, check::difficulty::POW_ADJUSTMENT_BLOCK_SPAN,
+        finalized_state::ZebraDb, non_finalized_state::NonFinalizedState,
+    },
+    BoxError, PreparedBlock, ValidateContextError,
+};
 
 // use self as check
-use super::{check, finalized_state::ZebraDb, non_finalized_state::NonFinalizedState, block_iter::any_ancestor_blocks};
+use super::check;
+
+// These types are used in doc links
+#[allow(unused_imports)]
+use crate::service::non_finalized_state::Chain;
+
+/*use crate::{constants, BoxError, PreparedBlock, ValidateContextError
+    check::difficulty::POW_ADJUSTMENT_BLOCK_SPAN,
+};*/
+
+// use self as check
+//use super::{check, finalized_state::ZebraDb, non_finalized_state::NonFinalizedState, block_iter::any_ancestor_blocks};
 use std::cmp::max;
 
 use crate::komodo_notaries::*;
@@ -31,7 +48,9 @@ pub(crate) mod utxo;
 #[cfg(test)]
 mod tests;
 
-use difficulty::{AdjustedDifficulty, POW_MEDIAN_BLOCK_SPAN};
+use difficulty::{POW_MEDIAN_BLOCK_SPAN};
+
+pub(crate) use difficulty::AdjustedDifficulty;
 
 /// Check that the `prepared` block is contextually valid for `network`, based
 /// on the `finalized_tip_height` and `relevant_chain`.
@@ -419,33 +438,4 @@ pub(crate) fn initial_contextual_validity(
     check::nullifier::no_duplicates_in_finalized_chain(prepared, finalized_state)?;
 
     Ok(())
-}
-
-
-/// get median time past for a chain
-pub(crate) fn komodo_get_median_time_past_for_chain<C>(network: Network, relevant_chain: C) -> Result<DateTime<Utc>, BoxError>
-where 
-    C: IntoIterator,
-    C::Item: Borrow<Block>,
-    C::IntoIter: ExactSizeIterator,
-{
-    let relevant_chain: Vec<_> = relevant_chain
-                    .into_iter()
-                    .take(POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN)
-                    .collect();
-    if relevant_chain.len() >= POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN  {
-        let relevant_data = relevant_chain.iter().map(|block| {
-            (
-                block.borrow().header.difficulty_threshold,
-                block.borrow().header.time,
-            )
-        });
-                
-        let tip_block = relevant_chain[ relevant_chain.len()-1 ].borrow();
-        let difficulty_adjustment =
-            AdjustedDifficulty::new_from_block(tip_block, network, relevant_data);
-
-        return Ok(difficulty_adjustment.median_time_past());
-    }
-    Err(BoxError::from("Zebra's state is empty, wait until it syncs to the chain tip"))
 }

@@ -12,6 +12,7 @@ use futures::{
     future::TryFutureExt,
     ready,
     stream::{FuturesUnordered, Stream},
+    FutureExt,
 };
 use pin_project::pin_project;
 use thiserror::Error;
@@ -143,7 +144,7 @@ pub struct Downloads<ZN, ZV, ZSTip>
 where
     ZN: Service<zn::Request, Response = zn::Response, Error = BoxError> + Send + Sync + 'static,
     ZN::Future: Send,
-    ZV: Service<Arc<Block>, Response = block::Hash, Error = BoxError>
+    ZV: Service<zebra_consensus::Request, Response = block::Hash, Error = BoxError>
         + Send
         + Sync
         + Clone
@@ -182,7 +183,7 @@ impl<ZN, ZV, ZSTip> Stream for Downloads<ZN, ZV, ZSTip>
 where
     ZN: Service<zn::Request, Response = zn::Response, Error = BoxError> + Send + Sync + 'static,
     ZN::Future: Send,
-    ZV: Service<Arc<Block>, Response = block::Hash, Error = BoxError>
+    ZV: Service<zebra_consensus::Request, Response = block::Hash, Error = BoxError>
         + Send
         + Sync
         + Clone
@@ -229,7 +230,7 @@ impl<ZN, ZV, ZSTip> Downloads<ZN, ZV, ZSTip>
 where
     ZN: Service<zn::Request, Response = zn::Response, Error = BoxError> + Send + Sync + 'static,
     ZN::Future: Send,
-    ZV: Service<Arc<Block>, Response = block::Hash, Error = BoxError>
+    ZV: Service<zebra_consensus::Request, Response = block::Hash, Error = BoxError>
         + Send
         + Sync
         + Clone
@@ -420,7 +421,7 @@ where
                 // Verify the block.
                 let rsp = verifier
                     .map_err(|error| BlockDownloadVerifyError::VerifierServiceError { error })?
-                    .call(block);
+                    .call(zebra_consensus::Request::Commit(block)).boxed();
 
                 let verification = tokio::select! {
                     biased;

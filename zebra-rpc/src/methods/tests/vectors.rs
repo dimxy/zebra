@@ -239,7 +239,7 @@ async fn rpc_getbestblockhash() {
     // Get the tip hash using RPC method `get_best_block_hash`
     let get_best_block_hash = rpc
         .get_best_block_hash()
-        .expect("We should have a GetBestBlockHash struct");
+        .expect("We should have a GetBlockHash struct");
     let response_hash = get_best_block_hash.0;
 
     // Check if response is equal to block 10 hash.

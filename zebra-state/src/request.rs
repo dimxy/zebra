@@ -47,6 +47,24 @@ impl HashOrHeight {
             HashOrHeight::Height(height) => Some(height),
         }
     }
+
+    /// Returns the hash if this is a [`HashOrHeight::Hash`].
+    pub fn hash(&self) -> Option<block::Hash> {
+        if let HashOrHeight::Hash(hash) = self {
+            Some(*hash)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the height if this is a [`HashOrHeight::Height`].
+    pub fn height(&self) -> Option<block::Height> {
+        if let HashOrHeight::Height(height) = self {
+            Some(*height)
+        } else {
+            None
+        }
+    }
 }
 
 impl From<block::Hash> for HashOrHeight {
@@ -58,6 +76,19 @@ impl From<block::Hash> for HashOrHeight {
 impl From<block::Height> for HashOrHeight {
     fn from(hash: block::Height) -> Self {
         Self::Height(hash)
+    }
+}
+
+impl From<(block::Height, block::Hash)> for HashOrHeight {
+    fn from((_height, hash): (block::Height, block::Hash)) -> Self {
+        // Hash is more specific than height for the non-finalized state
+        hash.into()
+    }
+}
+
+impl From<(block::Hash, block::Height)> for HashOrHeight {
+    fn from((hash, _height): (block::Hash, block::Height)) -> Self {
+        hash.into()
     }
 }
 
@@ -528,6 +559,21 @@ pub enum Request {
     ///
     /// This is a komodo added request, to validate komodo interest
     GetMedianTimePast(Option<block::Hash>),
+
+    /// Looks up a block hash by height in the current best chain.
+    ///
+    /// Returns
+    ///
+    /// * [`Response::BlockHash(Some(hash))`](Response::BlockHash) if the block is in the best chain;
+    /// * [`Response::BlockHash(None)`](Response::BlockHash) otherwise.
+    BestChainBlockHash(block::Height),
+    
+    #[cfg(feature = "getblocktemplate-rpcs")]
+    /// Performs contextual validation of the given block, but does not commit it to the state.
+    ///
+    /// Returns [`Response::ValidBlockProposal`] when successful.
+    /// See `[ReadRequest::CheckBlockProposalValidity]` for details.
+    CheckBlockProposalValidity(PreparedBlock),
 }
 
 impl Request {
@@ -547,6 +593,7 @@ impl Request {
             #[cfg(feature = "getblocktemplate-rpcs")]
             Request::CheckBlockProposalValidity(_) => "check_block_proposal_validity",
             Request::AwaitBlock(_) => "await_block",
+            Request::BestChainBlockHash(_) => "best_chain_block_hash",
             Request::GetMedianTimePast(_) => "get_median_time_past",
         }
     }
@@ -596,6 +643,18 @@ pub enum ReadRequest {
     /// * [`Response::Transaction(Some(Arc<Transaction>))`](Response::Transaction) if the transaction is in the best chain;
     /// * [`Response::Transaction(None)`](Response::Transaction) otherwise.
     Transaction(transaction::Hash),
+
+    /// Looks up the transaction IDs for a block, using a block hash or height.
+    ///
+    /// Returns
+    ///
+    /// * An ordered list of transaction hashes, or
+    /// * `None` if the block was not found.
+    ///
+    /// Note: Each block has at least one transaction: the coinbase transaction.
+    ///
+    /// Returned txids are in the order they appear in the block.
+    TransactionIdsForBlock(HashOrHeight),
     
     /// Looks up a UTXO identified by the given [`OutPoint`](transparent::OutPoint),
     /// returning `None` immediately if it is unknown.
@@ -726,6 +785,43 @@ pub enum ReadRequest {
     ///
     /// This is a komodo added request, to validate komodo interest
     GetMedianTimePast(Option<block::Hash>),
+    
+    /// Looks up a block hash by height in the current best chain.
+    ///
+    /// Returns
+    ///
+    /// * [`ReadResponse::BlockHash(Some(hash))`](ReadResponse::BlockHash) if the block is in the best chain;
+    /// * [`ReadResponse::BlockHash(None)`](ReadResponse::BlockHash) otherwise.
+    BestChainBlockHash(block::Height),
+    
+    #[cfg(feature = "getblocktemplate-rpcs")]
+    /// Get state information from the best block chain.
+    ///
+    /// Returns [`ReadResponse::ChainInfo(info)`](ReadResponse::ChainInfo) where `info` is a
+    /// [`zebra-state::GetBlockTemplateChainInfo`](zebra-state::GetBlockTemplateChainInfo)` structure containing
+    /// best chain state information.
+    ChainInfo,
+
+    #[cfg(feature = "getblocktemplate-rpcs")]
+    /// Get the average solution rate in the best chain.
+    ///
+    /// Returns [`ReadResponse::SolutionRate`]
+    SolutionRate {
+        /// Specifies over difficulty averaging window.
+        num_blocks: usize,
+        /// Optionally estimate the network speed at the time when a certain block was found
+        height: Option<block::Height>,
+    },
+
+    #[cfg(feature = "getblocktemplate-rpcs")]
+    /// Performs contextual validation of the given block, but does not commit it to the state.
+    ///
+    /// It is the caller's responsibility to perform semantic validation.
+    /// (The caller does not need to check proof of work for block proposals.)
+    ///
+    /// Returns [`ReadResponse::ValidBlockProposal`] when successful, or an error if
+    /// the block fails contextual validation.
+    CheckBlockProposalValidity(PreparedBlock),
 }
 
 impl ReadRequest {
@@ -735,6 +831,7 @@ impl ReadRequest {
             ReadRequest::Depth(_) => "depth",
             ReadRequest::Block(_) => "block",
             ReadRequest::Transaction(_) => "transaction",
+            ReadRequest::TransactionIdsForBlock(_) => "transaction_ids_for_block",
             ReadRequest::UnspentBestChainUtxo { .. } => "unspent_best_chain_utxo",
             ReadRequest::AnyChainUtxo { .. } => "any_chain_utxo",
             ReadRequest::BlockLocator => "block_locator",
@@ -747,12 +844,13 @@ impl ReadRequest {
             ReadRequest::UtxosByAddresses(_) => "utxos_by_addesses",
             ReadRequest::BestChainBlocks(_, _) => "best_chain_blocks",
             ReadRequest::GetMedianTimePast(_) => "get_median_time_past",
-//            #[cfg(feature = "getblocktemplate-rpcs")]
-//            ReadRequest::ChainInfo => "chain_info",
-//            #[cfg(feature = "getblocktemplate-rpcs")]
-//            ReadRequest::SolutionRate { .. } => "solution_rate",
-//            #[cfg(feature = "getblocktemplate-rpcs")]
-//            ReadRequest::CheckBlockProposalValidity(_) => "check_block_proposal_validity",
+            ReadRequest::BestChainBlockHash(_) => "best_chain_block_hash",
+            #[cfg(feature = "getblocktemplate-rpcs")]
+            ReadRequest::ChainInfo => "chain_info",
+            #[cfg(feature = "getblocktemplate-rpcs")]
+            ReadRequest::SolutionRate { .. } => "solution_rate",
+            #[cfg(feature = "getblocktemplate-rpcs")]
+            ReadRequest::CheckBlockProposalValidity(_) => "check_block_proposal_validity",
         }
     }
 
@@ -779,6 +877,7 @@ impl TryFrom<Request> for ReadRequest {
             Request::Depth(hash) => Ok(ReadRequest::Depth(hash)),
             Request::Block(hash_or_height) => Ok(ReadRequest::Block(hash_or_height)),
             Request::Transaction(tx_hash) => Ok(ReadRequest::Transaction(tx_hash)),
+            Request::BestChainBlockHash(hash) => Ok(ReadRequest::BestChainBlockHash(hash)),
             Request::UnspentBestChainUtxo(outpoint) => {
                 Ok(ReadRequest::UnspentBestChainUtxo(outpoint))
             }
