@@ -7,9 +7,13 @@ use zebra_chain::{
     amount::{Amount, NonNegative},
     block::{self, Block},
     orchard, sapling,
+    serialization::DateTime32,
     transaction::{self, Transaction},
     transparent,
 };
+
+#[cfg(feature = "getblocktemplate-rpcs")]
+use zebra_chain::work::difficulty::CompactDifficulty;
 
 // Allow *only* this unused import, so that rustdoc link resolution
 // will work with inline links.
@@ -57,6 +61,77 @@ pub enum Response {
 
     /// The response to a `GetMedianTimePast` request.
     MedianTimePast(Option<DateTime<Utc>>),
+
+    /// Response to [`Request::BestChainBlockHash`](Request::BestChainBlockHash) with the
+    /// specified block hash.
+    BlockHash(Option<block::Hash>),
+
+    #[cfg(feature = "getblocktemplate-rpcs")]
+    /// Response to [`Request::CheckBlockProposalValidity`](Request::CheckBlockProposalValidity)
+    ValidBlockProposal,
+}
+
+/// A structure with the information needed from the state to build a `getblocktemplate` RPC response.
+#[cfg(feature = "getblocktemplate-rpcs")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GetBlockTemplateChainInfo {
+    // Data fetched directly from the state tip.
+    //
+    /// The current state tip height.
+    /// The block template for the candidate block has this hash as the previous block hash.
+    pub tip_hash: block::Hash,
+
+    /// The current state tip height.
+    /// The block template for the candidate block is the next block after this block.
+    /// Depends on the `tip_hash`.
+    pub tip_height: block::Height,
+
+    /// The history tree of the current best chain.
+    /// Depends on the `tip_hash`.
+    pub history_tree: Arc<zebra_chain::history_tree::HistoryTree>,
+
+    // Data derived from the state tip and recent blocks, and the current local clock.
+    //
+    /// The expected difficulty of the candidate block.
+    /// Depends on the `tip_hash`, and the local clock on testnet.
+    pub expected_difficulty: CompactDifficulty,
+
+    /// The current system time, adjusted to fit within `min_time` and `max_time`.
+    /// Always depends on the local clock and the `tip_hash`.
+    pub cur_time: DateTime32,
+
+    /// The mininimum time the miner can use in this block.
+    /// Depends on the `tip_hash`, and the local clock on testnet.
+    pub min_time: DateTime32,
+
+    /// The maximum time the miner can use in this block.
+    /// Depends on the `tip_hash`, and the local clock on testnet.
+    pub max_time: DateTime32,
+}
+
+/// Information about a transaction in the best chain
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MinedTx {
+    /// The transaction.
+    pub tx: Arc<Transaction>,
+
+    /// The transaction height.
+    pub height: block::Height,
+
+    /// The number of confirmations for this transaction
+    /// (1 + depth of block the transaction was found in)
+    pub confirmations: u32,
+}
+
+impl MinedTx {
+    /// Creates a new [`MinedTx`]
+    pub fn new(tx: Arc<Transaction>, height: block::Height, confirmations: u32) -> Self {
+        Self {
+            tx,
+            height,
+            confirmations,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -77,7 +152,7 @@ pub enum ReadResponse {
     /// Response to
     /// [`ReadRequest::Transaction`](crate::ReadRequest::Transaction) with the
     /// specified transaction.
-    Transaction(Option<(Arc<Transaction>, block::Height)>),
+    Transaction(Option<MinedTx>),
 
     /// Response to
     /// [`ReadRequest::SaplingTree`](crate::ReadRequest::SaplingTree) with the
@@ -102,6 +177,11 @@ pub enum ReadResponse {
     /// Response to [`ReadRequest::UtxosByAddresses`] with found utxos and transaction data.
     AddressUtxos(AddressUtxos),
 
+    /// Response to [`ReadRequest::TransactionIdsForBlock`],
+    /// with an list of transaction hashes in block order,
+    /// or `None` if the block was not found.
+    TransactionIdsForBlock(Option<Arc<[transaction::Hash]>>),
+    
     /// Response to [`ReadRequest::BlockLocator`] with a block locator object.
     BlockLocator(Vec<block::Hash>),
 
@@ -129,6 +209,23 @@ pub enum ReadResponse {
 
     /// The response to a `GetMedianTimePast` request.
     MedianTimePast(Option<DateTime<Utc>>),
+
+    /// Response to [`ReadRequest::BestChainBlockHash`](ReadRequest::BestChainBlockHash) with the
+    /// specified block hash.
+    BlockHash(Option<block::Hash>),
+
+    #[cfg(feature = "getblocktemplate-rpcs")]
+    /// Response to [`ReadRequest::ChainInfo`](ReadRequest::ChainInfo) with the state
+    /// information needed by the `getblocktemplate` RPC method.
+    ChainInfo(GetBlockTemplateChainInfo),
+
+    #[cfg(feature = "getblocktemplate-rpcs")]
+    /// Response to [`ReadRequest::SolutionRate`](ReadRequest::SolutionRate)
+    SolutionRate(Option<u128>),
+
+    #[cfg(feature = "getblocktemplate-rpcs")]
+    /// Response to [`ReadRequest::CheckBlockProposalValidity`](ReadRequest::CheckBlockProposalValidity)
+    ValidBlockProposal,
 }
 
 /// Conversion from read-only [`ReadResponse`]s to read-write [`Response`]s.
@@ -143,8 +240,9 @@ impl TryFrom<ReadResponse> for Response {
             ReadResponse::Depth(depth) => Ok(Response::Depth(depth)),
             ReadResponse::Block(block) => Ok(Response::Block(block)),
             ReadResponse::Transaction(tx_info) => {
-                Ok(Response::Transaction(tx_info.map(|tx_info| tx_info.0)))
+                Ok(Response::Transaction(tx_info.map(|tx_info| tx_info.tx)))
             }
+            ReadResponse::BlockHash(hash) => Ok(Response::BlockHash(hash)),
             ReadResponse::UnspentBestChainUtxo(utxo) => Ok(Response::UnspentBestChainUtxo(utxo)),
 
             ReadResponse::AnyChainUtxo(_) => Err("ReadService does not track pending UTXOs. \
@@ -154,7 +252,8 @@ impl TryFrom<ReadResponse> for Response {
             ReadResponse::BlockHashes(hashes) => Ok(Response::BlockHashes(hashes)),
             ReadResponse::BlockHeaders(headers) => Ok(Response::BlockHeaders(headers)),
 
-            ReadResponse::SaplingTree(_)
+            ReadResponse::TransactionIdsForBlock(_)
+            | ReadResponse::SaplingTree(_)
             | ReadResponse::OrchardTree(_)
             | ReadResponse::AddressBalance(_)
             | ReadResponse::AddressesTransactionIds(_)

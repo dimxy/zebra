@@ -110,10 +110,10 @@ fn update_latest_chain_channels(
     let _ = non_finalized_state_sender.send(non_finalized_state.clone());
 
     let median_time_past = match read::komodo_next_median_time_past(network, &non_finalized_state, &finalized_state.db, None) { 
-        Ok(mtp) => mtp.timestamp(),
+        Ok(mtp) => mtp.timestamp() as i64,
         Err(err) => { 
             info!("komodo_next_median_time_past returned error: {:?}", err);
-            -1 
+            -1_i64 
         },
     };
     tracing::debug!(?tip_block_height, ?tip_block.hash, ?median_time_past, std::stringify!(update_latest_chain_channels));

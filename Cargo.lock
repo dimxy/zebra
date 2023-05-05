@@ -273,7 +273,7 @@ version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9b39be18770d11421cdb1b9947a45dd3f37e93092cbf377614828a319d5fee8"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.1.19",
  "libc",
  "winapi",
 ]
@@ -1544,6 +1544,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "f4jumble"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a83e8d7fd0c526af4aad893b7c9fe41e2699ed8a776a6c74aecdeafe05afc75"
+dependencies = [
+ "blake2b_simd 1.0.0",
+]
+
+[[package]]
 name = "fallible-iterator"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2004,6 +2013,15 @@ name = "hermit-abi"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62b467343b94ba476dcb2500d242dadbb39557df889310ac77c5d99100aaac33"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "hermit-abi"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee512640fe35acbfb4bb779db6f0d80704c2cacfa2e39b601ef3e3f47d1ae4c7"
 dependencies = [
  "libc",
 ]
@@ -2892,11 +2910,11 @@ dependencies = [
 
 [[package]]
 name = "num_cpus"
-version = "1.13.1"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "19e64526ebdee182341572e50e9ad03965aa510cd94427a4549448f285e957a1"
+checksum = "0fac9e2da13b5eb447a6ce3d392f23a29d8694bff781bf03a16cd9ac8697593b"
 dependencies = [
- "hermit-abi",
+ "hermit-abi 0.2.6",
  "libc",
 ]
 
@@ -6142,6 +6160,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "zcash_address"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52be35a205369d480378646bff9c9fedafd8efe8af1e0e54bb858f405883f2b2"
+dependencies = [
+ "bech32",
+ "bs58",
+ "f4jumble",
+ "zcash_encoding 0.2.0",
+]
+
+[[package]]
 name = "zcash_encoding"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6155,6 +6185,16 @@ dependencies = [
 name = "zcash_encoding"
 version = "0.1.0"
 source = "git+https://github.com/ZcashFoundation/librustzcash.git?rev=4567a37ceccbd506a58aaaded39ba14c952c1510#4567a37ceccbd506a58aaaded39ba14c952c1510"
+dependencies = [
+ "byteorder",
+ "nonempty",
+]
+
+[[package]]
+name = "zcash_encoding"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f03391b81727875efa6ac0661a20883022b6fba92365dc121c48fa9b00c5aac0"
 dependencies = [
  "byteorder",
  "nonempty",
@@ -6353,6 +6393,7 @@ dependencies = [
  "tracing",
  "uint",
  "x25519-dalek",
+ "zcash_address",
  "zcash_encoding 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "zcash_history",
  "zcash_note_encryption 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -6402,6 +6443,7 @@ dependencies = [
  "tracing-subscriber 0.3.16",
  "zcash_proofs",
  "zebra-chain",
+ "zebra-node-services",
  "zebra-script",
  "zebra-state",
  "zebra-test",
@@ -6465,8 +6507,10 @@ dependencies = [
  "jsonrpc-core",
  "jsonrpc-derive",
  "jsonrpc-http-server",
+ "num_cpus",
  "proptest",
  "proptest-derive",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "thiserror",
@@ -6474,9 +6518,12 @@ dependencies = [
  "tower",
  "tracing",
  "tracing-futures",
+ "zcash_address",
  "zebra-chain",
+ "zebra-consensus",
  "zebra-network",
  "zebra-node-services",
+ "zebra-script",
  "zebra-state",
  "zebra-test",
 ]
@@ -6568,6 +6615,8 @@ dependencies = [
  "tracing-subscriber 0.3.16",
  "zebra-chain",
  "zebra-consensus",
+ "zebra-node-services",
+ "zebra-rpc",
  "zebra-state",
 ]
 
