@@ -3,7 +3,7 @@
 use std::{
     iter,
     ops::{RangeBounds, RangeInclusive},
-    sync::Arc,
+    sync::Arc, borrow::Borrow,
 };
 
 use chrono::{DateTime, Utc};
@@ -12,7 +12,9 @@ use zebra_chain::{block::{self, Height, Block}, parameters::{Network, POW_AVERAG
 use crate::{service::{
     finalized_state::ZebraDb, non_finalized_state::{Chain, NonFinalizedState}, 
     read::{self, block::block_header},
-    block_iter, check::{difficulty::POW_MEDIAN_BLOCK_SPAN, komodo_get_median_time_past_for_chain, self}, MAX_LAST_NOTA_DEPTH, komodo_transparent::komodo_transparent_spend_finalized,
+    block_iter, 
+    check::{difficulty::POW_MEDIAN_BLOCK_SPAN, AdjustedDifficulty}, 
+    MAX_LAST_NOTA_DEPTH, komodo_transparent::komodo_transparent_spend_finalized,
 }, BoxError, HashOrHeight, constants, komodo_notaries::komodo_block_has_notarisation_tx};
 
 use super::FINALIZED_STATE_QUERY_RETRIES;
@@ -589,7 +591,7 @@ pub fn komodo_next_median_time_past(
         best_relevant_chain_result = komodo_best_relevant_chain(non_finalized_state, db, start_hash_or_height, mtp_depth);
     }
 
-    komodo_get_median_time_past_for_chain(network, best_relevant_chain_result?)
+    Ok(komodo_calculate_median_time_past_for_chain(network, best_relevant_chain_result?))
 }
 
 /// look back from the finalised tip for the latest komodo notarisation 
@@ -635,3 +637,32 @@ pub fn komodo_init_last_nota(
         }
     }
 }  
+
+
+/// get median time past for a chain
+pub(crate) fn komodo_calculate_median_time_past_for_chain<C>(network: Network, relevant_chain: C) -> DateTime<Utc>
+where 
+    C: IntoIterator,
+    C::Item: Borrow<Block>,
+    C::IntoIter: ExactSizeIterator,
+{
+    let relevant_chain: Vec<_> = relevant_chain
+                    .into_iter()
+                    .take(POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN)
+                    .collect();
+    if relevant_chain.len() >= POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN  {
+        let relevant_data = relevant_chain.iter().map(|block| {
+            (
+                block.borrow().header.difficulty_threshold,
+                block.borrow().header.time,
+            )
+        });
+                
+        let tip_block = relevant_chain[ relevant_chain.len()-1 ].borrow();
+        let difficulty_adjustment =
+            AdjustedDifficulty::new_from_block(tip_block, network, relevant_data);
+
+        return difficulty_adjustment.median_time_past();
+    }
+    panic!("Zebra's state is empty, wait until it syncs to the chain tip");
+}
