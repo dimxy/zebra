@@ -14,6 +14,8 @@ mod serialize;
 mod sighash;
 mod txid;
 mod unmined;
+
+#[cfg(feature = "getblocktemplate-rpcs")]
 mod builder;
 
 #[cfg(any(test, feature = "proptest-impl"))]
