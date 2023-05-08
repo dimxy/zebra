@@ -254,7 +254,7 @@ mod test {
     /// Make sure we use all the test vectors in the lists.
     ///
     /// We're using lazy_static! and combinators, so it would be easy to make this mistake.
-    #[ignore]
+    #[ignore = "fix for komodo block set"] 
     #[test]
     fn block_test_vectors_count() {
         init();

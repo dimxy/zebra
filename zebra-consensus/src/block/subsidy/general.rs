@@ -107,7 +107,7 @@ mod test {
     use super::*;
     use color_eyre::Report;
 
-    #[ignore]  // Values are different in Komodo. TODO: add this test for KMD
+    #[ignore = "fix for Komodo rewards"]  // Values are different in Komodo. TODO: add this test for KMD
     #[test]
     fn halving_test() -> Result<(), Report> {
         zebra_test::init();
@@ -195,7 +195,7 @@ mod test {
         Ok(())
     }
 
-    #[ignore]  // Values are different in Komodo. TODO: add this test for KMD
+    #[ignore = "fix for Komodo rewards"]  // Values are different in Komodo. TODO: add this test for KMD
     #[test]
     fn block_subsidy_test() -> Result<(), Report> {
         zebra_test::init();
