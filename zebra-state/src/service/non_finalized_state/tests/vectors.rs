@@ -380,7 +380,7 @@ fn komodo_longer_chain_with_more_work_wins_for_network(network: Network) -> Resu
     Ok(())
 }
 
-#[ignore]  // TODO fix or make new test for Komodo net
+//#[ignore]  // TODO fix or make new test for Komodo net
 #[test]
 fn equal_length_goes_to_more_work() -> Result<()> {
     let _init_guard = zebra_test::init();
@@ -427,7 +427,7 @@ fn equal_length_goes_to_more_work_for_network(network: Network) -> Result<()> {
     Ok(())
 }
 
-#[ignore]  // TODO fix or make new test for Komodo net
+#[ignore = "not supported in komodo"]   // TODO fix or make new test for Komodo net
 #[test]
 fn history_tree_is_updated() -> Result<()> {
     history_tree_is_updated_for_network_upgrade(Network::Mainnet, NetworkUpgrade::Heartwood)?;
@@ -533,7 +533,7 @@ fn history_tree_is_updated_for_network_upgrade(
     Ok(())
 }
 
-#[ignore]  // TODO fix or make new test for Komodo net
+#[ignore = "not supported in komodo"] // TODO fix or make new test for Komodo net
 #[test]
 fn commitment_is_validated() {
     commitment_is_validated_for_network_upgrade(Network::Mainnet, NetworkUpgrade::Heartwood);

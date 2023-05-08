@@ -80,7 +80,7 @@ fn push_genesis_chain() -> Result<()> {
 }
 
 /// Check that chain block pushes work with history tree blocks
-#[ignore] // Heartwood not supported in komodo
+#[ignore = "not supported in komodo"]  // Heartwood not supported in komodo
 #[test]
 fn push_history_tree_chain() -> Result<()> {
     let _init_guard = zebra_test::init();
@@ -231,7 +231,7 @@ fn forked_equals_pushed_genesis() -> Result<()> {
 }
 
 /// Check that a forked history tree chain is the same as a chain that had the same blocks appended.
-#[ignore] // Heartwood not supported in komodo
+#[ignore = "not supported in komodo"] // Heartwood not supported in komodo
 #[test]
 fn forked_equals_pushed_history_tree() -> Result<()> {
     let _init_guard = zebra_test::init();
@@ -372,7 +372,7 @@ fn finalized_equals_pushed_genesis() -> Result<()> {
 
 /// Check that a history tree chain with some blocks finalized is the same as
 /// a chain that never had those blocks added.
-#[ignore] // Heartwood not supported in komodo
+#[ignore = "not supported in komodo"] // Heartwood not supported in komodo
 #[test]
 fn finalized_equals_pushed_history_tree() -> Result<()> {
     let _init_guard = zebra_test::init();
