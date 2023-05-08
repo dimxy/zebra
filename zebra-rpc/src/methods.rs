@@ -31,7 +31,6 @@ use zebra_chain::{
     transaction::{self, SerializedTransaction, Transaction, UnminedTx, UnminedTxWithMempoolParams},
     transparent::{self, Address},
 };
-use zebra_network::address_book::InboundConns;
 use zebra_network::constants::USER_AGENT;
 use zebra_node_services::{mempool, BoxError};
 use zebra_state::{OutputIndex, OutputLocation, TransactionLocation, HashOrHeight, MinedTx};
