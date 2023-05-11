@@ -387,6 +387,7 @@ where
         let response = GetInfo {
             build: self.app_version.clone(),
             subversion: USER_AGENT.into(),
+            testnet: if self.network == Network::Testnet { true } else { false },
         };
 
         Ok(response)
@@ -1298,6 +1299,9 @@ pub struct GetInfo {
 
     /// The server sub-version identifier, used as the network protocol user-agent
     subversion: String,
+
+    /// true if network testnet
+    testnet: bool,
 }
 
 /// Response to a `getblockchaininfo` RPC request.
