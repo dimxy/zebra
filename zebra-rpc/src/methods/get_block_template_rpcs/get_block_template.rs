@@ -159,6 +159,10 @@ where
     Tip: ChainTip + Clone + Send + Sync + 'static,
     SyncStatus: ChainSyncStatus + Clone + Send + Sync + 'static,
 {
+    if network == Network::Testnet {
+        return Ok(());  // for Komodo testing allow long pauses between blocks in testnet
+    }
+
     // The tip estimate may not be the same as the one coming from the state
     // but this is ok for an estimate
     let (estimated_distance_to_chain_tip, local_tip_height) = latest_chain_tip
