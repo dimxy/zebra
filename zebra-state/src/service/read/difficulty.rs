@@ -251,7 +251,7 @@ fn difficulty_time_and_history_tree(
         max_time,
     };
 
-    adjust_difficulty_and_time_for_testnet(&mut result, network, tip_height, relevant_data);
+    //adjust_difficulty_and_time_for_testnet(&mut result, network, tip_height, relevant_data);
 
     result
 }
