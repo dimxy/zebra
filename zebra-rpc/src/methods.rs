@@ -402,6 +402,7 @@ where
             build: self.app_version.clone(),
             subversion: USER_AGENT.into(),
             testnet: if self.network == Network::Testnet { true } else { false },
+            protocolversion: zebra_network::constants::CURRENT_NETWORK_PROTOCOL_VERSION.0,
         };
 
         Ok(response)
@@ -1288,6 +1289,9 @@ pub struct GetInfo {
 
     /// true if network testnet
     testnet: bool,
+
+    /// currently supported protocol version
+    protocolversion: u32,
 }
 
 /// Response to a `getblockchaininfo` RPC request.
