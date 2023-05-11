@@ -23,7 +23,7 @@ use crate::{
         },
         finalized_state::ZebraDb,
         read::{
-            self, find::komodo_calculate_median_time_past_for_chain, tree::history_tree,
+            self, find::komodo_calculate_median_time_past, tree::history_tree,
             FINALIZED_STATE_QUERY_RETRIES,
         },
         NonFinalizedState,
@@ -208,12 +208,12 @@ fn difficulty_time_and_history_tree(
     // > For each block other than the genesis block , nTime MUST be strictly greater than
     // > the median-time-past of that block.
     // https://zips.z.cash/protocol/protocol.pdf#blockheader
-    let median_time_past = komodo_calculate_median_time_past_for_chain::<Vec<Arc<Block>>>(
-        network,
+    let median_time_past = komodo_calculate_median_time_past/*::<Vec<Arc<Block>>>*/(
+        //network,
         relevant_chain[0..POW_MEDIAN_BLOCK_SPAN]
             .to_vec()
             .try_into()
-            .expect("slice is correct size"),
+            .expect("slice is correct size")
     );
 
     let median_time_past = DateTime32::try_from(median_time_past).expect("valid blocks have in-range times");

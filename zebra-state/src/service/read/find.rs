@@ -591,7 +591,11 @@ pub fn komodo_next_median_time_past(
         best_relevant_chain_result = komodo_best_relevant_chain(non_finalized_state, db, start_hash_or_height, mtp_depth);
     }
 
-    Ok(komodo_calculate_median_time_past_for_chain(network, best_relevant_chain_result?))
+    Ok(komodo_calculate_median_time_past(
+        best_relevant_chain_result?[0..POW_MEDIAN_BLOCK_SPAN].to_vec()
+            .try_into()
+            .expect("slice is correct size")
+    ))
 }
 
 /// look back from the finalised tip for the latest komodo notarisation 
@@ -640,29 +644,24 @@ pub fn komodo_init_last_nota(
 
 
 /// get median time past for a chain
-pub(crate) fn komodo_calculate_median_time_past_for_chain<C>(network: Network, relevant_chain: C) -> DateTime<Utc>
-where 
-    C: IntoIterator,
-    C::Item: Borrow<Block>,
-    C::IntoIter: ExactSizeIterator,
-{
-    let relevant_chain: Vec<_> = relevant_chain
-                    .into_iter()
-                    .take(POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN)
-                    .collect();
-    if relevant_chain.len() >= POW_AVERAGING_WINDOW + POW_MEDIAN_BLOCK_SPAN  {
-        let relevant_data = relevant_chain.iter().map(|block| {
-            (
-                block.borrow().header.difficulty_threshold,
-                block.borrow().header.time,
-            )
-        });
-                
-        let tip_block = relevant_chain[ relevant_chain.len()-1 ].borrow();
-        let difficulty_adjustment =
-            AdjustedDifficulty::new_from_block(tip_block, network, relevant_data);
+/// TODO: maybe we need yet support for depth < POW_MEDIAN_BLOCK_SPAN like in komodod
+pub(crate) fn komodo_calculate_median_time_past(
+    relevant_chain: [Arc<Block>; POW_MEDIAN_BLOCK_SPAN],
+) -> DateTime<Utc> {
+    let relevant_data: Vec<DateTime<Utc>> = relevant_chain
+        .iter()
+        .map(|block| block.header.time)
+        .collect();
 
-        return difficulty_adjustment.median_time_past();
-    }
-    panic!("Zebra's state is empty, wait until it syncs to the chain tip");
+    // > Define the median-time-past of a block to be the median of the nTime fields of the
+    // > preceding PoWMedianBlockSpan blocks (or all preceding blocks if there are fewer than
+    // > PoWMedianBlockSpan). The median-time-past of a genesis block is not defined.
+    // https://zips.z.cash/protocol/protocol.pdf#blockheader
+    let median_time_past = AdjustedDifficulty::median_time(
+        relevant_data
+            .try_into()
+            .expect("always has the correct length due to function argument type"),
+    );
+
+    median_time_past
 }
