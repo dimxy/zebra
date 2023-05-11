@@ -967,6 +967,7 @@ where
                 best_chain_tip_height(&latest_chain_tip)?
             };
 
+            /* In komodo we do not have founders' rewards
             if height < height_for_first_halving(network) {
                 return Err(Error {
                     code: ErrorCode::ServerError(0),
@@ -975,7 +976,7 @@ where
                         .into(),
                     data: None,
                 });
-            }
+            }*/
 
             let miner = komodo_miner_subsidy(height, network).map_err(|error| Error {
                 code: ErrorCode::ServerError(0),
