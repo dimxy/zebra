@@ -289,7 +289,8 @@ pub fn generate_coinbase_and_roots(
     // Calculate block default roots
     //
     // TODO: move expensive root, hash, and tree cryptography to a rayon thread?
-    let default_roots = calculate_default_root_hashes(&coinbase_txn, mempool_txs, history_tree);
+    //let default_roots = calculate_default_root_hashes(&coinbase_txn, mempool_txs, history_tree);
+    let default_roots = DefaultRoots { merkle_root: merkle::Root::from([0; 32]), chain_history_root: block::ChainHistoryMmrRootHash::from([0; 32]), auth_data_root: AuthDataRoot::from([0; 32]), block_commitments_hash: ChainHistoryBlockTxAuthCommitmentHash::from([0; 32]) };
 
     let coinbase_txn = TransactionTemplate::from_coinbase(&coinbase_txn, miner_fee);
 
