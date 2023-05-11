@@ -804,10 +804,13 @@ where
     fn get_mining_info(&self) -> BoxFuture<Result<get_mining_info::Response>> {
         let network = self.network;
         let solution_rate_fut = self.get_network_sol_ps(None, None);
+        let difficulty_fut = self.get_difficulty();
         async move {
+
             Ok(get_mining_info::Response::new(
                 network,
                 solution_rate_fut.await?,
+                difficulty_fut.await?,
             ))
         }
         .boxed()
