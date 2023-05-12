@@ -267,6 +267,8 @@ impl FinalizedState {
 
                 // Update the note commitment trees.
                 note_commitment_trees.update_trees_parallel(&finalized.block)?;
+                let sapling_root = note_commitment_trees.sapling.root();
+                let orchard_root = note_commitment_trees.orchard.root();
 
                 // Check the block commitment if the history tree was not
                 // supplied by the non-finalized state. Note that we don't do
@@ -289,6 +291,7 @@ impl FinalizedState {
                     finalized.block.clone(),
                     self.network,
                     &history_tree,
+                    &sapling_root,
                 )?;
 
                 // Update the history tree.
@@ -296,8 +299,8 @@ impl FinalizedState {
                 // TODO: run this CPU-intensive cryptography in a parallel rayon
                 // thread, if it shows up in profiles
                 let history_tree_mut = Arc::make_mut(&mut history_tree);
-                let sapling_root = note_commitment_trees.sapling.root();
-                let orchard_root = note_commitment_trees.orchard.root();
+                //let sapling_root = note_commitment_trees.sapling.root();
+                //let orchard_root = note_commitment_trees.orchard.root();
                 history_tree_mut.push(
                     self.network(),
                     finalized.block.clone(),
