@@ -156,10 +156,10 @@ pub(crate) fn block_commitment_is_valid_for_chain_history(
     block: Arc<Block>,
     network: Network,
     history_tree: &HistoryTree,
+    sapling_root: &zebra_chain::sapling::tree::Root,
 ) -> Result<(), ValidateContextError> {
     match block.commitment(network)? {
         block::Commitment::PreSaplingReserved(_)
-        | block::Commitment::FinalSaplingRoot(_)
         | block::Commitment::ChainHistoryActivationReserved => {
             // # Consensus
             //
@@ -174,6 +174,20 @@ pub(crate) fn block_commitment_is_valid_for_chain_history(
             //
             // We also don't need to do anything in the other cases.
             Ok(())
+        }
+        block::Commitment::FinalSaplingRoot(block_sapling_root) => {
+            // check sapling root
+            // added for Komodo
+            if &block_sapling_root == sapling_root {
+                Ok(())
+            } else {
+                Err(ValidateContextError::InvalidBlockCommitment(
+                    CommitmentError::InvalidFinalSaplingRoot {
+                        actual: block_sapling_root.into(),
+                        expected: sapling_root.into(),
+                    },
+                ))
+            }
         }
         block::Commitment::ChainHistoryRoot(actual_history_tree_root) => {
             // # Consensus
