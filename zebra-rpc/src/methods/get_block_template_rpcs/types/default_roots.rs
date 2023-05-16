@@ -35,4 +35,10 @@ pub struct DefaultRoots {
     #[serde(rename = "blockcommitmentshash")]
     #[serde(with = "hex")]
     pub block_commitments_hash: ChainHistoryBlockTxAuthCommitmentHash,
+
+    /// The sapling root for the new block's header.
+    /// added by Komodo
+    #[serde(rename = "finalsaplingroot")]
+    #[serde(with = "hex")]
+    pub(crate) final_sapling_root: zebra_chain::sapling::tree::Root,
 }

@@ -10,7 +10,7 @@ use zebra_chain::{
     block::{
         self,
         merkle::{self, AuthDataRoot},
-        Block, ChainHistoryBlockTxAuthCommitmentHash, Height,
+        Block, ChainHistoryBlockTxAuthCommitmentHash, Height, Commitment,
     },
     chain_sync_status::ChainSyncStatus,
     chain_tip::ChainTip,
@@ -276,6 +276,7 @@ pub fn generate_coinbase_and_roots(
     miner_address: transparent::Address,
     mempool_txs: &[VerifiedUnminedTx],
     history_tree: Arc<zebra_chain::history_tree::HistoryTree>,
+    sapling_tree: Arc<zebra_chain::sapling::tree::NoteCommitmentTree>, // added by Komodo
     like_zcashd: bool,
     extra_coinbase_data: Vec<u8>,
 ) -> (TransactionTemplate<NegativeOrZero>, DefaultRoots) {
@@ -293,8 +294,8 @@ pub fn generate_coinbase_and_roots(
     // Calculate block default roots
     //
     // TODO: move expensive root, hash, and tree cryptography to a rayon thread?
-    //let default_roots = calculate_default_root_hashes(&coinbase_txn, mempool_txs, history_tree);
-    let default_roots = DefaultRoots { merkle_root: merkle::Root::from([0; 32]), chain_history_root: block::ChainHistoryMmrRootHash::from([0; 32]), auth_data_root: AuthDataRoot::from([0; 32]), block_commitments_hash: ChainHistoryBlockTxAuthCommitmentHash::from([0; 32]) };
+    let default_roots = calculate_default_root_hashes(&coinbase_txn, mempool_txs, history_tree, sapling_tree);
+    //let default_roots = DefaultRoots { merkle_root: merkle::Root::from([0; 32]), chain_history_root: block::ChainHistoryMmrRootHash::from([0; 32]), auth_data_root: AuthDataRoot::from([0; 32]), block_commitments_hash: ChainHistoryBlockTxAuthCommitmentHash::from([0; 32]) };
 
     let coinbase_txn = TransactionTemplate::from_coinbase(&coinbase_txn, miner_fee);
 
@@ -424,8 +425,20 @@ pub fn calculate_default_root_hashes(
     coinbase_txn: &UnminedTx,
     mempool_txs: &[VerifiedUnminedTx],
     history_tree: Arc<zebra_chain::history_tree::HistoryTree>,
+    sapling_tree: Arc<zebra_chain::sapling::tree::NoteCommitmentTree>,
 ) -> DefaultRoots {
     let (merkle_root, auth_data_root) = calculate_transaction_roots(coinbase_txn, mempool_txs);
+
+    // komodo added sapling root recalculation:
+    let sapling_note_commitments: Vec<_> = mempool_txs.iter()
+        .flat_map(|tx| tx.transaction.transaction.sapling_note_commitments())
+        .cloned()
+        .collect();
+
+    let sapling_tree_new = zebra_chain::parallel::tree::NoteCommitmentTrees::update_sapling_note_commitment_tree(
+        sapling_tree,
+        sapling_note_commitments,
+    ).expect("Sapling tree must be recalculated for block template");
 
     let history_tree = history_tree;
     let chain_history_root = history_tree.hash().expect("history tree can't be empty");
@@ -435,11 +448,14 @@ pub fn calculate_default_root_hashes(
         &auth_data_root,
     );
 
+    let final_sapling_root = sapling_tree_new.root();
+
     DefaultRoots {
         merkle_root,
         chain_history_root,
         auth_data_root,
         block_commitments_hash,
+        final_sapling_root,
     }
 }
 
