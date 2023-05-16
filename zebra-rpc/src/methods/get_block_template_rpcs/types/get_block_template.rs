@@ -8,7 +8,7 @@ use zebra_chain::{
     serialization::DateTime32,
     transaction::VerifiedUnminedTx,
     transparent,
-    work::difficulty::{CompactDifficulty, ExpandedDifficulty},
+    work::difficulty::{CompactDifficulty, ExpandedDifficulty}, sapling,
 };
 use zebra_consensus::MAX_BLOCK_SIGOPS;
 use zebra_state::GetBlockTemplateChainInfo;
@@ -68,12 +68,11 @@ pub struct GetBlockTemplate {
     #[serde(with = "hex")]
     pub light_client_root_hash: ChainHistoryBlockTxAuthCommitmentHash,
 
-    /// Legacy backwards-compatibility header root field.
-    ///
-    /// Same as [`DefaultRoots.block_commitments_hash`], see that field for details.
+    /// Final Sapling Root hash
+    /// Required by the Sapling upgrade, active in Komodo
     #[serde(rename = "finalsaplingroothash")]
     #[serde(with = "hex")]
-    pub final_sapling_root_hash: ChainHistoryBlockTxAuthCommitmentHash,
+    pub final_sapling_root_hash: sapling::tree::Root,
 
     /// The block header roots for [`GetBlockTemplate.transactions`].
     ///
@@ -230,6 +229,7 @@ impl GetBlockTemplate {
             miner_address,
             &mempool_txs,
             chain_tip_and_local_time.history_tree.clone(),
+            chain_tip_and_local_time.sapling_tree.clone(),
             like_zcashd,
             extra_coinbase_data,
         );
@@ -255,6 +255,12 @@ impl GetBlockTemplate {
             "creating template ... "
         );
 
+        /*for transaction in block.transactions {
+            for sapling_note_commitment in transaction.sapling_note_commitments() {
+                sapling_tree.append(*sapling_note_commitment).unwrap();
+            }
+        }*/
+
         GetBlockTemplate {
             capabilities,
 
@@ -263,7 +269,7 @@ impl GetBlockTemplate {
             previous_block_hash: GetBlockHash(chain_tip_and_local_time.tip_hash),
             block_commitments_hash: default_roots.block_commitments_hash,
             light_client_root_hash: default_roots.block_commitments_hash,
-            final_sapling_root_hash: default_roots.block_commitments_hash,
+            final_sapling_root_hash: default_roots.final_sapling_root, // added by komodo
             default_roots,
 
             transactions: mempool_tx_templates,

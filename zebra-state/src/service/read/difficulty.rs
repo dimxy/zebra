@@ -9,7 +9,7 @@ use zebra_chain::{
     history_tree::HistoryTree,
     parameters::{Network, NetworkUpgrade, POST_BLOSSOM_POW_TARGET_SPACING},
     serialization::{DateTime32, Duration32},
-    work::difficulty::{CompactDifficulty, PartialCumulativeWork},
+    work::difficulty::{CompactDifficulty, PartialCumulativeWork}, sapling::tree::NoteCommitmentTree,
 };
 
 use crate::{
@@ -23,7 +23,7 @@ use crate::{
         },
         finalized_state::ZebraDb,
         read::{
-            self, find::komodo_calculate_median_time_past, tree::history_tree,
+            self, find::komodo_calculate_median_time_past, tree::{history_tree, sapling_tree},
             FINALIZED_STATE_QUERY_RETRIES,
         },
         NonFinalizedState,
@@ -61,7 +61,7 @@ pub fn get_block_template_chain_info(
             best_relevant_chain_and_history_tree(non_finalized_state, db);
     }
 
-    let (best_tip_height, best_tip_hash, best_relevant_chain, best_tip_history_tree) =
+    let (best_tip_height, best_tip_hash, best_relevant_chain, best_tip_history_tree, best_sapling_tree) =
         best_relevant_chain_and_history_tree_result?;
 
     Ok(difficulty_time_and_history_tree(
@@ -70,6 +70,7 @@ pub fn get_block_template_chain_info(
         best_tip_hash,
         network,
         best_tip_history_tree,
+        best_sapling_tree,
     ))
 }
 
@@ -144,6 +145,7 @@ fn best_relevant_chain_and_history_tree(
         block::Hash,
         [Arc<Block>; POW_ADJUSTMENT_BLOCK_SPAN],
         Arc<HistoryTree>,
+        Arc<NoteCommitmentTree>,
     ),
     BoxError,
 > {
@@ -168,6 +170,13 @@ fn best_relevant_chain_and_history_tree(
     )
     .expect("tip hash should exist in the chain");
 
+    let sapling_tree = sapling_tree(
+        non_finalized_state.best_chain(),
+        db,
+        state_tip_before_queries.into(),
+    )
+    .expect("tip hash should exist in the chain");
+
     let state_tip_after_queries =
         read::best_tip(non_finalized_state, db).expect("already checked for an empty tip");
 
@@ -182,6 +191,7 @@ fn best_relevant_chain_and_history_tree(
         state_tip_before_queries.1,
         best_relevant_chain,
         history_tree,
+        sapling_tree,
     ))
 }
 
@@ -197,6 +207,7 @@ fn difficulty_time_and_history_tree(
     tip_hash: block::Hash,
     network: Network,
     history_tree: Arc<HistoryTree>,
+    sapling_tree: Arc<NoteCommitmentTree>,
 ) -> GetBlockTemplateChainInfo {
     let relevant_data: Vec<(CompactDifficulty, DateTime<Utc>)> = relevant_chain
         .iter()
@@ -245,13 +256,14 @@ fn difficulty_time_and_history_tree(
         tip_hash,
         tip_height,
         history_tree,
+        sapling_tree,
         expected_difficulty,
         cur_time,
         min_time,
         max_time,
     };
 
-    //adjust_difficulty_and_time_for_testnet(&mut result, network, tip_height, relevant_data);
+    //adjust_difficulty_and_time_for_testnet(&mut result, network, tip_height, relevant_data); // produces error in komodo
 
     result
 }
@@ -259,6 +271,8 @@ fn difficulty_time_and_history_tree(
 /// Adjust the difficulty and time for the testnet minimum difficulty rule.
 ///
 /// The `relevant_data` has recent block difficulties and times in reverse order from the tip.
+/// does not work for komodo
+/// TODO: do we need similar for kmd testnet? 
 fn adjust_difficulty_and_time_for_testnet(
     result: &mut GetBlockTemplateChainInfo,
     network: Network,
