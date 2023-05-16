@@ -194,16 +194,7 @@ impl FromHex for Root {
             ))
         };
         bytes.reverse();
-
-        let possible_point = jubjub::Base::from_bytes(&bytes);
-
-        if possible_point.is_some().into() {
-            Ok(Self(possible_point.unwrap()))
-        } else {
-            Err(SerializationError::Parse(
-                "Invalid jubjub::Base value for Sapling note commitment tree root",
-            ))
-        }
+        TryFrom::<[u8; 32]>::try_from(bytes)
     }
 }
 
