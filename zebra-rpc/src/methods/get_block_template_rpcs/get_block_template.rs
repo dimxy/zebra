@@ -441,7 +441,9 @@ pub fn calculate_default_root_hashes(
     ).expect("Sapling tree must be recalculated for block template");
 
     let history_tree = history_tree;
-    let chain_history_root = history_tree.hash().expect("history tree can't be empty");
+    let chain_history_root = history_tree.hash() 
+        // .expect("history tree can't be empty");
+        .unwrap_or_else(|| block::ChainHistoryMmrRootHash::from([0; 32])); // set to null in komodo. TODO: remove
 
     let block_commitments_hash = ChainHistoryBlockTxAuthCommitmentHash::from_commitments(
         &chain_history_root,
