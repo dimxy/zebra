@@ -90,6 +90,11 @@ pub struct GetBlockTemplateChainInfo {
     /// Depends on the `tip_hash`.
     pub history_tree: Arc<zebra_chain::history_tree::HistoryTree>,
 
+    /// The sapling tree of the current best chain.
+    /// Depends on the `tip_hash`.
+    /// Added for komodo
+    pub sapling_tree: Arc<zebra_chain::sapling::tree::NoteCommitmentTree>,
+
     // Data derived from the state tip and recent blocks, and the current local clock.
     //
     /// The expected difficulty of the candidate block.
