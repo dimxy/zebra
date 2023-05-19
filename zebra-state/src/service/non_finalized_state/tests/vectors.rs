@@ -149,11 +149,6 @@ fn komodo_best_chain_wins_for_network(network: Network) -> Result<()> {
         }
     };
 
-    let block2 = block1.make_fake_child().set_work(10);
-    let child = block1.make_fake_child().set_work(1);
-
-    let expected_hash = block2.hash();
-
     let mut state = NonFinalizedState::new(network);
     let finalized_state = FinalizedState::new(
         &Config::ephemeral(),
@@ -161,6 +156,14 @@ fn komodo_best_chain_wins_for_network(network: Network) -> Result<()> {
         #[cfg(feature = "elasticsearch")]
         None,
     );
+
+    // komodo: update sapling commitment based on the existing finalized_state history
+    let block1: Arc<Block> = block1.set_block_commitment(finalized_state.sapling_note_commitment_tree().root().into());
+
+    let block2 = block1.make_fake_child().set_work(10).set_block_commitment(block1.header.commitment_bytes);
+    let child = block1.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+
+    let expected_hash = block2.hash();
 
     state.commit_new_chain(block2.prepare(), &finalized_state)?;
     state.commit_new_chain(child.prepare(), &finalized_state)?;
@@ -194,9 +197,6 @@ fn komodo_finalize_pops_from_best_chain_for_network(network: Network) -> Result<
         }
     };
 
-    let block2 = block1.make_fake_child().set_work(10);
-    let child = block1.make_fake_child().set_work(1);
-
     let mut state = NonFinalizedState::new(network);
     let finalized_state = FinalizedState::new(
         &Config::ephemeral(),
@@ -204,6 +204,12 @@ fn komodo_finalize_pops_from_best_chain_for_network(network: Network) -> Result<
         #[cfg(feature = "elasticsearch")]
         None,
     );
+
+    // komodo: update sapling commitment based on the existing finalized_state history
+    let block1: Arc<Block> = block1.set_block_commitment(finalized_state.sapling_note_commitment_tree().root().into());
+
+    let block2 = block1.make_fake_child().set_work(10).set_block_commitment(block1.header.commitment_bytes);
+    let child = block1.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
 
     let fake_value_pool = ValueBalance::<NonNegative>::fake_populated_pool();
     finalized_state.set_finalized_value_pool(fake_value_pool);
@@ -249,11 +255,7 @@ fn komodo_commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network
             panic!("testnet not supported in komodo");
         }
     };
-
-    let block2 = block1.make_fake_child().set_work(10);
-    let child1 = block1.make_fake_child().set_work(1);
-    let child2 = block2.make_fake_child().set_work(1);
-
+    
     let mut state = NonFinalizedState::new(network);
     let finalized_state = FinalizedState::new(
         &Config::ephemeral(),
@@ -261,6 +263,13 @@ fn komodo_commit_block_extending_best_chain_doesnt_drop_worst_chains_for_network
         #[cfg(feature = "elasticsearch")]
         None,
     );
+
+    // komodo: update sapling commitment based on the existing finalized_state history
+    let block1: Arc<Block> = block1.set_block_commitment(finalized_state.sapling_note_commitment_tree().root().into());
+
+    let block2 = block1.make_fake_child().set_work(10).set_block_commitment(block1.header.commitment_bytes);
+    let child1 = block1.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+    let child2 = block2.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
 
     let fake_value_pool = ValueBalance::<NonNegative>::fake_populated_pool();
     finalized_state.set_finalized_value_pool(fake_value_pool);
@@ -300,11 +309,6 @@ fn komodo_shorter_chain_can_be_best_chain_for_network(network: Network) -> Resul
         }
     };
 
-    let long_chain_block1 = block1.make_fake_child().set_work(1);
-    let long_chain_block2 = long_chain_block1.make_fake_child().set_work(1);
-
-    let short_chain_block = block1.make_fake_child().set_work(3);
-
     let mut state = NonFinalizedState::new(network);
     let finalized_state = FinalizedState::new(
         &Config::ephemeral(),
@@ -315,6 +319,13 @@ fn komodo_shorter_chain_can_be_best_chain_for_network(network: Network) -> Resul
 
     let fake_value_pool = ValueBalance::<NonNegative>::fake_populated_pool();
     finalized_state.set_finalized_value_pool(fake_value_pool);
+
+    // komodo: update sapling commitment based on the existing finalized_state history
+    let block1: Arc<Block> = block1.set_block_commitment(finalized_state.sapling_note_commitment_tree().root().into());
+    let long_chain_block1 = block1.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+    let long_chain_block2 = long_chain_block1.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+
+    let short_chain_block = block1.make_fake_child().set_work(3).set_block_commitment(block1.header.commitment_bytes);
 
     state.commit_new_chain(block1.prepare(), &finalized_state)?;
     state.commit_block(long_chain_block1.prepare(), &finalized_state)?;
@@ -349,13 +360,6 @@ fn komodo_longer_chain_with_more_work_wins_for_network(network: Network) -> Resu
         }
     };
 
-    let long_chain_block1 = block1.make_fake_child().set_work(1);
-    let long_chain_block2 = long_chain_block1.make_fake_child().set_work(1);
-    let long_chain_block3 = long_chain_block2.make_fake_child().set_work(1);
-    let long_chain_block4 = long_chain_block3.make_fake_child().set_work(1);
-
-    let short_chain_block = block1.make_fake_child().set_work(3);
-
     let mut state = NonFinalizedState::new(network);
     let finalized_state = FinalizedState::new(
         &Config::ephemeral(),
@@ -363,6 +367,17 @@ fn komodo_longer_chain_with_more_work_wins_for_network(network: Network) -> Resu
         #[cfg(feature = "elasticsearch")]
         None,
     );
+
+    // komodo: update sapling commitment based on the existing finalized_state history
+    let block1: Arc<Block> = block1.set_block_commitment(finalized_state.sapling_note_commitment_tree().root().into());
+
+    // komodo: set child commitment to block1 as there are no private txns in the child 
+    let long_chain_block1 = block1.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+    let long_chain_block2 = long_chain_block1.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+    let long_chain_block3 = long_chain_block2.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+    let long_chain_block4 = long_chain_block3.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+
+    let short_chain_block = block1.make_fake_child().set_work(3).set_block_commitment(block1.header.commitment_bytes);
 
     let fake_value_pool = ValueBalance::<NonNegative>::fake_populated_pool();
     finalized_state.set_finalized_value_pool(fake_value_pool);
@@ -380,17 +395,16 @@ fn komodo_longer_chain_with_more_work_wins_for_network(network: Network) -> Resu
     Ok(())
 }
 
-//#[ignore]  // TODO fix or make new test for Komodo net
 #[test]
-fn equal_length_goes_to_more_work() -> Result<()> {
+fn komodo_equal_length_goes_to_more_work() -> Result<()> {
     let _init_guard = zebra_test::init();
 
-    equal_length_goes_to_more_work_for_network(Network::Mainnet)?;
+    komodo_equal_length_goes_to_more_work_for_network(Network::Mainnet)?;
     // equal_length_goes_to_more_work_for_network(Network::Testnet)?;
 
     Ok(())
 }
-fn equal_length_goes_to_more_work_for_network(network: Network) -> Result<()> {
+fn komodo_equal_length_goes_to_more_work_for_network(network: Network) -> Result<()> {
     let block1: Arc<Block> = match network {
         // For Komodo we must use after-Sapling blocks
         Network::Mainnet => {
@@ -401,10 +415,6 @@ fn equal_length_goes_to_more_work_for_network(network: Network) -> Result<()> {
         }
     };
 
-    let less_work_child = block1.make_fake_child().set_work(1);
-    let more_work_child = block1.make_fake_child().set_work(3);
-    let expected_hash = more_work_child.hash();
-
     let mut state = NonFinalizedState::new(network);
     let finalized_state = FinalizedState::new(
         &Config::ephemeral(),
@@ -412,6 +422,13 @@ fn equal_length_goes_to_more_work_for_network(network: Network) -> Result<()> {
         #[cfg(feature = "elasticsearch")]
         None,
     );
+
+    // komodo: update sapling commitment based on the existing finalized_state history
+    let block1: Arc<Block> = block1.set_block_commitment(finalized_state.sapling_note_commitment_tree().root().into());
+
+    let less_work_child = block1.make_fake_child().set_work(1).set_block_commitment(block1.header.commitment_bytes);
+    let more_work_child = block1.make_fake_child().set_work(3).set_block_commitment(block1.header.commitment_bytes);
+    let expected_hash = more_work_child.hash();
 
     let fake_value_pool = ValueBalance::<NonNegative>::fake_populated_pool();
     finalized_state.set_finalized_value_pool(fake_value_pool);
