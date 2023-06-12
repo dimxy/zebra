@@ -358,7 +358,7 @@ where
             }
         }
 
-        println!("dimxy_trace_peer add_initial_peers peerset_tx.send {:?}", _addr);
+        println!("dimxy_trace_peer add_initial_peers peerset_tx.send {:?}", handshake_result);
         peerset_tx
             .send(handshake_result.map_err(|(_addr, e)| e))
             .await?;
