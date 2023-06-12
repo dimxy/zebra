@@ -358,6 +358,7 @@ where
             }
         }
 
+        println!("dimxy_trace_peer add_initial_peers peerset_tx.send {:?}", _addr);
         peerset_tx
             .send(handshake_result.map_err(|(_addr, e)| e))
             .await?;
@@ -581,6 +582,7 @@ where
                         let handshake_result = handshake.await;
 
                         if let Ok(client) = handshake_result {
+                            println!("dimxy_trace_peer accept_inbound_connections peerset_tx.send {:?}", addr);
                             let _ = peerset_tx.send(Ok((addr, client))).await;
                         } else {
                             debug!(?handshake_result, "error handshaking with inbound peer");
@@ -812,6 +814,7 @@ where
                 debug!(candidate.addr = ?address, "successfully dialed new peer");
                 // successes are handled by an independent task, except for `candidates.update` in
                 // this task, which has a timeout, so they shouldn't hang
+                println!("dimxy_trace_peer crawl_and_dial peerset_tx.send {:?}", address);
                 peerset_tx.send(Ok((address, client))).await?;
             }
             HandshakeFailed { failed_addr } => {
