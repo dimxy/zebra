@@ -497,6 +497,7 @@ where
                     // - check for any errors that happened right after the handshake
                     trace!(?key, "got Change::Insert from Discover");
                     self.remove(&key);
+                    println!("dimxy_trace_peer poll_discover push_unready {:?}", key);
                     self.push_unready(key, svc);
                 }
             }
@@ -675,6 +676,7 @@ where
             .expect("ready peer set must have preselected a ready peer");
 
         let fut = svc.call(req);
+        println!("dimxy_trace_peer route_p2c push_unready {:?}", preselected_key);
         self.push_unready(preselected_key, svc);
         fut.map_err(Into::into).boxed()
     }
@@ -713,6 +715,7 @@ where
             let peer = peer.expect("just checked peer is Some");
             tracing::trace!(?hash, ?peer, "routing to a peer which advertised inventory");
             let fut = svc.call(req);
+            println!("dimxy_trace_peer route_inv push_unready {:?}", peer);
             self.push_unready(peer, svc);
             return fut.map_err(Into::into).boxed();
         }
@@ -737,6 +740,7 @@ where
             let peer = peer.expect("just checked peer is Some");
             tracing::trace!(?hash, ?peer, "routing to a peer that might have inventory");
             let fut = svc.call(req);
+            println!("dimxy_trace_peer route_inv2 push_unready {:?}", peer);
             self.push_unready(peer, svc);
             return fut.map_err(Into::into).boxed();
         }
@@ -794,8 +798,8 @@ where
                 .take_ready_service(&key)
                 .expect("selected peers are ready");
             futs.push(svc.call(req.clone()).map_err(|_| ()));
+            println!("dimxy_trace_peer route_multiple push_unready(max_peers) {:?}", key);
             self.push_unready(key, svc);
-            println!("dimxy_trace_peer route_multiple select_random_ready_peers(max_peers) {:?}", key);
         }
 
         async move {
