@@ -440,6 +440,7 @@ where
                     assert!(cancel.is_some(), "missing cancel handle");
 
                     if svc.version() >= self.minimum_peer_version.current() {
+                        println!("dimxy_trace_peer poll_unready ready_services.insert {:?}", key);
                         self.ready_services.insert(key, svc);
                     }
                 }
@@ -524,6 +525,7 @@ where
 
     /// Takes a ready service by key, invalidating `preselected_p2c_peer` if needed.
     fn take_ready_service(&mut self, key: &D::Key) -> Option<D::Service> {
+        println!("dimxy_trace_peer take_ready_service {:?}", key);
         if let Some(svc) = self.ready_services.remove(key) {
             if Some(*key) == self.preselected_p2c_peer {
                 self.preselected_p2c_peer = None;
@@ -702,6 +704,7 @@ where
         // But we need the choice to be random,
         // so that a peer can't provide all our inventory responses.
         let peer = self.select_p2c_peer_from_list(&advertising_peer_list);
+        println!("dimxy_trace_peer route_inv select_p2c_peer_from_list(advertising_peer_list) {:?}", peer);
 
         if let Some(mut svc) = peer.and_then(|key| self.take_ready_service(&key)) {
             let peer = peer.expect("just checked peer is Some");
@@ -725,6 +728,7 @@ where
 
         // Security: choose a random, less-loaded peer that might have the inventory.
         let peer = self.select_p2c_peer_from_list(&maybe_peer_list);
+        println!("dimxy_trace_peer route_inv select_p2c_peer_from_list(maybe_peer_list) {:?}", peer);
 
         if let Some(mut svc) = peer.and_then(|key| self.take_ready_service(&key)) {
             let peer = peer.expect("just checked peer is Some");
@@ -788,6 +792,7 @@ where
                 .expect("selected peers are ready");
             futs.push(svc.call(req.clone()).map_err(|_| ()));
             self.push_unready(key, svc);
+            println!("dimxy_trace_peer route_multiple select_random_ready_peers(max_peers) {:?}", key);
         }
 
         async move {
@@ -919,6 +924,7 @@ where
                         trace!("preselected service is still ready, keeping it selected");
                         self.preselected_p2c_peer = Some(key);
                         self.ready_services.insert(key, service);
+                        println!("dimxy_trace_peer poll_ready ready_services.insert {:?}", key);
                         return Poll::Ready(Ok(()));
                     }
                     Poll::Pending => {
