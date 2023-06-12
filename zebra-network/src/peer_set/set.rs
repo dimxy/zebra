@@ -525,7 +525,7 @@ where
 
     /// Takes a ready service by key, invalidating `preselected_p2c_peer` if needed.
     fn take_ready_service(&mut self, key: &D::Key) -> Option<D::Service> {
-        println!("dimxy_trace_peer take_ready_service {:?}", key);
+        println!("dimxy_trace_peer take_ready_service {:?} enterred", key);
         if let Some(svc) = self.ready_services.remove(key) {
             if Some(*key) == self.preselected_p2c_peer {
                 self.preselected_p2c_peer = None;
@@ -535,6 +535,7 @@ where
                 !self.cancel_handles.contains_key(key),
                 "cancel handles are only used for unready service work"
             );
+            println!("dimxy_trace_peer take_ready_service {:?} found", key);
 
             Some(svc)
         } else {
@@ -573,6 +574,7 @@ where
             cancel: rx,
             _req: PhantomData,
         });
+        println!("dimxy_trace_peer push_unready {:?}", key);
 
         if peer_version >= self.minimum_peer_version.current() {
             self.cancel_handles.insert(key, tx);
@@ -666,6 +668,7 @@ where
             .expect("ready peer service must have a preselected peer");
 
         tracing::trace!(?preselected_key, "routing based on p2c");
+        println!("dimxy_trace_peer route_p2c preselected_key {:?}", preselected_key);
 
         let mut svc = self
             .take_ready_service(&preselected_key)
@@ -915,6 +918,7 @@ where
             // something has happened since (e.g., it failed, peer closed
             // connection, ...)
             if let Some(key) = self.preselected_p2c_peer {
+                println!("dimxy_trace_peer poll_ready preselected_p2c_peer {:?}", key);
                 trace!(preselected_key = ?key);
                 let mut service = self
                     .take_ready_service(&key)
@@ -929,6 +933,7 @@ where
                     }
                     Poll::Pending => {
                         trace!("preselected service is no longer ready, moving to unready list");
+                        println!("dimxy_trace_peer poll_ready is no longer ready, moving to unready {:?}", key);
                         self.push_unready(key, service);
                     }
                     Poll::Ready(Err(error)) => {
