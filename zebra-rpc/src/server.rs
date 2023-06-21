@@ -7,6 +7,8 @@
 //! See the full list of
 //! [Differences between JSON-RPC 1.0 and 2.0.](https://www.simple-is-better.org/rpc/#differences-between-1-0-and-2-0)
 
+use std::sync::Arc;
+
 use std::{fmt, panic};
 
 use jsonrpc_core::{Compatibility, MetaIoHandler};
@@ -19,7 +21,9 @@ use tracing::{Instrument, *};
 use zebra_chain::{
     block, chain_sync_status::ChainSyncStatus, chain_tip::ChainTip, parameters::Network,
 };
+use zebra_network::AddressBook;
 use zebra_network::AddressBookPeers;
+use zebra_network::komodo_peer_stat::PeerStats;
 use zebra_node_services::mempool;
 
 use crate::{
@@ -31,7 +35,7 @@ use crate::{
     },
 };
 
-pub use zebra_network::komodo_peer_stat::PeerStats;
+
 #[cfg(feature = "getblocktemplate-rpcs")]
 use crate::methods::{get_block_template_rpcs, GetBlockTemplateRpc, GetBlockTemplateRpcImpl};
 
@@ -74,7 +78,7 @@ impl RpcServer {
     //
     // TODO: put some of the configs or services in their own struct?
     #[allow(clippy::too_many_arguments)]
-    pub fn spawn<Version, Mempool, State, Tip, ChainVerifier, SyncStatus, AddressBook>(
+    pub fn spawn<Version, Mempool, State, Tip, ChainVerifier, SyncStatus>(
         config: Config,
         #[cfg(feature = "getblocktemplate-rpcs")]
         mining_config: get_block_template_rpcs::config::Config,
@@ -88,11 +92,11 @@ impl RpcServer {
         chain_verifier: ChainVerifier,
         #[cfg_attr(not(feature = "getblocktemplate-rpcs"), allow(unused_variables))]
         sync_status: SyncStatus,
-        #[cfg_attr(not(feature = "getblocktemplate-rpcs"), allow(unused_variables))]
-        address_book: AddressBook,
         latest_chain_tip: Tip,
         network: Network,
+        //#[cfg_attr(not(feature = "getblocktemplate-rpcs"), allow(unused_variables))]
         address_book: Arc<std::sync::Mutex<AddressBook>>,
+        //#[cfg_attr(not(feature = "getblocktemplate-rpcs"), allow(unused_variables))]
         peer_stats: Arc<std::sync::Mutex<PeerStats>>,
     ) -> (JoinHandle<()>, JoinHandle<()>, Option<Self>)
     where
@@ -123,14 +127,10 @@ impl RpcServer {
             + 'static,
         <ChainVerifier as Service<zebra_consensus::Request>>::Future: Send,
         SyncStatus: ChainSyncStatus + Clone + Send + Sync + 'static,
-        AddressBook: AddressBookPeers + Clone + Send + Sync + 'static,
+        // AddressBook: AddressBookPeers + Clone + Send + Sync + 'static,
     {
         if let Some(listen_addr) = config.listen_addr {
             info!("Trying to open RPC endpoint at {}...", listen_addr,);
-
-            // Initialize the rpc methods with the zebra version
-            let (rpc_impl, rpc_tx_queue_task_handle) =
-                RpcImpl::new(app_version, mempool, state, latest_chain_tip, network, address_book, peer_stats);
 
             // Create handler compatible with V1 and V2 RPC protocols
             let mut io: MetaIoHandler<(), _> =
@@ -158,7 +158,7 @@ impl RpcServer {
                     latest_chain_tip.clone(),
                     chain_verifier,
                     sync_status,
-                    address_book,
+                    // address_book, 
                 );
 
                 io.extend_with(get_block_template_rpc_impl.to_delegate());
@@ -167,7 +167,6 @@ impl RpcServer {
             // Initialize the rpc methods with the zebra version
             let (rpc_impl, rpc_tx_queue_task_handle) = RpcImpl::new(
                 app_version.clone(),
-                network,
                 config.debug_force_finished_sync,
                 #[cfg(feature = "getblocktemplate-rpcs")]
                 mining_config.debug_like_zcashd,
@@ -176,7 +175,12 @@ impl RpcServer {
                 mempool,
                 state,
                 latest_chain_tip,
+                network,
+                address_book,
+                peer_stats,
             );
+
+            //RpcImpl::new(app_version, mempool, state, latest_chain_tip, network, address_book, peer_stats);
 
             io.extend_with(rpc_impl.to_delegate());
 

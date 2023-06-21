@@ -218,7 +218,7 @@ pub trait GetBlockTemplateRpc {
 }
 
 /// RPC method implementations.
-pub struct GetBlockTemplateRpcImpl<Mempool, State, Tip, ChainVerifier, SyncStatus, AddressBook>
+pub struct GetBlockTemplateRpcImpl<Mempool, State, Tip, ChainVerifier, SyncStatus>
 where
     Mempool: Service<
         mempool::Request,
@@ -236,7 +236,7 @@ where
         + Sync
         + 'static,
     SyncStatus: ChainSyncStatus + Clone + Send + Sync + 'static,
-    AddressBook: AddressBookPeers,
+    // AddressBook: AddressBookPeers,
 {
     // Configuration
     //
@@ -273,12 +273,12 @@ where
     /// The chain sync status, used for checking if Zebra is likely close to the network chain tip.
     sync_status: SyncStatus,
 
-    /// Address book of peers, used for `getpeerinfo`.
-    address_book: AddressBook,
+    // /// Address book of peers, used for `getpeerinfo`.
+    // address_book: AddressBook,   // komodo added own getpeerinfo impl
 }
 
-impl<Mempool, State, Tip, ChainVerifier, SyncStatus, AddressBook>
-    GetBlockTemplateRpcImpl<Mempool, State, Tip, ChainVerifier, SyncStatus, AddressBook>
+impl<Mempool, State, Tip, ChainVerifier, SyncStatus>
+    GetBlockTemplateRpcImpl<Mempool, State, Tip, ChainVerifier, SyncStatus>
 where
     Mempool: Service<
             mempool::Request,
@@ -300,7 +300,7 @@ where
         + Sync
         + 'static,
     SyncStatus: ChainSyncStatus + Clone + Send + Sync + 'static,
-    AddressBook: AddressBookPeers + Clone + Send + Sync + 'static,
+    // AddressBook: AddressBookPeers + Clone + Send + Sync + 'static,
 {
     /// Create a new instance of the handler for getblocktemplate RPCs.
     ///
@@ -316,7 +316,7 @@ where
         latest_chain_tip: Tip,
         chain_verifier: ChainVerifier,
         sync_status: SyncStatus,
-        address_book: AddressBook,
+        // address_book: AddressBook,  // not used as getpeerinfo moved from getblocktemplate rpcs by komodo 
     ) -> Self {
         // A limit on the configured extra coinbase data, regardless of the current block height.
         // This is different from the consensus rule, which limits the total height + data.
@@ -355,13 +355,13 @@ where
             latest_chain_tip,
             chain_verifier,
             sync_status,
-            address_book,
+//            address_book,
         }
     }
 }
 
-impl<Mempool, State, Tip, ChainVerifier, SyncStatus, AddressBook> GetBlockTemplateRpc
-    for GetBlockTemplateRpcImpl<Mempool, State, Tip, ChainVerifier, SyncStatus, AddressBook>
+impl<Mempool, State, Tip, ChainVerifier, SyncStatus> GetBlockTemplateRpc
+    for GetBlockTemplateRpcImpl<Mempool, State, Tip, ChainVerifier, SyncStatus>
 where
     Mempool: Service<
             mempool::Request,
@@ -386,7 +386,7 @@ where
         + 'static,
     <ChainVerifier as Service<zebra_consensus::Request>>::Future: Send,
     SyncStatus: ChainSyncStatus + Clone + Send + Sync + 'static,
-    AddressBook: AddressBookPeers + Clone + Send + Sync + 'static,
+    // AddressBook: AddressBookPeers + Clone + Send + Sync + 'static,
 {
     fn get_block_count(&self) -> Result<u32> {
         best_chain_tip_height(&self.latest_chain_tip).map(|height| height.0)

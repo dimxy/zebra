@@ -16,7 +16,8 @@ use hex::{FromHex, ToHex};
 use indexmap::IndexMap;
 use jsonrpc_core::{self, BoxFuture, Error, ErrorCode, Result};
 use jsonrpc_derive::rpc;
-use tokio::{sync::broadcast, task::JoinHandle};
+use tokio::sync::broadcast;
+use tokio::{sync::broadcast::Sender, task::JoinHandle};
 use tower::{buffer::Buffer, Service, ServiceExt};
 use tracing::Instrument;
 use zebra_network::AddressBook;
@@ -276,9 +277,6 @@ where
     /// Zebra's application version.
     app_version: String,
 
-    /// The configured network for this RPC service.
-    network: Network,
-
     /// Test-only option that makes Zebra say it is at the chain tip,
     /// no matter what the estimated height or local clock is.
     debug_force_finished_sync: bool,
@@ -302,8 +300,10 @@ where
     #[allow(dead_code)]
     network: Network,
 
-    /// A sender component of a channel used to send transactions to the queue.
-    queue_sender: Sender<Option<UnminedTxWithMempoolParams>>,
+    // Tasks
+    //
+    /// A sender component of a channel used to send transactions to the mempool queue.
+    queue_sender: broadcast::Sender<UnminedTxWithMempoolParams>,
 
     /// address book to manage peers by rpcs
     address_book: Arc<std::sync::Mutex<AddressBook>>,
@@ -332,7 +332,6 @@ where
     /// Create a new instance of the RPC handler.
     pub fn new<Version>(
         app_version: Version,
-        network: Network,
         debug_force_finished_sync: bool,
         debug_like_zcashd: bool,
         mempool: Buffer<Mempool, mempool::Request>,
@@ -358,14 +357,13 @@ where
 
         let rpc_impl = RpcImpl {
             app_version,
-            network,
             debug_force_finished_sync,
             debug_like_zcashd,
             mempool: mempool.clone(),
             state: state.clone(),
             latest_chain_tip: latest_chain_tip.clone(),
             network,
-            queue_sender: runner.sender(),
+            queue_sender,
             address_book,
             peer_stats,
         };
