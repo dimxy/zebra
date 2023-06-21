@@ -1,9 +1,10 @@
 //! Fixed test vectors for the RPC server.
 
 use std::{
-    net::{Ipv4Addr, SocketAddrV4},
+    net::{Ipv4Addr, SocketAddrV4, SocketAddr},
     time::Duration,
 };
+use std::str::FromStr;
 
 use futures::FutureExt;
 use tower::buffer::Buffer;
@@ -43,6 +44,7 @@ fn rpc_server_spawn(parallel_cpu_threads: bool) {
         parallel_cpu_threads: if parallel_cpu_threads { 2 } else { 1 },
         debug_force_finished_sync: false,
     };
+    let net_config = zebra_network::Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..zebra_network::Config::default() };
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -62,9 +64,10 @@ fn rpc_server_spawn(parallel_cpu_threads: bool) {
             Buffer::new(state.clone(), 1),
             Buffer::new(chain_verifier.clone(), 1),
             MockSyncStatus::default(),
-            MockAddressBookPeers::default(),
             NoChainTip,
             Mainnet,
+            Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+            PeerStats::new(&net_config),
         );
 
         info!("spawned RPC server, checking services...");
@@ -129,6 +132,7 @@ fn rpc_server_spawn_unallocated_port(parallel_cpu_threads: bool, do_shutdown: bo
         parallel_cpu_threads: if parallel_cpu_threads { 0 } else { 1 },
         debug_force_finished_sync: false,
     };
+    let net_config = zebra_network::Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..zebra_network::Config::default() };
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 
@@ -148,9 +152,10 @@ fn rpc_server_spawn_unallocated_port(parallel_cpu_threads: bool, do_shutdown: bo
             Buffer::new(state.clone(), 1),
             Buffer::new(chain_verifier.clone(), 1),
             MockSyncStatus::default(),
-            MockAddressBookPeers::default(),
             NoChainTip,
             Mainnet,
+            Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
+            PeerStats::new(&net_config),
         );
 
         info!("spawned RPC server, checking services...");

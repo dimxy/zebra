@@ -5,7 +5,7 @@
 //! cargo insta test --review --features getblocktemplate-rpcs --delete-unreferenced-snapshots
 //! ```
 
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use std::{net::{IpAddr, Ipv4Addr, SocketAddr}, sync::Arc};
 
 use hex::FromHex;
 use insta::Settings;
@@ -19,7 +19,7 @@ use zebra_chain::{
     serialization::{DateTime32, ZcashDeserializeInto},
     transaction::Transaction,
     transparent,
-    work::difficulty::{CompactDifficulty, ExpandedDifficulty},
+    work::difficulty::{CompactDifficulty, ExpandedDifficulty}, sapling,
 };
 use zebra_network::{address_book_peers::MockAddressBookPeers, types::MetaAddr};
 use zebra_node_services::mempool;
@@ -125,13 +125,13 @@ pub async fn test_responses<State, ReadState>(
     mock_chain_tip_sender.send_best_tip_hash(fake_tip_hash);
     mock_chain_tip_sender.send_estimated_distance_to_network_chain_tip(Some(0));
 
-    let mock_address_book =
+    /*let mock_address_book =
         MockAddressBookPeers::new(vec![MetaAddr::new_initial_peer(SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)),
             network.default_port(),
         ))
         .into_new_meta_addr()
-        .unwrap()]);
+        .unwrap()]);*/
 
     // get an rpc instance with continuous blockchain state
     let get_block_template_rpc = GetBlockTemplateRpcImpl::new(
@@ -142,7 +142,7 @@ pub async fn test_responses<State, ReadState>(
         mock_chain_tip.clone(),
         chain_verifier.clone(),
         mock_sync_status.clone(),
-        mock_address_book,
+        //mock_address_book, // not used in komodo
     );
 
     // `getblockcount`
@@ -174,12 +174,13 @@ pub async fn test_responses<State, ReadState>(
         .expect("We should have a success response");
     snapshot_rpc_getblocksubsidy(get_block_subsidy, &settings);
 
+    /* komodo team moved getpeerinfo from getblocktemplate rpcs
     // `getpeerinfo`
     let get_peer_info = get_block_template_rpc
         .get_peer_info()
         .await
         .expect("We should have a success response");
-    snapshot_rpc_getpeerinfo(get_peer_info, &settings);
+    snapshot_rpc_getpeerinfo(get_peer_info, &settings); */
 
     // `getnetworksolps` (and `getnetworkhashps`)
     let get_network_sol_ps = get_block_template_rpc
@@ -208,6 +209,7 @@ pub async fn test_responses<State, ReadState>(
                     min_time: fake_min_time,
                     max_time: fake_max_time,
                     history_tree: fake_history_tree(network),
+                    sapling_tree: Arc::new(sapling::tree::NoteCommitmentTree::default()),
                 }));
         }
     };
@@ -235,7 +237,7 @@ pub async fn test_responses<State, ReadState>(
         mock_chain_tip.clone(),
         chain_verifier,
         mock_sync_status.clone(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     // Basic variant (default mode and no extra features)
@@ -341,7 +343,7 @@ pub async fn test_responses<State, ReadState>(
         mock_chain_tip,
         mock_chain_verifier.clone(),
         mock_sync_status,
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     let get_block_template_fut =
@@ -497,10 +499,11 @@ fn snapshot_rpc_getblocksubsidy(get_block_subsidy: BlockSubsidy, settings: &inst
     settings.bind(|| insta::assert_json_snapshot!("get_block_subsidy", get_block_subsidy));
 }
 
+/* komodo team moved getpeerinfo from getblocktemplate rpcs
 /// Snapshot `getpeerinfo` response, using `cargo insta` and JSON serialization.
 fn snapshot_rpc_getpeerinfo(get_peer_info: Vec<PeerInfo>, settings: &insta::Settings) {
     settings.bind(|| insta::assert_json_snapshot!("get_peer_info", get_peer_info));
-}
+} */
 
 /// Snapshot `getnetworksolps` response, using `cargo insta` and JSON serialization.
 fn snapshot_rpc_getnetworksolps(get_network_sol_ps: u64, settings: &insta::Settings) {
