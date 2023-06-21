@@ -346,6 +346,9 @@ impl Transaction {
             .expect("chain value pool and remaining transaction value fixes produce valid transaction value balances")
             .neg();
 
+        /* we do not need to add accrued interest to the value pool
+           as we calculate tx value balance without accrued interest in the tx inputs 
+           (the chain value pool does not contain the currently accrued interest for the current moment)
         // add tx interest to chain value pool 
         let interest = self.komodo_interest_tx(network, utxos, Some(height), last_block_time).constrain::<NegativeAllowed>()
             .expect("conversion from NonNegative to NegativeAllowed is always valid");
@@ -366,6 +369,7 @@ impl Transaction {
                     remaining_transaction_value,
                 )
             });
+        */
 
 
         let chain_value_pools = chain_value_pools
