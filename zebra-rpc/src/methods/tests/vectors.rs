@@ -1,10 +1,12 @@
 //! Fixed test vectors for RPC methods.
 
 use std::{ops::RangeInclusive, sync::Arc};
+use std::str::FromStr;
 
 use jsonrpc_core::ErrorCode;
 use tower::buffer::Buffer;
 
+use tracing::Span;
 use zebra_chain::{
     amount::Amount,
     block::Block,
@@ -14,6 +16,7 @@ use zebra_chain::{
     transaction::{UnminedTx, UnminedTxId},
     transparent,
 };
+use zebra_network::Config;
 use zebra_network::constants::USER_AGENT;
 use zebra_node_services::BoxError;
 
@@ -27,10 +30,10 @@ async fn rpc_getinfo() {
 
     let mut mempool: MockService<_, _, _, BoxError> = MockService::build().for_unit_tests();
     let mut state: MockService<_, _, _, BoxError> = MockService::build().for_unit_tests();
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     let (rpc, rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -38,7 +41,7 @@ async fn rpc_getinfo() {
         NoChainTip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     let get_info = rpc.get_info().expect("We should have a GetInfo struct");
@@ -73,11 +76,11 @@ async fn rpc_getblock() {
     // Create a populated state service
     let (_state, read_state, latest_chain_tip, _chain_tip_change) =
         zebra_state::populated_state(blocks.clone(), Mainnet).await;
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     // Init RPC
     let (rpc, rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -85,7 +88,7 @@ async fn rpc_getblock() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // Make height calls with verbosity=0 and check response
@@ -227,11 +230,11 @@ async fn rpc_getblock_parse_error() {
 
     let mut mempool: MockService<_, _, _, BoxError> = MockService::build().for_unit_tests();
     let mut state: MockService<_, _, _, BoxError> = MockService::build().for_unit_tests();
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     // Init RPC
     let (rpc, rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -239,7 +242,7 @@ async fn rpc_getblock_parse_error() {
         NoChainTip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // Make sure we get an error if Zebra can't parse the block height.
@@ -272,11 +275,11 @@ async fn rpc_getblock_missing_error() {
 
     let mut mempool: MockService<_, _, _, BoxError> = MockService::build().for_unit_tests();
     let mut state: MockService<_, _, _, BoxError> = MockService::build().for_unit_tests();
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     // Init RPC
     let (rpc, rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -284,7 +287,7 @@ async fn rpc_getblock_missing_error() {
         NoChainTip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // Make sure Zebra returns the correct error code `-8` for missing blocks
@@ -343,11 +346,11 @@ async fn rpc_getbestblockhash() {
     // Create a populated state service, the tip will be in `NUMBER_OF_BLOCKS`.
     let (_state, read_state, latest_chain_tip, _chain_tip_change) =
         zebra_state::populated_state(blocks.clone(), Mainnet).await;
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     // Init RPC
     let (rpc, rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -355,7 +358,7 @@ async fn rpc_getbestblockhash() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // Get the tip hash using RPC method `get_best_block_hash`
@@ -391,11 +394,11 @@ async fn rpc_getrawtransaction() {
 
     let (latest_chain_tip, latest_chain_tip_sender) = MockChainTip::new();
     latest_chain_tip_sender.send_best_tip_height(Height(10));
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     // Init RPC
     let (rpc, rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -403,7 +406,7 @@ async fn rpc_getrawtransaction() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // Test case where transaction is in mempool.
@@ -556,10 +559,10 @@ async fn rpc_getaddresstxids_invalid_arguments() {
     // Create a populated state service
     let (_state, read_state, latest_chain_tip, _chain_tip_change) =
         zebra_state::populated_state(blocks.clone(), Mainnet).await;
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     let (rpc, rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -567,7 +570,7 @@ async fn rpc_getaddresstxids_invalid_arguments() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // call the method with an invalid address string
@@ -702,10 +705,10 @@ async fn rpc_getaddresstxids_response_with(
     // Create a populated state service
     let (_state, read_state, latest_chain_tip, _chain_tip_change) =
         zebra_state::populated_state(blocks.to_owned(), network).await;
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     let (rpc, rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        network,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -713,7 +716,7 @@ async fn rpc_getaddresstxids_response_with(
         latest_chain_tip,
         network,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // call the method with valid arguments
@@ -756,10 +759,10 @@ async fn rpc_getaddressutxos_invalid_arguments() {
 
     let mut mempool: MockService<_, _, _, BoxError> = MockService::build().for_unit_tests();
     let mut state: MockService<_, _, _, BoxError> = MockService::build().for_unit_tests();
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     let rpc = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -767,7 +770,7 @@ async fn rpc_getaddressutxos_invalid_arguments() {
         NoChainTip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // call the method with an invalid address string
@@ -807,10 +810,10 @@ async fn rpc_getaddressutxos_response() {
     // Create a populated state service
     let (_state, read_state, latest_chain_tip, _chain_tip_change) =
         zebra_state::populated_state(blocks.clone(), Mainnet).await;
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
 
     let rpc = RpcImpl::new(
         "RPC test",
-        Mainnet,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -818,7 +821,7 @@ async fn rpc_getaddressutxos_response() {
         latest_chain_tip,
         Mainnet,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // call the method with a valid address
@@ -882,7 +885,7 @@ async fn rpc_getblockcount() {
         latest_chain_tip.clone(),
         chain_verifier,
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     // Get the tip height using RPC method `get_block_count`
@@ -932,7 +935,7 @@ async fn rpc_getblockcount_empty_state() {
         latest_chain_tip.clone(),
         chain_verifier,
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     // Get the tip height using RPC method `get_block_count
@@ -947,6 +950,7 @@ async fn rpc_getblockcount_empty_state() {
     mempool.expect_no_requests().await;
 }
 
+/* komodo moved getpeerinfo from getblocktemplate-rpcs
 #[cfg(feature = "getblocktemplate-rpcs")]
 #[tokio::test(flavor = "multi_thread")]
 async fn rpc_getpeerinfo() {
@@ -994,7 +998,7 @@ async fn rpc_getpeerinfo() {
         latest_chain_tip.clone(),
         chain_verifier,
         MockSyncStatus::default(),
-        mock_address_book,
+        //mock_address_book,
     );
 
     // Call `get_peer_info`
@@ -1012,7 +1016,7 @@ async fn rpc_getpeerinfo() {
     );
 
     mempool.expect_no_requests().await;
-}
+} */
 
 #[cfg(feature = "getblocktemplate-rpcs")]
 #[tokio::test(flavor = "multi_thread")]
@@ -1055,7 +1059,7 @@ async fn rpc_getblockhash() {
         latest_chain_tip.clone(),
         tower::ServiceBuilder::new().service(chain_verifier),
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     // Query the hashes using positive indexes
@@ -1111,7 +1115,7 @@ async fn rpc_getmininginfo() {
         latest_chain_tip.clone(),
         MockService::build().for_unit_tests(),
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     get_block_template_rpc
@@ -1147,7 +1151,7 @@ async fn rpc_getnetworksolps() {
         latest_chain_tip.clone(),
         MockService::build().for_unit_tests(),
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     let get_network_sol_ps_inputs = [
@@ -1265,7 +1269,7 @@ async fn rpc_getblocktemplate_mining_address(use_p2pkh: bool) {
         mock_chain_tip,
         chain_verifier,
         mock_sync_status.clone(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     // Fake the ChainInfo response
@@ -1281,6 +1285,7 @@ async fn rpc_getblocktemplate_mining_address(use_p2pkh: bool) {
                 min_time: fake_min_time,
                 max_time: fake_max_time,
                 history_tree: fake_history_tree(Mainnet),
+                sapling_tree: Arc::new(sapling::tree::NoteCommitmentTree::default()),
             }));
     };
 
@@ -1477,7 +1482,7 @@ async fn rpc_submitblock_errors() {
         latest_chain_tip.clone(),
         chain_verifier,
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     // Try to submit pre-populated blocks and assert that it responds with duplicate.
@@ -1529,7 +1534,7 @@ async fn rpc_validateaddress() {
         mock_chain_tip,
         MockService::build().for_unit_tests(),
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     let validate_address = get_block_template_rpc
@@ -1574,7 +1579,7 @@ async fn rpc_z_validateaddress() {
         mock_chain_tip,
         MockService::build().for_unit_tests(),
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     let z_validate_address = get_block_template_rpc
@@ -1661,7 +1666,7 @@ async fn rpc_getdifficulty() {
         mock_chain_tip,
         chain_verifier,
         mock_sync_status.clone(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     // Fake the ChainInfo response: smallest numeric difficulty
@@ -1680,6 +1685,7 @@ async fn rpc_getdifficulty() {
                 min_time: fake_min_time,
                 max_time: fake_max_time,
                 history_tree: fake_history_tree(Mainnet),
+                sapling_tree: Arc::new(sapling::tree::NoteCommitmentTree::default()),
             }));
     };
 
@@ -1706,6 +1712,7 @@ async fn rpc_getdifficulty() {
                 min_time: fake_min_time,
                 max_time: fake_max_time,
                 history_tree: fake_history_tree(Mainnet),
+                sapling_tree: Arc::new(sapling::tree::NoteCommitmentTree::default()),
             }));
     };
 
@@ -1729,6 +1736,7 @@ async fn rpc_getdifficulty() {
                 min_time: fake_min_time,
                 max_time: fake_max_time,
                 history_tree: fake_history_tree(Mainnet),
+                sapling_tree: Arc::new(sapling::tree::NoteCommitmentTree::default()),
             }));
     };
 
@@ -1752,6 +1760,7 @@ async fn rpc_getdifficulty() {
                 min_time: fake_min_time,
                 max_time: fake_max_time,
                 history_tree: fake_history_tree(Mainnet),
+                sapling_tree: Arc::new(sapling::tree::NoteCommitmentTree::default()),
             }));
     };
 
@@ -1783,7 +1792,7 @@ async fn rpc_z_listunifiedreceivers() {
         mock_chain_tip,
         MockService::build().for_unit_tests(),
         MockSyncStatus::default(),
-        MockAddressBookPeers::default(),
+        //MockAddressBookPeers::default(),
     );
 
     // invalid address

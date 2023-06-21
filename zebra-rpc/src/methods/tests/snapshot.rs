@@ -6,6 +6,8 @@
 //! ```
 
 use std::sync::Arc;
+use std::str::FromStr;
+use tracing::Span;
 
 use insta::dynamic_redaction;
 
@@ -14,7 +16,7 @@ use zebra_chain::{
     parameters::Network::{Mainnet, Testnet},
     serialization::ZcashDeserializeInto,
 };
-use zebra_network::constants::USER_AGENT;
+use zebra_network::{constants::USER_AGENT, Config};
 use zebra_test::mock_service::MockService;
 
 use super::super::*;
@@ -66,10 +68,11 @@ async fn test_rpc_response_data_for_network(network: Network) {
     )
     .await;
 
+    let config = Config { network: Mainnet, dont_use_metrics_for_getpeerinfo: true, ..Config::default() };
+
     // Init RPC
     let (rpc, _rpc_tx_queue_task_handle) = RpcImpl::new(
         "RPC test",
-        network,
         false,
         true,
         Buffer::new(mempool.clone(), 1),
@@ -77,7 +80,7 @@ async fn test_rpc_response_data_for_network(network: Network) {
         latest_chain_tip,
         network,
         Arc::new(std::sync::Mutex::new(AddressBook::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Mainnet, Span::none()))),
-        Arc::new(std::sync::Mutex::new(PeerStats::new(Mainnet))),
+        PeerStats::new(&config),
     );
 
     // `getinfo`
