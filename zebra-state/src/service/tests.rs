@@ -399,7 +399,7 @@ proptest! {
     /// 4. Commit the non-finalized blocks and check that the value pool is also updated
     ///    accordingly.
     #[test]
-    fn value_pool_is_updated(
+    fn komodo_value_pool_is_updated(
         (network, finalized_blocks, non_finalized_blocks)
             in komodo_continuous_empty_blocks_from_test_vectors(),
     ) {
@@ -430,7 +430,7 @@ proptest! {
             // which is not included in the UTXO set
             if block.height > block::Height(0) {
                 let utxos = &block.new_outputs;
-                let block_value_pool = &block.block.chain_value_pool_change(network, utxos)?;
+                let block_value_pool = &block.block.chain_value_pool_change(network, utxos, block.height, None)?;
                 expected_finalized_value_pool += *block_value_pool;
             }
 
@@ -460,7 +460,7 @@ proptest! {
         let mut expected_non_finalized_value_pool = Ok(expected_finalized_value_pool?);
         for block in non_finalized_blocks {
             let utxos = block.new_outputs.clone();
-            let block_value_pool = &block.block.chain_value_pool_change(network, &transparent::utxos_from_ordered_utxos(utxos))?;
+            let block_value_pool = &block.block.chain_value_pool_change(network, &transparent::utxos_from_ordered_utxos(utxos), block.height, None)?;
             expected_non_finalized_value_pool += *block_value_pool;
 
             let result_receiver = state_service.queue_and_commit_non_finalized(block.clone());

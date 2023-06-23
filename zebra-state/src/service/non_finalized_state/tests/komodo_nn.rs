@@ -673,6 +673,7 @@ fn komodo_test_chain_add_block(chain: Arc<Chain>, prepared_block: &PreparedBlock
         let contextual_block = ContextuallyValidBlock::with_block_and_spent_utxos(
             chain.network(),
             prepared_block.clone(),
+            None,
             chain.unspent_utxos()        
         ).expect("ContextuallyValidBlock created");
 
