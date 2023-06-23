@@ -460,6 +460,7 @@ where
 
             // Do basic checks first
             if let Some(block_time) = req.block_time() {
+                // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0038-transaction-is-final
                 check::is_final_tx_komodo(network, &tx, req.height(), block_time)?;
             }
 
@@ -508,8 +509,12 @@ where
                     if NN::komodo_is_gap_after_second_block_allowed(network, &height) {
                         let query = Verifier::<ZS>::get_median_time_past(&state, Some(previous_hash));
                         let mtp = query.await?;
+                        // TODO: this only implements cmp_time calculation after S6. 
+                        // We need to fix it and add how it was before S6
+                        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0036-fix-komodo-limit-lock-time-calculation
                         cmp_time = mtp + Duration::seconds(777); // HF22 - check interest validation against prev_block's MedianTimePast + 777 
                     }
+                    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0037-transaction-lock-time-is-within-komodo-limits
                     komodo_validate_interest_locktime(network, &transaction, height, cmp_time)?;
                 },
             };
@@ -523,7 +528,7 @@ where
             };
             
             // tx shouldn't have banned inputs
-            check::tx_has_banned_inputs(&tx)?;
+            check::tx_has_banned_inputs(&tx)?;  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0014-transaction-does-not-spend-banned-transactions
 
             // "The consensus rules applied to valueBalance, vShieldedOutput, and bindingSig
             // in non-coinbase transactions MUST also be applied to coinbase transactions."
@@ -583,9 +588,9 @@ where
             async_checks.check().await?;
 
             // Get the `value_balance` to calculate the transaction fee.
-            let value_balance = tx.value_balance(network, &spent_utxos, Some(req.height()), last_tip_blocktime);
+            let value_balance = tx.value_balance(network, &spent_utxos, req.height(), last_tip_blocktime);
             // also get dedicated interest value for checking it
-            let value_interest = tx.komodo_interest_tx(network, &spent_utxos, Some(req.height()), last_tip_blocktime);
+            let value_interest = tx.komodo_interest_tx(network, &spent_utxos, req.height(), last_tip_blocktime);
 
             // Calculate the fee only for non-coinbase transactions.
             let mut miner_fee = None;
@@ -979,6 +984,9 @@ where
             let ed25519_item =
                 (joinsplit_data.pub_key, joinsplit_data.sig, shielded_sighash).into();
 
+            // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0051-if-private-transfers-not-empty-signature-hash-must-be-valid
+            // Aparently KMD-0051 is partially evaluated here for joinsplits.
+            // Note the difference: in komodo cpp this checked for non-minted txns
             checks.push(ed25519_verifier.oneshot(ed25519_item));
         }
 
@@ -1040,6 +1048,10 @@ where
                 // description while adding the resulting future to
                 // our collection of async checks that (at a
                 // minimum) must pass for the transaction to verify.
+
+                // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0051-if-private-transfers-not-empty-signature-hash-must-be-valid
+                // Apparently KMD-0051 is different for sapling data:
+                // in komodo cpp this rule is checked for non-minted txns and ED25519 algo instead RedJubPub is used
                 async_checks.push(
                     primitives::redjubjub::VERIFIER
                         .clone()
@@ -1097,6 +1109,9 @@ where
             // This is validated by the verifier, inside the `redjubjub` crate.
             // It calls [`jubjub::AffinePoint::from_bytes`] to parse R and
             // that enforces the canonical encoding.
+
+            // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0026-transaction-valuebalance-should-be-zero-if-vshieldedspend-and-vshieldedoutput-are-empty
+            // Komodo note: I believe this kmd-0026 rule for sapling value to be zero is evaluated within these checks 
 
             let bvk = sapling_shielded_data.binding_verification_key();
 

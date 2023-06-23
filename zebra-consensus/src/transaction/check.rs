@@ -180,9 +180,9 @@ pub fn is_final_tx_komodo(
 ///
 /// This check counts both `Coinbase` and `PrevOut` transparent inputs.
 pub fn has_inputs_and_outputs(tx: &Transaction) -> Result<(), TransactionError> {
-    if !tx.has_transparent_or_shielded_inputs() {
+    if !tx.has_transparent_or_shielded_inputs() {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0019-transaction-cannot-have-empty-transparent-inputs-and-private-spends
         Err(TransactionError::NoInputs)
-    } else if !tx.has_transparent_or_shielded_outputs() {
+    } else if !tx.has_transparent_or_shielded_outputs() {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0020-transaction-cannot-have-empty-transparent-and-private-outputs
         Err(TransactionError::NoOutputs)
     } else {
         Ok(())
@@ -313,7 +313,7 @@ pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<tr
         let pubkey_hash = notary_pk.map(|v| v.serialize().iter().map(|b| format!("{:02x}", b).to_string()).collect::<Vec<String>>().join(""));
         tracing::debug!(?tx_hash, ?not_matched, ?nn_id, ?pubkey_hash, ?total, "komodo_check_deposit_and_opret");
 
-        if overflow || i64::from(total) > COIN/10 {
+        if overflow || i64::from(total) > COIN/10 {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0002-second-and-next-coinbase-output-values-do-not-overflow
             if req_height > activation {
                 //illegal nonz output
                 return Err(TransactionError::IllegalCoinbaseOutput {
@@ -324,7 +324,7 @@ pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<tr
         } else {
             let mindiff = ExpandedDifficulty::target_difficulty_limit(network).to_compact(); // 0x200f0f0f for mainnet
             // https://github.com/KomodoPlatform/komodo/blob/master/src/komodo_gateway.cpp#L773
-            if *req_nbits == mindiff && i64::from(total) > 0 && NN::komodo_notaries_height1_reached(network, &req_height) {
+            if *req_nbits == mindiff && i64::from(total) > 0 && NN::komodo_notaries_height1_reached(network, &req_height) {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0003-do-not-allow-total-of-second-and-next-coinbase-output-values-over-zero-for-min-diff-blocks
                 // "deal with fee stealing" komodod rule, actually it's incorrect, bcz block.nBits == KOMODO_MINDIFF_NBITS
                 // rule doesn't mean notary mined block, it was a mistake, but it's in history now.
                 return Err(TransactionError::IllegalCoinbaseOutput {
@@ -341,7 +341,7 @@ pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<tr
         // 3. if notaryproof tx vin lock_script not match coinbase lock_script and is notary mined block, and height > 1_000_000 - it's illegal
 
         if strangeout != 0 || not_matched {
-            if req_height > block::Height(1_000_000) && strangeout != 0 {
+            if req_height > block::Height(1_000_000) && strangeout != 0 {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0004-no-strange-coinbase-outputs-for-block-with-possible-notary-proof
                 return Err(TransactionError::CoinbaseStrangeOutput {
                     block_height: req_height,
                     coinbase_hash: coinbase.hash(),
@@ -349,7 +349,7 @@ pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<tr
             }
         } else if req_height > block::Height(814_000) {
             // strangeout == 0 && not_matched == false case
-            if nn_id.is_some() && req_height > block::Height(1_000_000) {
+            if nn_id.is_some() && req_height > block::Height(1_000_000) {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0005-if-notary-proof-is-invalid-then-coinbase-must-not-pay-to-notary
                 return Err(TransactionError:: NotaryProofNotMatched {
                     block_height: req_height,
                     transaction_hash: tx.hash(),
@@ -368,6 +368,7 @@ pub fn komodo_check_deposit_and_opret(tx: &Transaction, spent_utxos: &HashMap<tr
     // in this notary-mined (easy-mined) block, excluding the notaryvin spend transaction itself.
 
     if NN::komodo_s3_5_december_hardfork_active(network, &req_height) {
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0001-check-special-block-opreturn
         if let Some(notaryid) = nn_id {
             if notaryid > 0 || (notaryid == 0 && NN::komodo_s5_hardfork_active(network, &req_height)) {
                 // komodo_checkopret - https://github.com/KomodoPlatform/komodo/blob/master/src/komodo_bitcoind.cpp#L638-L642
@@ -462,6 +463,7 @@ pub fn joinsplit_has_vpub_zero(tx: &Transaction) -> Result<(), TransactionError>
         // > Either v_{pub}^{old} or v_{pub}^{new} MUST be zero.
         //
         // https://zips.z.cash/protocol/protocol.pdf#joinsplitdesc
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0092-transaction-sprout-vpub_old-and-vpub_new-cannot-be-both-non-zero
         if *vpub_old != zero && *vpub_new != zero {
             return Err(TransactionError::BothVPubsNonZero);
         }
@@ -700,7 +702,7 @@ fn validate_expiry_height_max(
     transaction: &Transaction,
 ) -> Result<(), TransactionError> {
     if let Some(expiry_height) = expiry_height {
-        if expiry_height > Height::MAX_EXPIRY_HEIGHT {
+        if expiry_height > Height::MAX_EXPIRY_HEIGHT {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0018-transaction-expiry-height-is-not-too-high
             return Err(TransactionError::MaximumExpiryHeight {
                 expiry_height,
                 is_coinbase,

@@ -511,6 +511,8 @@ impl Transaction {
     /// transaction, that is, has a single input and it is a coinbase input
     /// (null prevout).
     pub fn is_coinbase(&self) -> bool {
+        // partially implementes
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0084-check-if-transaction-is-coinbase
         self.inputs().len() == 1
             && matches!(
                 self.inputs().get(0),
@@ -1004,11 +1006,13 @@ impl Transaction {
             .outputs()
             .iter()
             .map(|o| o.value())
-            .sum::<Result<Amount<NonNegative>, AmountError>>()
+            .sum::<Result<Amount<NonNegative>, AmountError>>() // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0025-transaction-total-transparent-output-value-is-within-money-range
             .map_err(ValueBalanceError::Transparent)?
             .constrain()
             .expect("conversion from NonNegative to NegativeAllowed is always valid");
 
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0062-transaction-input-value-with-interest-within-money-range
+        // The Amount<NonNegative> constrant validates for input_value + interest to be within 0..MAX_MONEY
         (input_value + interest - output_value)
             .map(ValueBalance::from_transparent_amount)
             .map_err(ValueBalanceError::Transparent)
@@ -1484,6 +1488,7 @@ impl Transaction {
             .inputs()
             .iter()
             .map(|i| -> Amount<NonNegative> {
+                // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0059-add-komodo-interest-to-transaction-input-value
                 Self::komodo_interest_input(network, i, spent_utxos, block_height, last_block_time)
             })
             .sum::<Result<Amount<NonNegative>, amount::Error>>()

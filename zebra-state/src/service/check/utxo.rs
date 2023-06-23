@@ -138,7 +138,7 @@ fn transparent_spend_chain_order(
         // (transaction IDs also commit to transaction inputs,
         // so it should be cryptographically impossible for a transaction
         // to spend its own outputs)
-        if output.tx_index_in_block >= spend_tx_index_in_block {
+        if output.tx_index_in_block >= spend_tx_index_in_block {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zebra-0003-early-transparent-spend-invalid
             return Err(EarlyTransparentSpend { outpoint: spend });
         } else {
             // a unique spend of a previous transaction's output is ok
@@ -146,7 +146,7 @@ fn transparent_spend_chain_order(
         }
     }
 
-    if non_finalized_chain_spent_utxos.contains(&spend) {
+    if non_finalized_chain_spent_utxos.contains(&spend) { // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0057-transaction-must-have-inputs-in-chain
         // reject the spend if its UTXO is already spent in the
         // non-finalized parent chain
         return Err(DuplicateTransparentSpend {
@@ -165,6 +165,7 @@ fn transparent_spend_chain_order(
             // the finalized and non-finalized chains
             // (it might have been spent in the finalized state,
             // or it might never have existed in this chain)
+            // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0057-transaction-must-have-inputs-in-chain
             Err(MissingTransparentOutput {
                 outpoint: spend,
                 location: "the non-finalized and finalized chain",
@@ -221,7 +222,7 @@ pub fn transparent_coinbase_spend(
             }
         },
 
-        SomeTransparentOutputs { spend_height } => {
+        SomeTransparentOutputs { spend_height } => {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0060-validate-coinbase-maturity
             if spend_height >= min_spend_height {
                 Ok(utxo)
             } else {
@@ -233,7 +234,7 @@ pub fn transparent_coinbase_spend(
                 })
             }
         },
-        // SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }),
+        // SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }), // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0061-protect-coinbase-if-enabled
     }
 
 }
@@ -271,6 +272,7 @@ pub fn remaining_transaction_value(
                 Err(amount_error @ amount::Error::Constraint { .. })
                     if amount_error.invalid_value() < 0 =>
                 {
+                    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0064-transaction-input-value-not-less-output-value
                     Err(ValidateContextError::NegativeRemainingTransactionValue {
                         amount_error,
                         height: prepared.height,

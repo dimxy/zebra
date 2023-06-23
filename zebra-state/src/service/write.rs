@@ -302,7 +302,7 @@ pub fn write_blocks_from_channels(
         // Update the caller with the result.
         let _ = rsp_tx.send(result.clone().map(|()| child_hash).map_err(BoxError::from));
 
-        while non_finalized_state.best_chain_len() > MAX_BLOCK_REORG_HEIGHT {
+        while non_finalized_state.best_chain_len() > MAX_BLOCK_REORG_HEIGHT {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0073-prevent-chain-reorganisation-over-99-blocks
             tracing::trace!("finalizing block past the reorg limit");
             let finalized_with_trees = non_finalized_state.finalize();
             finalized_state

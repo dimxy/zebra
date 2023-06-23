@@ -82,6 +82,8 @@ impl ZcashDeserialize for Header {
         // > The block version number MUST be greater than or equal to 4.
         //
         // https://zips.z.cash/protocol/protocol.pdf#blockheader
+        // For Komodo consensus this code only parially implements the rule of the block version check (on deserialisation) 
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0080-block-version-is-not-less-than-4
         if !possible_genesis && version < 4 {
             return Err(SerializationError::Parse("version must be at least 4"));
         }
@@ -148,6 +150,9 @@ impl ZcashDeserialize for Block {
         // https://zips.z.cash/protocol/protocol.pdf#blockheader
         //
         // If the limit is reached, we'll get an UnexpectedEof error
+        // This only partially implements komodo rule:
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0011-block-size-limits
+        // Plus, MAX_BLOCK_BYTES is 4MB not 2mln as required
         let limited_reader = &mut reader.take(MAX_BLOCK_BYTES);
         Ok(Block {
             header: limited_reader.zcash_deserialize_into()?,

@@ -422,7 +422,7 @@ where
             BeforeGenesis => {}
             // Greater heights are valid
             InitialTip(previous_height) | PreviousCheckpoint(previous_height)
-                if (height <= previous_height) =>
+                if (height <= previous_height) =>   // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0079-invalidate-block-of-height-less-than-last-checkpoint-height
             {
                 let e = Err(VerifyCheckpointError::AlreadyVerified {
                     height,
@@ -630,7 +630,7 @@ where
         // If there are any side-chain blocks, they fail validation.
         let mut valid_qblock = None;
         for qblock in qblocks.drain(..) {
-            if qblock.block.hash == expected_hash {
+            if qblock.block.hash == expected_hash {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0077-block-hash-validated-by-built-in-checkpoint
                 if valid_qblock.is_none() {
                     // The first valid block at the current height
                     valid_qblock = Some(qblock);
