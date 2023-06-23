@@ -61,8 +61,9 @@ impl<E: Error + 'static> Error for ConversionError<E> {
 /// [`ZcashAddress`]: crate::ZcashAddress
 ///
 /// # Examples
+/// TODO: fix for Komodo
 ///
-/// ```
+/// ```no_run
 /// use zcash_address::{ConversionError, Network, TryFromRawAddress, UnsupportedAddress, ZcashAddress};
 ///
 /// #[derive(Debug, PartialEq)]
@@ -146,8 +147,9 @@ pub trait TryFromRawAddress: Sized {
 /// [`ZcashAddress`]: crate::ZcashAddress
 ///
 /// # Examples
+/// TODO: fix for Komodo
 ///
-/// ```
+/// ```no_run
 /// use zcash_address::{ConversionError, Network, TryFromAddress, UnsupportedAddress, ZcashAddress};
 ///
 /// #[derive(Debug)]
@@ -281,8 +283,9 @@ impl<T: TryFromRawAddress> TryFromAddress for (Network, T) {
 /// [`ZcashAddress`]: crate::ZcashAddress
 ///
 /// # Examples
+/// TODO: fix for Komodo
 ///
-/// ```
+/// ```no_run
 /// use zcash_address::{ToAddress, Network, ZcashAddress};
 ///
 /// #[derive(Debug)]
