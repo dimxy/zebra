@@ -300,7 +300,7 @@ impl Transaction {
 
         for input in self.inputs() {
             input_chain_value_pools = input_chain_value_pools
-                .add_transparent_input(network, input, utxos)
+                .add_transparent_input(network, input, utxos, height, last_block_time)
                 .expect("find_valid_utxo_for_spend only spends unspent transparent outputs");
         }
 
@@ -337,12 +337,12 @@ impl Transaction {
             }
         }
 
-        let remaining_transaction_value = self.fix_remaining_value(network, utxos, Some(height), last_block_time)?;
+        let remaining_transaction_value = self.fix_remaining_value(network, utxos, height, last_block_time)?;
 
         // check our calculations are correct
         let transaction_chain_value_pool_change =
             self
-            .value_balance_from_outputs(network, utxos, Some(height), last_block_time)
+            .value_balance_from_outputs(network, utxos, height, last_block_time)
             .expect("chain value pool and remaining transaction value fixes produce valid transaction value balances")
             .neg();
 
@@ -373,7 +373,7 @@ impl Transaction {
 
 
         let chain_value_pools = chain_value_pools
-            .add_transaction(network, self, utxos)
+            .add_transaction(network, self, utxos, height, last_block_time)
             .unwrap_or_else(|err| {
                 panic!(
                     "unexpected chain value pool error: {:?}, \n\
@@ -462,7 +462,7 @@ impl Transaction {
         &mut self,
         network: Network,
         utxos: &HashMap<transparent::OutPoint, transparent::Utxo>,
-        block_height: Option<Height>, 
+        block_height: Height, 
         last_block_time: Option<DateTime<Utc>>,
     ) -> Result<Amount<NonNegative>, ValueBalanceError> {
         if self.is_coinbase() {

@@ -1176,7 +1176,7 @@ fn komodo_transaction_v4_with_transparent_data(
     // do required fixups, but ignore any errors,
     // because we're not checking all the consensus rules here
     // Komodo: there is no interest on low blocks
-    let _ = transaction.fix_remaining_value(Network::Mainnet, &spent_utxos.into_iter().collect(), None, None);
+    let _ = transaction.fix_remaining_value(Network::Mainnet, &spent_utxos.into_iter().collect(), Height(0), None);
 
     transaction
 }
@@ -1202,7 +1202,7 @@ fn komodo_transaction_v4_with_transparent_data_testnet(
 
     // do required fixups, but ignore any errors,
     // because we're not checking all the consensus rules here
-    let _ = transaction.fix_remaining_value(Network::Testnet, &spent_utxos.into_iter().collect(), Some(height), last_block_time);
+    let _ = transaction.fix_remaining_value(Network::Testnet, &spent_utxos.into_iter().collect(), height, last_block_time);
 
     transaction
 }
