@@ -179,6 +179,7 @@ pub(crate) fn block_commitment_is_valid_for_chain_history(
         block::Commitment::FinalSaplingRoot(block_sapling_root) => {
             // check sapling root
             // added for Komodo
+            // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0070-block-header-final-sapling-tree-root-hash-is-valid
             if &block_sapling_root == sapling_root {
                 Ok(())
             } else {
@@ -311,6 +312,7 @@ fn difficulty_threshold_is_valid(
         .activation_height(network)
         .expect("Zebra always has a genesis height available");
 
+    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0075-blocktime-not-too-early
     if candidate_time <= median_time_past && candidate_height != genesis_height {
         Err(ValidateContextError::TimeTooEarly {
             candidate_time,
@@ -336,6 +338,7 @@ fn difficulty_threshold_is_valid(
     }*/
 
     // using komodo nMaxFutureBlockTime rule instead of zcash is_max_block_time_enforced
+    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0076-blocktime-not-too-far-in-future-2
     let block_time_max = DateTime::<Utc>::from(SystemTime::now()) + Duration::seconds(7 * 60);
     if candidate_time > block_time_max {
         Err(ValidateContextError::TimeTooLate {
@@ -351,7 +354,7 @@ fn difficulty_threshold_is_valid(
     //
     // https://zips.z.cash/protocol/protocol.pdf#blockheader
     let expected_difficulty = difficulty_adjustment.expected_difficulty_threshold();
-    if difficulty_threshold != expected_difficulty {
+    if difficulty_threshold != expected_difficulty {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0074-header-nbits-field-valid
         Err(ValidateContextError::InvalidDifficultyThreshold {
             difficulty_threshold,
             expected_difficulty,

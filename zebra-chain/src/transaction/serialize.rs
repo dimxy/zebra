@@ -748,7 +748,7 @@ impl ZcashDeserialize for Transaction {
             (3, true) => {
                 // Denoted as `nVersionGroupId` in the spec.
                 let id = limited_reader.read_u32::<LittleEndian>()?;
-                if id != OVERWINTER_VERSION_GROUP_ID {
+                if id != OVERWINTER_VERSION_GROUP_ID {  // Part of https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0046-when-transaction-overwintered-flag-is-on-transaction-version-groupid-must-be-valid-for-overwinter
                     return Err(SerializationError::Parse(
                         "expected OVERWINTER_VERSION_GROUP_ID",
                     ));
@@ -795,7 +795,9 @@ impl ZcashDeserialize for Transaction {
                 let inputs = Vec::zcash_deserialize(&mut limited_reader)?;
 
                 // Denoted as `tx_out_count` and `tx_out` in the spec.
-                let outputs = Vec::zcash_deserialize(&mut limited_reader)?;
+                let outputs = Vec::zcash_deserialize(&mut limited_reader)?;  // Amount<NonNegative> implements these rules: 
+                                                                                          // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0022-transaction-output-value-is-not-negative
+                                                                                          // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0023-transaction-output-value-is-not-over-max_money 
 
                 // Denoted as `lock_time` in the spec.
                 let lock_time = LockTime::zcash_deserialize(&mut limited_reader)?;
@@ -804,7 +806,7 @@ impl ZcashDeserialize for Transaction {
                 let expiry_height = block::Height(limited_reader.read_u32::<LittleEndian>()?);
 
                 // Denoted as `valueBalanceSapling` in the spec.
-                let value_balance = (&mut limited_reader).zcash_deserialize_into()?;
+                let value_balance = (&mut limited_reader).zcash_deserialize_into()?;  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0028-transaction-valuebalance-must-be-within-max_money
 
                 // Denoted as `nSpendsSapling` and `vSpendsSapling` in the spec.
                 let shielded_spends = Vec::zcash_deserialize(&mut limited_reader)?;

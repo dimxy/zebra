@@ -52,13 +52,13 @@ pub fn coinbase_is_first(block: &Block) -> Result<Arc<transaction::Transaction>,
     //
     // <https://zips.z.cash/protocol/protocol.pdf#coinbasetransactions>
     let mut rest = block.transactions.iter().skip(1);
-    if !first.is_coinbase() {
+    if !first.is_coinbase() {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0012-first-transaction-in-block-is-coinbase
         return Err(TransactionError::CoinbasePosition)?;
     }
     // > A transparent input in a non-coinbase transaction MUST NOT have a null prevout
     //
     // <https://zips.z.cash/protocol/protocol.pdf#txnconsensus>
-    if !rest.all(|tx| tx.is_valid_non_coinbase()) {
+    if !rest.all(|tx| tx.is_valid_non_coinbase()) {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0013-second-transaction-and-next-in-block-are-not-coinbase
         return Err(TransactionError::CoinbaseAfterFirst)?;
     }
 
@@ -88,7 +88,7 @@ pub fn difficulty_is_valid(
 
     // The PowLimit check is part of `Threshold()` in the spec, but it doesn't
     // actually depend on any previous blocks.
-    if difficulty_threshold > ExpandedDifficulty::target_difficulty_limit(network) {
+    if difficulty_threshold > ExpandedDifficulty::target_difficulty_limit(network) {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0001-target-is-valid
         Err(BlockError::TargetDifficultyLimit(
             *height,
             *hash,
@@ -105,7 +105,7 @@ pub fn difficulty_is_valid(
     // https://zips.z.cash/protocol/protocol.pdf#blockheader
     //
     // The difficulty filter is also context-free.
-    if hash > &difficulty_threshold {
+    if hash > &difficulty_threshold {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0002-block-hash-is-not-over-target
         /* pow (non easy-diff) blocks with incorrect diff, considered as exceptions */
         if height >= &Height(205641) && height <= &Height(791989) {     // TODO: add mainnet check
             return Ok(());
@@ -137,7 +137,7 @@ pub fn difficulty_is_valid(
         }
 
         
-        if height == &Height(0)  {  
+        if height == &Height(0)  {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0004-for-height-0-pow-is-not-checked
             return Ok(());   // skip genesis, TODO: fix genesis diff for testnet
         }
 
@@ -166,6 +166,7 @@ pub fn equihash_solution_is_valid(header: &Header) -> Result<(), equihash::Error
     // > `solution` MUST represent a valid Equihash solution.
     //
     // https://zips.z.cash/protocol/protocol.pdf#blockheader
+    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0003-check-equihash-solution
     header.solution.check(header)
 }
 
@@ -277,6 +278,7 @@ pub fn miner_fees_are_valid(
 /// Returns `Ok(())` if the miner fees consensus rule is valid.
 ///
 /// implements komodo miner fee rules with interest 
+/// includes komodo mainnet subsidy check
 pub fn komodo_miner_fees_are_valid(
     block: &Block,
     network: Network,
@@ -311,13 +313,13 @@ pub fn komodo_miner_fees_are_valid(
         .map_err(|_| SubsidyError::SumOverflow)?;
     let right = (
             block_subsidy + block_miner_fees + 
-            if !NN::komodo_notaries_height2_reached(network, &height) { block_interest } else { Amount::zero() } +
+            if !NN::komodo_notaries_height2_reached(network, &height) { block_interest } else { Amount::zero() } +  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0071-remove-komodo-interest-from-block-reward
             Amount::try_from(KOMODO_EXTRASATOSHI).expect("valid extra satoshi")
         ).map_err(|_| SubsidyError::SumOverflow)?;
 
     tracing::debug!("block={:?} block_subsidy={:?} minersfee={:?} block_interest={:?} left={:?} right={:?}", block.hash(), block_subsidy, block_miner_fees, block_interest, left, right);
 
-    if left > right {
+    if left > right { // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0072-coinbase-does-not-pay-too-much
         if NN::komodo_notaries_height1_reached(network, &height) || coinbase.outputs()[0].value() > block_subsidy   {
             return Err(SubsidyError::KomodoCoinbasePaysTooMuch)?;
         }
@@ -385,7 +387,7 @@ pub fn merkle_root_validity(
 
     let merkle_root = transaction_hashes.iter().cloned().collect();
 
-    if block.header.merkle_root != merkle_root {
+    if block.header.merkle_root != merkle_root {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0009-check-merkle-root
         return Err(BlockError::BadMerkleRoot {
             actual: merkle_root,
             expected: block.header.merkle_root,
@@ -410,7 +412,7 @@ pub fn merkle_root_validity(
     //
     // To prevent malleability (CVE-2012-2459), we also need to check
     // whether the transaction hashes are unique.
-    if transaction_hashes.len() != transaction_hashes.iter().collect::<HashSet<_>>().len() {
+    if transaction_hashes.len() != transaction_hashes.iter().collect::<HashSet<_>>().len() {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0010-check-merkle-tree-malleability
         return Err(BlockError::DuplicateTransaction);
     }
 

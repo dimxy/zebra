@@ -582,6 +582,7 @@ impl NonFinalizedState {
 
     /// check if block has a back KMD nota and update latest nota in the mem state
     fn komodo_find_block_nota_and_update_last(&mut self, block: &Block, spent_outputs: &HashMap<transparent::OutPoint, transparent::Output>, height: &block::Height) {
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0006-update-last-notarisation-if-found-valid
         match (komodo_block_has_notarisation_tx(self.network, block, spent_outputs, height), self.last_nota.as_ref()) {
             (Some(found_nota), Some(last_nota)) => {
                 if last_nota.notarised_height < found_nota.notarised_height {
@@ -601,6 +602,7 @@ impl NonFinalizedState {
 
     /// check if new chain is notarised and allowed to fork
     /// it should not fork below the last notarised block
+    /// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0007-prevent-forks-below-last-notarised-height
     pub fn komodo_check_fork_is_valid(&self, chain_with_new_block: &Chain) -> Result<(), ValidateContextError> {
 
         if let Some(last_nota) = &self.last_nota {
@@ -671,6 +673,7 @@ impl NonFinalizedState {
     }
 
     /// komodo notarisation checks: new block height must be >= the last notarised height
+    /// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0009-invalidate-block-connected-below-last-notarised-height
     pub fn komodo_checkpoint(&self, prepared: &PreparedBlock) -> Result<(), ValidateContextError> {
         if let Some(last_nota) = &self.last_nota {
             tracing::debug!("komodo_checkpoint prepared.height={:?}, last_nota_height={:?}, last_nota_block_hash={:?}", prepared.height, last_nota.notarised_height, last_nota.notarised_block_hash);

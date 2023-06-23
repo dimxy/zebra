@@ -66,8 +66,10 @@ pub(super) const MAINNET_ACTIVATION_HEIGHTS: &[(block::Height, NetworkUpgrade)] 
     (block::Height(0), Genesis),
     (block::Height(1), BeforeOverwinter),
     (block::Height(KOMODO_MAINNET_SAPLING_HEIGHT), Overwinter), // equals to the Sapling height in komodo
+    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0083-active-network-upgrade-is-sapling
     (block::Height(KOMODO_MAINNET_SAPLING_HEIGHT), Sapling),    // komodod "SET SAPLING ACTIVATION height.1140409"
-    // not supported in komodo, must be set to some unreachable height:
+    // not supported in komodo, must be set to some unreachable height
+    // or, better removed (more work as Canopy is used in many places)
     (block::Height::MAX, Blossom),     // same as Nu5  
     (block::Height::MAX, Heartwood),
     (block::Height::MAX, Canopy),

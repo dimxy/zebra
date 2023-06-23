@@ -104,6 +104,7 @@ impl ZcashDeserialize for OutPoint {
 ///
 /// <https://zips.z.cash/protocol/protocol.pdf#txnconsensus>
 /// <https://github.com/bitcoin/bips/blob/master/bip-0034.mediawiki>
+/// <https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0039-coinbase-input-scriptsig-is-valid>
 pub(crate) fn parse_coinbase_height(
     mut data: Vec<u8>,
 ) -> Result<(block::Height, CoinbaseData), SerializationError> {
@@ -291,13 +292,14 @@ impl ZcashDeserialize for Input {
         // This inlines the OutPoint deserialization to peek at the hash value
         // and detect whether we have a coinbase input.
         let bytes = reader.read_32_bytes()?;
-        if bytes == [0; 32] {
-            if reader.read_u32::<LittleEndian>()? != 0xffff_ffff {
+        if bytes == [0; 32] {  // partially implements https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0084-check-if-transaction-is-coinbase, see yet another link in the code
+            if reader.read_u32::<LittleEndian>()? != 0xffff_ffff {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zebra-0002-coinbase-nsequence-equals-to-0xffffffff
                 return Err(SerializationError::Parse("wrong index in coinbase"));
             }
 
             let data: Vec<u8> = (&mut reader).zcash_deserialize_into()?;
 
+            // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0032-minted-transaction-input-0-scriptsig-size-is-valid
             // Check the coinbase data length.
             if data.len() > MAX_COINBASE_DATA_LEN {
                 return Err(SerializationError::Parse("coinbase data is too long"));
@@ -314,7 +316,7 @@ impl ZcashDeserialize for Input {
                 data,
                 sequence,
             })
-        } else {
+        } else {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0033-non-minted-transaction-inputs-are-not-null
             Ok(Input::PrevOut {
                 outpoint: OutPoint {
                     hash: transaction::Hash(bytes),

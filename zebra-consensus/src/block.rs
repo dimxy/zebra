@@ -205,7 +205,7 @@ where
 
             // Quick field validity and structure checks
             let now = Utc::now();
-            check::time_is_valid_at(&block.header, now, &height, &hash)
+            check::time_is_valid_at(&block.header, now, &height, &hash)  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zebra-0005-block-time-is-valid-future-2-hours
                 .map_err(VerifyBlockError::Time)?;
             let coinbase_tx = check::coinbase_is_first(&block)?;
             // check::subsidy_is_valid(&block, network)?; // not used for komodo
@@ -288,7 +288,7 @@ where
 
             // Check the summed block totals
 
-            if legacy_sigop_count > MAX_BLOCK_SIGOPS {
+            if legacy_sigop_count > MAX_BLOCK_SIGOPS {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0034-transaction-legacy-signature-count-does-not-exceed-max_block_sigops
                 Err(BlockError::TooManyTransparentSignatureOperations {
                     height,
                     hash,
@@ -301,7 +301,7 @@ where
                     height,
                     hash,
                     source: amount_error,
-                })?;
+                })?;  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0066-transaction-fee-within-money-range
 
             let block_interest =
                 block_interest.map_err(|amount_error| BlockError::SummingInterest {
@@ -310,7 +310,7 @@ where
                     source: amount_error,
                 })?;
             //check::miner_fees_are_valid(&block, network, block_miner_fees)?;
-            check::komodo_miner_fees_are_valid(&block, network, block_miner_fees, block_interest)?;
+            check::komodo_miner_fees_are_valid(&block, network, block_miner_fees, block_interest)?; // check komodo miners fee including subsidy
 
             // Finally, submit the block for contextual verification.
             let new_outputs = Arc::try_unwrap(known_utxos)

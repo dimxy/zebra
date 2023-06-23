@@ -141,6 +141,7 @@ impl<P: ZkSnarkProof> ZcashDeserialize for JoinSplit<P> {
         // See comments below for each specific type.
         Ok(JoinSplit::<P> {
             // Type is `{0 .. MAX_MONEY}`; see [`NonNegative::valid_range()`].
+            // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0091-transaction-sprout-vpub_old-and-vpub_new-must-be-within-money-range
             vpub_old: (&mut reader).zcash_deserialize_into()?,
             vpub_new: (&mut reader).zcash_deserialize_into()?,
             // Type is `B^{ℓ^{Sprout}_{Merkle}}` i.e. 32 bytes.

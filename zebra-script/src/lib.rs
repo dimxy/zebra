@@ -152,6 +152,7 @@ impl CachedFfiTransaction {
     /// Verify if the script in the input at `input_index` of a transaction correctly
     /// spends the matching [`transparent::Output`] it refers to, with the [`ConsensusBranchId`]
     /// of the block containing the transaction.
+    /// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0069-execute-standard-script
     #[allow(clippy::unwrap_in_result)]
     pub fn is_valid(&self, branch_id: ConsensusBranchId, input_index: usize) -> Result<(), Error> {
         let previous_output = self
@@ -173,8 +174,8 @@ impl CachedFfiTransaction {
 
         let amount = value.into();
 
-        let flags = zcash_script::zcash_script_SCRIPT_FLAGS_VERIFY_P2SH
-            | zcash_script::zcash_script_SCRIPT_FLAGS_VERIFY_CHECKLOCKTIMEVERIFY;
+        let flags = zcash_script::zcash_script_SCRIPT_FLAGS_VERIFY_P2SH       // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0067-script_verify_p2sh-enabled
+            | zcash_script::zcash_script_SCRIPT_FLAGS_VERIFY_CHECKLOCKTIMEVERIFY;  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0068-script_verify_checklocktimeverify-enabled
         // This conversion is useful on some platforms, but not others.
         #[allow(clippy::useless_conversion)]
         let flags = flags

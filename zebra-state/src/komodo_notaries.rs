@@ -158,6 +158,7 @@ fn komodo_check_if_second_block_allowed<C>(network: Network, notary_id: NotaryId
 /// if the block is special and valid then returns true
 /// if the block is not special then returns false
 /// if the block is special and invalid then throws a error
+/// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0010-notary-special-block-is-valid
 pub fn komodo_is_special_notary_block<C>(
     block: &Block,
     height: &Height,
@@ -195,6 +196,7 @@ where
                 komodo_check_notary_blocktime::<C>(network, height, &relevant_chain, block)?;  // returns error if blocktime invalid
 
                 if check_last_65_result.is_err() {
+                    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-dpow-0011-notary-second-special-block-is-allowed
                     if NN::komodo_is_gap_after_second_block_allowed(network, height) {
                         komodo_check_if_second_block_allowed::<C>(network, notary_id, height, &relevant_chain, block)?;  // returns error if second block invalid
                     } else {
