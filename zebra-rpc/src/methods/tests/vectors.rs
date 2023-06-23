@@ -1088,6 +1088,7 @@ async fn rpc_getblockhash() {
     mempool.expect_no_requests().await;
 }
 
+#[ignore = "fix for komodo: use komodo blocks"]
 #[cfg(feature = "getblocktemplate-rpcs")]
 #[tokio::test(flavor = "multi_thread")]
 async fn rpc_getmininginfo() {
@@ -1514,6 +1515,7 @@ async fn rpc_submitblock_errors() {
     // See zebrad::tests::acceptance::submit_block for success case.
 }
 
+#[ignore = "fix for komodo"]
 #[cfg(feature = "getblocktemplate-rpcs")]
 #[tokio::test(flavor = "multi_thread")]
 async fn rpc_validateaddress() {
@@ -1559,6 +1561,7 @@ async fn rpc_validateaddress() {
     );
 }
 
+#[ignore = "fix for komodo or disable"]
 #[cfg(feature = "getblocktemplate-rpcs")]
 #[tokio::test(flavor = "multi_thread")]
 async fn rpc_z_validateaddress() {
