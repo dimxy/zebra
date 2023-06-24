@@ -468,7 +468,7 @@ where
             check::has_enough_orchard_flags(&tx)?;
 
             if req.is_mempool() && tx.is_coinbase() {
-                return Err(TransactionError::CoinbaseInMempool);
+                return Err(TransactionError::CoinbaseInMempool);  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0005-do-not-allow-coinbase-in-mempool
             }
             if tx.is_coinbase() {
                 check::coinbase_tx_no_prevout_joinsplit_spend(&tx)?;
@@ -476,6 +476,7 @@ where
                 return Err(TransactionError::NonCoinbaseHasCoinbaseInput);
             }
 
+            // Note the differences with komodo C++, see https://github.com/KomodoPlatform/zebra/issues/61
             // Validate `nExpiryHeight` consensus rules
             if tx.is_coinbase() {
                 check::coinbase_expiry_height(&req.height(), &tx, network)?;
@@ -510,8 +511,8 @@ where
                     if NN::komodo_is_gap_after_second_block_allowed(network, &height) {
                         let query = Verifier::<ZS>::get_median_time_past(&state, Some(previous_hash));
                         let mtp = query.await?;
-                        // TODO: this only implements cmp_time calculation after S6. 
-                        // We need to fix it and add how it was before S6
+                        // TODO: this only implements the cmp_time calculation after S6. 
+                        // We need to fix it: add how it was calculated before S6
                         // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0036-fix-komodo-limit-lock-time-calculation
                         cmp_time = mtp + Duration::seconds(777); // HF22 - check interest validation against prev_block's MedianTimePast + 777 
                     }

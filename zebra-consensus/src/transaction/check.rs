@@ -651,6 +651,7 @@ pub fn coinbase_expiry_height(
     // > or equal to 499999999.
     //
     // <https://zips.z.cash/protocol/protocol.pdf#txnconsensus>
+    // <https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0018-transaction-expiry-height-is-not-too-high>
     validate_expiry_height_max(expiry_height, true, block_height, coinbase)
 }
 
@@ -675,6 +676,7 @@ pub fn non_coinbase_expiry_height(
         // > for non-coinbase transactions.
         //
         // <https://zips.z.cash/protocol/protocol.pdf#txnconsensus>
+        // <https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0018-transaction-expiry-height-is-not-too-high>
         validate_expiry_height_max(expiry_height, false, block_height, transaction)?;
 
         // # Consensus
@@ -684,6 +686,9 @@ pub fn non_coinbase_expiry_height(
         // > height greater than its nExpiryHeight.
         //
         // <https://zips.z.cash/protocol/protocol.pdf#txnconsensus>
+
+        // Only partially implements KMD-0049 (zebra does not check for coinbases but komodo C++ does)
+        // <https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0049-transaction-must-not-expire-for-overwinter>
         validate_expiry_height_mined(expiry_height, block_height, transaction)?;
     }
     Ok(())
@@ -702,7 +707,7 @@ fn validate_expiry_height_max(
     transaction: &Transaction,
 ) -> Result<(), TransactionError> {
     if let Some(expiry_height) = expiry_height {
-        if expiry_height > Height::MAX_EXPIRY_HEIGHT {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0018-transaction-expiry-height-is-not-too-high
+        if expiry_height > Height::MAX_EXPIRY_HEIGHT {
             return Err(TransactionError::MaximumExpiryHeight {
                 expiry_height,
                 is_coinbase,

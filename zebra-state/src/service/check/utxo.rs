@@ -138,7 +138,7 @@ fn transparent_spend_chain_order(
         // (transaction IDs also commit to transaction inputs,
         // so it should be cryptographically impossible for a transaction
         // to spend its own outputs)
-        if output.tx_index_in_block >= spend_tx_index_in_block {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zebra-0003-early-transparent-spend-invalid
+        if output.tx_index_in_block >= spend_tx_index_in_block {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#zebra-0003-early-transparent-spend-invalid
             return Err(EarlyTransparentSpend { outpoint: spend });
         } else {
             // a unique spend of a previous transaction's output is ok
@@ -146,7 +146,7 @@ fn transparent_spend_chain_order(
         }
     }
 
-    if non_finalized_chain_spent_utxos.contains(&spend) { // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0057-transaction-must-have-inputs-in-chain
+    if non_finalized_chain_spent_utxos.contains(&spend) {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0057-transaction-must-have-inputs-in-chain
         // reject the spend if its UTXO is already spent in the
         // non-finalized parent chain
         return Err(DuplicateTransparentSpend {

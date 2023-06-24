@@ -205,7 +205,7 @@ where
 
             // Quick field validity and structure checks
             let now = Utc::now();
-            check::time_is_valid_at(&block.header, now, &height, &hash)  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zebra-0005-block-time-is-valid-future-2-hours
+            check::time_is_valid_at(&block.header, now, &height, &hash)  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#zebra-0005-block-time-is-valid-future-2-hours
                 .map_err(VerifyBlockError::Time)?;
             let coinbase_tx = check::coinbase_is_first(&block)?;
             // check::subsidy_is_valid(&block, network)?; // not used for komodo

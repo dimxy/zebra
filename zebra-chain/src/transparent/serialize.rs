@@ -293,7 +293,7 @@ impl ZcashDeserialize for Input {
         // and detect whether we have a coinbase input.
         let bytes = reader.read_32_bytes()?;
         if bytes == [0; 32] {  // partially implements https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0084-check-if-transaction-is-coinbase, see yet another link in the code
-            if reader.read_u32::<LittleEndian>()? != 0xffff_ffff {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zebra-0002-coinbase-nsequence-equals-to-0xffffffff
+            if reader.read_u32::<LittleEndian>()? != 0xffff_ffff {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#zebra-0002-coinbase-nsequence-equals-to-0xffffffff
                 return Err(SerializationError::Parse("wrong index in coinbase"));
             }
 

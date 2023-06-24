@@ -220,7 +220,7 @@ impl ValueBalance<NonNegative> {
     /// This pool evaluates a rule which valudates the total chain unspent value against the Money Range, 
     /// Apparently we should disable this rule at all.
     /// Link to this rule in our docs:
-    /// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zebra-0004-total-chain-transparent-unspent-value-within-money-range 
+    /// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#zebra-0004-total-chain-transparent-unspent-value-within-money-range 
     pub fn add_block(
         self,
         network: Network,
