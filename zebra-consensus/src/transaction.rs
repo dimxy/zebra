@@ -501,6 +501,7 @@ where
                 Request::Mempool { transaction, height, .. } => {
                     let query = Verifier::<ZS>::get_median_time_past(&state, None);
                     let cmp_time = query.await? + Duration::seconds(777); 
+                    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0002-transaction-locktime-is-within-komodo-limits-for-mempool
                     komodo_validate_interest_locktime(network, &transaction.transaction, height, cmp_time)?;
                     
                 },
