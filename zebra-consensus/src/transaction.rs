@@ -166,6 +166,7 @@ where
     fn komodo_miner_fee_valid_for_mempool(rate_limiter: Arc<Mutex<FeeRateLimiter>>, min_relay_txfee: FeeRate, tx: &Transaction, tx_fee: Amount, check_low_fee: bool, reject_absurd_fee: bool) -> Result<(), TransactionError>   {
         let tx_size = tx.zcash_serialized_size().expect("structurally valid transaction must have size");
         
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0021-low-fee-transaction-rate-constrained
         if check_low_fee && tx_fee < min_relay_txfee.get_fee(tx_size)  {
             if let Ok(mut rate_limiter) = rate_limiter.clone().lock()  {
                 if !rate_limiter.check_rate_limit(tx, Utc::now()) {
@@ -176,6 +177,8 @@ where
                 return Err(TransactionError::KomodoLowFeeLimit(tx.hash(), String::from("internal error: cannot lock limiter")));
             }
         }
+
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0022-transactions-with-absurd-fee-rejected
         if reject_absurd_fee {
             let output_value = tx
                 .outputs()
@@ -608,6 +611,7 @@ where
 
                 // for mempool check miner fee (too low or absurd), if requested
                 if let Some(miner_fee) = miner_fee  { 
+                    // 
                     if let Request::Mempool { check_low_fee, reject_absurd_fee, .. } = req {
                         Self::komodo_miner_fee_valid_for_mempool(rate_limiter, min_relay_txfee, &tx, miner_fee.constrain().expect("miner fee conversion to NegativeAllowed must be okay"), check_low_fee, reject_absurd_fee)?;
                     }
@@ -747,11 +751,18 @@ where
             script_verifier,
             cached_ffi_transaction,
         )?
+        // partially implements (for sprout): 
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0015-sprout-and-sapling-transaction-spends-valid
         .and(Self::verify_sprout_shielded_data(
             joinsplit_data,
             &shielded_sighash,
         )?)
-        .and(Self::verify_sapling_shielded_data(
+        // partially implements (for sapling): 
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0015-sprout-and-sapling-transaction-spends-valid
+        // implements this:
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zk-0001-sapling-spend-descriptions-valid
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zk-0002-sapling-output-descriptions-valid
+        .and(Self::verify_sapling_shielded_data( 
             sapling_shielded_data,
             &shielded_sighash,
         )?))
@@ -987,7 +998,8 @@ where
                 (joinsplit_data.pub_key, joinsplit_data.sig, shielded_sighash).into();
 
             // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0051-if-private-transfers-not-empty-signature-hash-must-be-valid
-            // Aparently KMD-0051 is partially evaluated here for joinsplits.
+            // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zk-0003-joinsplit-signature-must-be-valid
+            // Apparently KMD-0051 is partially evaluated here for joinsplits.
             // Note the difference: in komodo cpp this checked for non-minted txns
             checks.push(ed25519_verifier.oneshot(ed25519_item));
         }
@@ -1052,8 +1064,7 @@ where
                 // minimum) must pass for the transaction to verify.
 
                 // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0051-if-private-transfers-not-empty-signature-hash-must-be-valid
-                // Apparently KMD-0051 is different for sapling data:
-                // in komodo cpp this rule is checked for non-minted txns and ED25519 algo instead RedJubPub is used
+                // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zk-0004-sapling-binding-signature-valid
                 async_checks.push(
                     primitives::redjubjub::VERIFIER
                         .clone()

@@ -110,6 +110,9 @@ impl VerifiedSet {
         &mut self,
         transaction: VerifiedUnminedTx,
     ) -> Result<(), SameEffectsTipRejectionError> {
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0009-disable-transaction-replacement-in-mempool
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0010-transaction-sprout-nullifiers-do-not-exist-already-in-mempool
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0011-transaction-sapling-nullifiers-do-not-exist-already-in-mempool
         if self.has_spend_conflicts(&transaction.transaction) {
             return Err(SameEffectsTipRejectionError::SpendConflict);
         }

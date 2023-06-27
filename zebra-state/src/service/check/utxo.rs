@@ -209,7 +209,7 @@ pub fn transparent_coinbase_spend(
         min_spend_height.expect("valid UTXOs have coinbase heights far below Height::MAX");
 
     match spend_restriction {
-        OnlyShieldedOutputs { spend_height } => {
+        OnlyShieldedOutputs { spend_height } => {   // TODO: check what about this rule in Komodo C++
             if spend_height >= min_spend_height {
                 Ok(utxo)
             } else {
@@ -234,7 +234,8 @@ pub fn transparent_coinbase_spend(
                 })
             }
         },
-        // SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }), // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0061-protect-coinbase-if-enabled
+        // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0061-protect-coinbase-if-enabled
+        // SomeTransparentOutputs => Err(UnshieldedTransparentCoinbaseSpend { outpoint }), 
     }
 
 }

@@ -224,9 +224,9 @@ pub fn has_enough_orchard_flags(tx: &Transaction) -> Result<(), TransactionError
 /// <https://zips.z.cash/protocol/protocol.pdf#txnconsensus>
 pub fn coinbase_tx_no_prevout_joinsplit_spend(tx: &Transaction) -> Result<(), TransactionError> {
     if tx.is_coinbase() {
-        if tx.joinsplit_count() > 0 {
+        if tx.joinsplit_count() > 0 {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0101-coinbase-cannot-have-joinsplits
             return Err(TransactionError::CoinbaseHasJoinSplit);
-        } else if tx.sapling_spends_per_anchor().count() > 0 {
+        } else if tx.sapling_spends_per_anchor().count() > 0 {  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0102-coinbase-cannot-have-shieldedspends
             return Err(TransactionError::CoinbaseHasSpend);
         }
 
@@ -524,6 +524,11 @@ pub fn disabled_add_to_sprout_pool(
 /// even if they have the same bit pattern.
 ///
 /// <https://zips.z.cash/protocol/protocol.pdf#nullifierset>
+/// 
+/// Implements this:
+/// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-zk-0005-sprout-and-sapling-transaction-spends-valid
+/// Partially implements this:
+/// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0015-sprout-and-sapling-transaction-spends-valid
 pub fn spend_conflicts(transaction: &Transaction) -> Result<(), TransactionError> {
     use crate::error::TransactionError::*;
 

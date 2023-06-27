@@ -192,7 +192,7 @@ impl Storage {
         // Security: transactions must not get refreshed by new queries,
         // because that allows malicious peers to keep transactions live forever.
         if self.verified.contains(&tx_id) {
-            return Err(MempoolError::InMempool);
+            return Err(MempoolError::InMempool);  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0008-transaction-already-exists-in-mempool
         }
 
         // Then, we try to insert into the pool. If this fails the transaction is rejected.
@@ -531,7 +531,7 @@ impl Storage {
     pub fn should_download_or_verify(&mut self, txid: UnminedTxId) -> Result<(), MempoolError> {
         // Check if the transaction is already in the mempool.
         if self.contains_transaction_exact(&txid) {
-            return Err(MempoolError::InMempool);
+            return Err(MempoolError::InMempool);  // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-mem-0008-transaction-already-exists-in-mempool
         }
         if let Some(error) = self.rejection_error(&txid) {
             return Err(error);
