@@ -1128,6 +1128,21 @@ impl NN {
         }
     }
 
+    /// returns if kmd S7 season active for height
+    pub fn komodo_s7_hardfork_active(
+        network: Network,
+        height: &Height,
+    ) -> bool {
+        match (network, height) {
+            (Network::Mainnet, height) => {
+                return *height > NNDATA_MAIN.nS7HardforkHeight;
+            },
+            (Network::Testnet, _) => {
+                false
+            },
+        }
+    }
+
     /// returns if kmd KOMODO_NOTARIES_HEIGHT1 reached
     pub fn komodo_notaries_height1_reached(
         network: Network,
