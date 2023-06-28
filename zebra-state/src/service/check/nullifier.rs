@@ -102,12 +102,14 @@ pub(crate) fn tx_no_duplicates_in_chain(
     non_finalized_chain: Option<&Arc<Chain>>,
     transaction: &Arc<Transaction>,
 ) -> Result<(), ValidateContextError> {
+    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0104-duplicate-sprout-nullifiers-in-transaction
     find_duplicate_nullifier(
         transaction.sprout_nullifiers(),
         |nullifier| finalized_chain.contains_sprout_nullifier(nullifier),
         non_finalized_chain.map(|chain| |nullifier| chain.sprout_nullifiers.contains(nullifier)),
     )?;
 
+    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0105-duplicate-sapling-nullifiers-in-transaction
     find_duplicate_nullifier(
         transaction.sapling_nullifiers(),
         |nullifier| finalized_chain.contains_sapling_nullifier(nullifier),

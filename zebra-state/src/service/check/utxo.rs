@@ -273,7 +273,7 @@ pub fn remaining_transaction_value(
                 Err(amount_error @ amount::Error::Constraint { .. })
                     if amount_error.invalid_value() < 0 =>
                 {
-                    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0064-transaction-input-value-not-less-output-value
+                    // https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#kmd-0064-transaction-input-value-not-less-than-output-value
                     Err(ValidateContextError::NegativeRemainingTransactionValue {
                         amount_error,
                         height: prepared.height,
