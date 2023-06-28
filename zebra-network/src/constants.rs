@@ -252,7 +252,7 @@ pub const USER_AGENT: &str = "/Zebra:1.0.0-komodo-rc.2/";
 ///
 /// The current protocol version typically changes before Mainnet and Testnet
 /// network upgrades.
-pub const CURRENT_NETWORK_PROTOCOL_VERSION: Version = Version(170_011);
+pub const CURRENT_NETWORK_PROTOCOL_VERSION: Version = Version(170_012);
 
 /// The default RTT estimate for peer responses.
 ///
