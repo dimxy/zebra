@@ -1,7 +1,7 @@
 use core::num;
 
 use chrono::{DateTime, Utc, Duration, NaiveDateTime};
-use crate::{block::Height, amount::{Amount, NonNegative, COIN}, transaction::LockTime};
+use crate::{block::Height, amount::{Amount, NonNegative, COIN}, transaction::LockTime, komodo_hardfork::NN, parameters::Network};
 
 pub const KOMODO_ENDOFERA: u32 = 7_777_777;
 const ACTIVATION: i64 = 1491350400; // Wed Apr 05 2017 00:00:00 GMT+0000
@@ -158,6 +158,19 @@ pub fn _komodo_interestnew(tx_height: Height, value: Amount<NonNegative>,
                             interest = (value / 10_512_000).expect("division on zero here never occured");
                             let multiplier = elapsed.num_minutes().try_into().expect("convert positive i64 to u64 should pass");
                             interest = (interest * multiplier).expect("multiply on max 31*24*60 min. shouldn't cause overflow");
+
+                            /* 
+                                Currently assuming `Network::Mainnet` here for simplicity; in the future, when we have a working testnet,
+                                we should make the network a parameter in `_komodo_interestnew` and all of its callers, such as `komodo_interest`,
+                                etc. We will also have to rewrite tests, taking mainnet/testnet differences into account. For now, as we have all
+                                tests assuming mainnet without checking `komodo_interest_calc_active` or other network checks inside, 
+                                hardcoding mainnet here looks fine.
+                            */
+
+                            let network = Network::Mainnet; /* TODO: get actual network (mainnet, testnet) here */
+                            if NN::komodo_s7_hardfork_active(network, &tx_height) {
+                                interest = (interest / 500).expect("kip-0001 division should be ok"); // KIP-0001 implementation, reduce AUR from 5% to 0.01%
+                            }
                         }
                     }
                 }
