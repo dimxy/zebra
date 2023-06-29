@@ -146,6 +146,7 @@ impl VerifiedSet {
     /// be too bad.
     ///
     /// [ZIP-401]: https://zips.z.cash/zip-0401
+    /// https://github.com/dimxy/komodo/wiki/Komodo-Consensus-Specification-Draft#zebra-0006-evict-mempool-transaction-by-zip-0401
     #[allow(clippy::unwrap_in_result)]
     pub fn evict_one(&mut self) -> Option<VerifiedUnminedTx> {
         if self.transactions.is_empty() {
