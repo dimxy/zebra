@@ -5,7 +5,7 @@ use std::{borrow::Borrow, sync::Arc, time::SystemTime};
 use chrono::{Duration, DateTime, Utc};
 
 use zebra_chain::{
-    block::{self, Block, ChainHistoryBlockTxAuthCommitmentHash, CommitmentError},
+    block::{self, Block, ChainHistoryBlockTxAuthCommitmentHash, CommitmentError, Height},
     history_tree::HistoryTree,
     parameters::POW_AVERAGING_WINDOW,
     parameters::{Network, NetworkUpgrade},
@@ -148,7 +148,9 @@ where
             let difficulty_threshold_exp = prepared.block.header.difficulty_threshold.to_expanded().ok_or(ValidateContextError::KomodoSpecialBlockInvalidDifficulty(prepared.height, prepared.hash))?;
             // block pays to notary but invalid special block, check it is a valid 
             if prepared.block.hash() > difficulty_threshold_exp {
-                return Err(ValidateContextError::KomodoSpecialBlockInvalid(err));
+                if network == Network::Mainnet && prepared.height > Height(792_000) {
+                    return Err(ValidateContextError::KomodoSpecialBlockInvalid(err));
+                }
             }
         }
     }
