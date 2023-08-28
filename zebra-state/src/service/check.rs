@@ -125,27 +125,33 @@ where
     )?;
 
     // check komodo contextual rules for special notary blocks:
-    if komodo_is_special_notary_block(&prepared.block, &prepared.height, network, relevant_chain.into_iter())? {  // returns error if special block invalid
-        use zebra_chain::work::difficulty::ExpandedDifficulty;
-        tracing::debug!("block ht={:?} is a komodo special block", prepared.height);
+    match komodo_is_special_notary_block(&prepared.block, &prepared.height, network, relevant_chain.into_iter()) {  
+        Ok(true) => {
+            use zebra_chain::work::difficulty::ExpandedDifficulty;
 
-        // check min difficulty for a special block:
-        let difficulty_threshold_exp = prepared.block.header.difficulty_threshold.to_expanded().ok_or(ValidateContextError::KomodoSpecialBlockInvalidDifficulty(prepared.height, prepared.hash))?;
-        if difficulty_threshold_exp > ExpandedDifficulty::target_difficulty_limit(network) {
-            return Err(ValidateContextError::KomodoSpecialBlockTargetDifficultyLimit(
-                prepared.height,
-                prepared.hash,
-                difficulty_threshold_exp,
-                network,
-                ExpandedDifficulty::target_difficulty_limit(network),
-            ))?;
+            tracing::debug!("block ht={:?} is a komodo special block", prepared.height);
+            // valid special block, check block hash has at least min diff
+            if prepared.block.hash() > ExpandedDifficulty::target_difficulty_limit(network) {
+                return Err(ValidateContextError::KomodoSpecialBlockTargetDifficultyLimit(
+                    prepared.height,
+                    prepared.hash,
+                    network,
+                    ExpandedDifficulty::target_difficulty_limit(network),
+                ))?;
+            }
+        }
+        Ok(false) => {
+            tracing::debug!("block ht={:?} is an ordinary komodo block", prepared.height);
+            return Ok(()); // ordinary pow block, nothing to check, all checks must have completed 
+        }
+        Err(err) => {
+            let difficulty_threshold_exp = prepared.block.header.difficulty_threshold.to_expanded().ok_or(ValidateContextError::KomodoSpecialBlockInvalidDifficulty(prepared.height, prepared.hash))?;
+            // block pays to notary but invalid special block, check it is a valid 
+            if prepared.block.hash() > difficulty_threshold_exp {
+                return Err(ValidateContextError::KomodoSpecialBlockInvalid(err));
+            }
         }
     }
-    else {
-        // ordinary block, nothing to check, all checks must have completed 
-        tracing::debug!("block ht={:?} is an ordinary komodo block", prepared.height);
-    }
-
     Ok(())
 }
 

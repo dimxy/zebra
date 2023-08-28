@@ -271,11 +271,10 @@ pub enum ValidateContextError {
     #[error("invalid difficulty threshold in komodo special block header {0:?} {1:?}")]
     KomodoSpecialBlockInvalidDifficulty(zebra_chain::block::Height, zebra_chain::block::Hash),
 
-    #[error("komodo special notary block {0:?} has a difficulty threshold {2:?} that is easier than the {3:?} difficulty limit {4:?}, hash: {1:?}")]
+    #[error("komodo special notary block {0:?} has a difficulty {1:?} that is easier than the {2:?} difficulty limit {3:?}")]
     KomodoSpecialBlockTargetDifficultyLimit(
         zebra_chain::block::Height,
         zebra_chain::block::Hash,
-        zebra_chain::work::difficulty::ExpandedDifficulty,
         zebra_chain::parameters::Network,
         zebra_chain::work::difficulty::ExpandedDifficulty,
     ),
